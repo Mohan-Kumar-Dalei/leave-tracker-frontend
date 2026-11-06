@@ -35,7 +35,7 @@ Colours are tokens at the top of `src/index.css`. Change them there and the whol
 | --- | --- |
 | `src/pages/employee` | Summary and request history |
 | `src/pages/TeamCalendar.jsx` | Team calendar page for admins. Employees see the same view in My leave |
-| `src/pages/admin` | Overview, requests, employees, setup |
+| `src/pages/admin` | Overview, requests, upcoming and past, employees, setup |
 | `src/pages/auth` | Sign in, forgot and reset password |
 | `src/components` | Shell, apply form, review list, calendar, tabs, status badge, shared UI |
 | `src/lib` | API client, auth, dates, toasts |

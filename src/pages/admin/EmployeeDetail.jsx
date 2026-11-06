@@ -1,34 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { StatusBadge } from '../../components/StatusBadge';
 import { MonthlyBars } from '../../components/MonthlyBars';
-import { Button, ConfirmDialog, Dialog, LoadError, Panel, PanelTitle, Reveal, RowsSkeleton, SelectField, TextInput } from '../../components/ui';
+import { Button, ConfirmDialog, Dialog, IconButton, LoadError, Panel, PanelTitle, Reveal, RowsSkeleton, SelectField, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { dayRange, dayWord, slashDate, isoFromCreatedAt } from '../../lib/dates';
 import { useToast } from '../../lib/toast';
 
-function AdjustBalance({ open, onClose, employeeId, year, balances }) {
+function AdjustBalance({ item, onClose, employeeId, year, balances }) {
   const options = balances.filter((balance) => balance.leaveType.tracksBalance);
-  const [form, setForm] = useState({ leaveTypeId: '', days: '', reason: '' });
+  const [form, setForm] = useState({ leaveTypeId: '', days: item?.days ?? '', reason: item?.reason ?? '' });
   const [error, setError] = useState('');
   const queryClient = useQueryClient();
   const toast = useToast();
 
   const save = useMutation({
-    mutationFn: () =>
-      api.post(`/admin/employees/${employeeId}/adjustments`, {
+    mutationFn: () => {
+      const change = { days: Number(form.days), reason: form.reason.trim() };
+      if (item) return api.patch(`/admin/employees/${employeeId}/adjustments/${item.id}`, change);
+      return api.post(`/admin/employees/${employeeId}/adjustments`, {
+        ...change,
         leaveTypeId: form.leaveTypeId || options[0].leaveType.id,
         year,
-        days: Number(form.days),
-        reason: form.reason.trim(),
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', employeeId] });
       toast.success('Balance updated', 'The employee has been notified.');
-      setForm({ leaveTypeId: '', days: '', reason: '' });
       onClose();
     },
     onError: (issue) => setError(issue.message),
@@ -36,9 +37,9 @@ function AdjustBalance({ open, onClose, employeeId, year, balances }) {
 
   return (
     <Dialog
-      open={open}
+      open
       onClose={onClose}
-      title={`Adjust ${year} balance`}
+      title={item ? 'Edit balance change' : `Adjust ${year} balance`}
       kind="modal"
       footer={
         <>
@@ -60,13 +61,20 @@ function AdjustBalance({ open, onClose, employeeId, year, balances }) {
           save.mutate();
         }}
       >
-        <SelectField label="Leave type" value={form.leaveTypeId} onChange={(event) => setForm({ ...form, leaveTypeId: event.target.value })}>
-          {options.map((balance) => (
-            <option key={balance.leaveType.id} value={balance.leaveType.id}>
-              {balance.leaveType.name}
-            </option>
-          ))}
-        </SelectField>
+        {item ? (
+          <p className="text-sm">
+            <span className="text-muted">Leave type: </span>
+            {item.leaveType?.name}
+          </p>
+        ) : (
+          <SelectField label="Leave type" value={form.leaveTypeId} onChange={(event) => setForm({ ...form, leaveTypeId: event.target.value })}>
+            {options.map((balance) => (
+              <option key={balance.leaveType.id} value={balance.leaveType.id}>
+                {balance.leaveType.name}
+              </option>
+            ))}
+          </SelectField>
+        )}
         <TextInput
           label="Days"
           type="number"
@@ -97,7 +105,8 @@ function AdjustBalance({ open, onClose, employeeId, year, balances }) {
 export default function EmployeeDetail() {
   const { id } = useParams();
   const { user: me } = useAuth();
-  const [adjusting, setAdjusting] = useState(false);
+  const [adjusting, setAdjusting] = useState(null);
+  const [removing, setRemoving] = useState(null);
   const [toggling, setToggling] = useState(false);
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -127,6 +136,19 @@ export default function EmployeeDetail() {
     },
   });
 
+  const removeChange = useMutation({
+    mutationFn: (itemId) => api.delete(`/admin/employees/${id}/adjustments/${itemId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee', id] });
+      toast.success('Change removed', 'The employee has been notified.');
+      setRemoving(null);
+    },
+    onError: (issue) => {
+      toast.error('Could not remove it', issue.message);
+      setRemoving(null);
+    },
+  });
+
   if (isPending) return <RowsSkeleton rows={6} />;
   if (isError) return <LoadError error={error} onRetry={refetch} />;
 
@@ -149,7 +171,7 @@ export default function EmployeeDetail() {
             <p className="break-words text-base text-muted">{user.email}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setAdjusting(true)}>Adjust balance</Button>
+            <Button onClick={() => setAdjusting({ item: null })}>Adjust balance</Button>
             {user.isActive && (
               <Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate()}>
                 Send password link
@@ -229,21 +251,44 @@ export default function EmployeeDetail() {
           {adjustments.length === 0 && <p className="px-5 py-4 text-sm text-muted">No manual changes this year.</p>}
           <ul>
             {adjustments.map((item) => (
-              <li key={item.id} className="border-b border-line px-5 py-3 text-sm last:border-b-0">
-                <p className="font-medium">
-                  <span className="tabular-nums">{item.days > 0 ? `+${item.days}` : item.days}</span> {item.leaveType?.name}
-                </p>
-                <p className="break-words text-muted">{item.reason}</p>
-                <p className="text-xs text-muted">
-                  {item.createdBy?.name}, {slashDate(isoFromCreatedAt(item.createdAt))}
-                </p>
+              <li key={item.id} className="flex items-start justify-between gap-2 border-b border-line py-2 pl-5 pr-3 text-sm last:border-b-0">
+                <div className="min-w-0 py-1">
+                  <p className="font-medium">
+                    <span className="tabular-nums">{item.days > 0 ? `+${item.days}` : item.days}</span> {item.leaveType?.name}
+                  </p>
+                  <p className="break-words text-muted">{item.reason}</p>
+                  <p className="text-xs text-muted">
+                    {item.createdBy?.name}, {slashDate(isoFromCreatedAt(item.createdAt))}
+                  </p>
+                </div>
+                <div className="flex shrink-0">
+                  <IconButton label={`Edit ${item.leaveType?.name} change`} onClick={() => setAdjusting({ item })}>
+                    <Pencil className="h-4 w-4" />
+                  </IconButton>
+                  <IconButton label={`Remove ${item.leaveType?.name} change`} onClick={() => setRemoving(item)}>
+                    <Trash2 className="h-4 w-4" />
+                  </IconButton>
+                </div>
               </li>
             ))}
           </ul>
         </Panel>
       </Reveal>
 
-      <AdjustBalance open={adjusting} onClose={() => setAdjusting(false)} employeeId={id} year={year} balances={balances} />
+      {adjusting && (
+        <AdjustBalance item={adjusting.item} onClose={() => setAdjusting(null)} employeeId={id} year={year} balances={balances} />
+      )}
+
+      <ConfirmDialog
+        open={Boolean(removing)}
+        onClose={() => setRemoving(null)}
+        title="Remove this balance change?"
+        body={removing ? `${removing.days > 0 ? '+' : ''}${removing.days} ${removing.leaveType?.name}. The balance goes back and the employee is told.` : ''}
+        confirmLabel="Remove change"
+        danger
+        loading={removeChange.isPending}
+        onConfirm={() => removeChange.mutate(removing.id)}
+      />
 
       <ConfirmDialog
         open={toggling}

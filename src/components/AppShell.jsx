@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { CalendarCheck, CalendarDays, FileText, Inbox, LayoutGrid, LogOut, Settings2, UserRound, Users } from 'lucide-react';
+import { CalendarCheck, CalendarDays, FileText, History, Inbox, LayoutGrid, LogOut, Settings2, UserRound, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
@@ -16,6 +16,7 @@ const ADMIN_NAV = [
   { to: '/admin', label: 'Overview', short: 'Overview', icon: LayoutGrid, end: true },
   { to: '/admin/requests', label: 'Leave requests', short: 'Requests', icon: Inbox, badge: true },
   { to: '/team-calendar', label: 'Team calendar', short: 'Calendar', icon: CalendarDays },
+  { to: '/admin/schedule', label: 'Upcoming & past', short: 'Upcoming', icon: History },
   { to: '/admin/employees', label: 'Employees', short: 'Employees', icon: Users },
   { to: '/admin/setup', label: 'Setup', short: 'Setup', icon: Settings2 },
 ];
@@ -99,12 +100,6 @@ function UserMenu({ user, onSignOut }) {
             <p className="truncate text-sm font-medium">{user.name}</p>
             <p className="truncate text-[13px] text-muted">{user.email}</p>
           </div>
-          {user.role === 'admin' && (
-            <Link to="/" className={`${itemClass} lg:hidden`}>
-              <CalendarCheck className="h-4 w-4 text-muted" aria-hidden="true" />
-              My leave
-            </Link>
-          )}
           <Link to="/profile" className={itemClass}>
             <UserRound className="h-4 w-4 text-muted" aria-hidden="true" />
             Profile and password
@@ -122,7 +117,7 @@ function UserMenu({ user, onSignOut }) {
 export function AppShell() {
   const { user, signOut } = useAuth();
   const isAdmin = user.role === 'admin';
-  const phoneNav = isAdmin ? ADMIN_NAV : PERSONAL_NAV;
+  const nav = isAdmin ? ADMIN_NAV : PERSONAL_NAV;
 
   useLiveUpdates(true);
 
@@ -143,21 +138,10 @@ export function AppShell() {
         <Link to={isAdmin ? '/admin' : '/'} className="flex h-14 items-center px-4">
           <Logo />
         </Link>
-        <nav aria-label="Main" className="flex-1 space-y-5 overflow-y-auto px-3 py-3">
-          {isAdmin && (
-            <div className="space-y-0.5">
-              <p className="px-2.5 pb-1 text-xs font-medium text-muted">Manage</p>
-              {ADMIN_NAV.map((item) => (
-                <SideLink key={item.to} item={item} badge={badge} />
-              ))}
-            </div>
-          )}
-          <div className="space-y-0.5">
-            {isAdmin && <p className="px-2.5 pb-1 text-xs font-medium text-muted">Personal</p>}
-            {PERSONAL_NAV.map((item) => (
-              <SideLink key={item.to} item={item} />
-            ))}
-          </div>
+        <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
+          {nav.map((item) => (
+            <SideLink key={item.to} item={item} badge={badge} />
+          ))}
         </nav>
       </aside>
 
@@ -178,13 +162,13 @@ export function AppShell() {
       </main>
 
       <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
-        {phoneNav.map((item) => (
+        {nav.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
-              `relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium ${
+              `relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium max-[359px]:text-[9px] ${
                 isActive ? 'text-accent' : 'text-muted'
               }`
             }

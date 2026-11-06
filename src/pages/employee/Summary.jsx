@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Award,
   CalendarDays,
@@ -9,21 +9,22 @@ import {
   Info,
   List,
   MoreHorizontal,
-  Palmtree,
   RefreshCw,
+  Scale,
   Sparkles,
   Sun,
   Wallet,
+  X,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../lib/auth';
 import { ApplyLeaveDialog } from '../../components/ApplyLeave';
+import { EntryPanel, PAST_FILTERS, UPCOMING_FILTERS } from '../../components/EntryPanel';
 import { MonthlyBars } from '../../components/MonthlyBars';
-import { StatusBadge } from '../../components/StatusBadge';
 import { TeamCalendarView } from '../../components/TeamCalendarView';
-import { Button, Empty, IconButton, LoadError, Panel, PanelTitle, Reveal, RowsSkeleton, SelectBox } from '../../components/ui';
+import { Button, IconButton, LoadError, Panel, PanelTitle, Reveal } from '../../components/ui';
 import { api } from '../../lib/api';
-import { dayRange, dayWord, longDate, slashDate, weekday } from '../../lib/dates';
+import { dayWord, longDate, slashDate, weekday } from '../../lib/dates';
 
 const TYPE_LOOK = {
   CLSL: { icon: Sun, tile: 'bg-[#edf2ff] text-[#2f5bea]' },
@@ -90,92 +91,44 @@ function BalanceCard({ balance }) {
   );
 }
 
-const UPCOMING_FILTERS = [
-  ['all', 'Upcoming Leaves & Holidays'],
-  ['leave', 'Upcoming Leaves'],
-  ['holiday', 'Upcoming Holidays'],
-];
-
-const PAST_FILTERS = [
-  ['all', 'Past Leaves & Holidays'],
-  ['leave', 'Past Leaves'],
-  ['holiday', 'Past Holidays'],
-];
-
-function EntryRow({ entry, onAvail }) {
-  const isLeave = entry.kind === 'leave';
-  return (
-    <li className="grid gap-x-4 gap-y-1 border-b border-line px-4 py-3 last:border-b-0 sm:grid-cols-[170px_minmax(150px,240px)_1fr_90px] sm:items-center sm:px-5">
-      <p className="text-[13px] tabular-nums text-muted">
-        {isLeave && entry.from !== entry.to ? (
-          dayRange(entry.from, entry.to)
-        ) : (
-          <>
-            {slashDate(entry.from)}, {weekday(entry.from)}
-          </>
-        )}
-      </p>
-      <p className="flex items-center gap-2 text-sm font-medium">
-        {isLeave ? (
-          <Palmtree className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-        ) : (
-          <CalendarDays className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
-        )}
-        <span className="min-w-0">
-          {entry.title}
-          {entry.restricted && <span className="font-normal text-muted"> (Restricted)</span>}
-        </span>
-      </p>
-      <p className="min-w-0 text-[13px] text-muted">
-        {isLeave ? `${entry.days} ${dayWord(entry.days)}. ${entry.reason}` : entry.note}
-      </p>
-      <div className="justify-self-start sm:justify-self-end">
-        {isLeave && <StatusBadge status={entry.status} />}
-        {!isLeave && entry.availed && <span className="text-[13px] font-medium text-accent">Availed</span>}
-        {!isLeave && entry.canAvail && (
-          <Button variant="secondary" className="h-8!" onClick={() => onAvail(entry)}>
-            Avail
-          </Button>
-        )}
-      </div>
-    </li>
-  );
+function changeText({ days, leaveType }) {
+  const count = Math.abs(days);
+  return days > 0
+    ? `${count} ${dayWord(count)} added to ${leaveType}`
+    : `${count} ${dayWord(count)} taken from ${leaveType}`;
 }
 
-function EntryPanel({ filters, entries, loading, scroll, onAvail, label }) {
-  const [filter, setFilter] = useState('all');
-  const shown = useMemo(
-    () => (filter === 'all' ? entries : entries.filter((entry) => entry.kind === filter)),
-    [entries, filter],
-  );
+// Tells the employee why their balance changed. It stays until they close it.
+function BalanceChanges({ items }) {
+  const queryClient = useQueryClient();
 
-  return (
-    <Panel>
-      <div className="border-b border-line p-3 sm:px-5">
-        <SelectBox
-          aria-label={label}
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          className="w-full sm:w-64"
+  const dismiss = useMutation({
+    mutationFn: (id) => api.patch(`/me/adjustments/${id}/dismiss`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['summary'] }),
+  });
+
+  return items.map((item) => (
+    <Reveal key={item.id}>
+      <div role="status" className="flex items-start gap-3 rounded-xl border border-accent/20 bg-accent-soft py-2 pl-4 pr-2">
+        <Scale className="mt-1 h-[18px] w-[18px] shrink-0 text-accent" aria-hidden="true" />
+        <div className="min-w-0 flex-1 py-0.5 text-sm">
+          <p className="font-medium">{changeText(item)}</p>
+          <p className="break-words text-ink">{item.reason}</p>
+          <p className="mt-0.5 text-[13px] text-muted">
+            By {item.by}, {slashDate(item.date)}
+          </p>
+        </div>
+        <IconButton
+          label="Dismiss this message"
+          disabled={dismiss.isPending}
+          onClick={() => dismiss.mutate(item.id)}
+          className="hover:bg-surface"
         >
-          {filters.map(([value, text]) => (
-            <option key={value} value={value}>
-              {text}
-            </option>
-          ))}
-        </SelectBox>
+          <X className="h-4 w-4" />
+        </IconButton>
       </div>
-      {loading && <RowsSkeleton rows={3} />}
-      {!loading && shown.length === 0 && <Empty title="Nothing here yet" />}
-      {!loading && shown.length > 0 && (
-        <ul tabIndex={scroll ? 0 : undefined} className={scroll ? 'max-h-72 overflow-y-auto' : undefined}>
-          {shown.map((entry) => (
-            <EntryRow key={`${entry.kind}-${entry.id}`} entry={entry} onAvail={onAvail} />
-          ))}
-        </ul>
-      )}
-    </Panel>
-  );
+    </Reveal>
+  ));
 }
 
 function MoreMenu({ year }) {
@@ -262,6 +215,8 @@ export default function Summary() {
           Apply Leave
         </Button>
       </Reveal>
+
+      {data && <BalanceChanges items={data.adjustments} />}
 
       <Reveal delay={0.04} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
         <p className="text-[13px] text-muted">

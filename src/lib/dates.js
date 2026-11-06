@@ -46,6 +46,7 @@ export function monthGrid(year, month) {
   return cells;
 }
 
-export const isoFromCreatedAt = (value) => new Date(value).toISOString().slice(0, 10);
+// A moment in time, shown as the calendar day it was where the reader is.
+export const isoFromCreatedAt = (value) => new Intl.DateTimeFormat('en-CA').format(new Date(value));
 
 export const dayWord = (count) => (count === 1 ? 'day' : 'days');

@@ -14,6 +14,7 @@ const AdminRequests = lazy(() => import('./pages/admin/AdminRequests'));
 const Employees = lazy(() => import('./pages/admin/Employees'));
 const EmployeeDetail = lazy(() => import('./pages/admin/EmployeeDetail'));
 const Setup = lazy(() => import('./pages/admin/Setup'));
+const Schedule = lazy(() => import('./pages/admin/Schedule'));
 
 function Loading() {
   return <div className="h-40 animate-pulse rounded-xl bg-sunken motion-reduce:animate-none" aria-label="Loading" />;
@@ -49,6 +50,13 @@ function RequireAdmin({ children }) {
   return <Suspense fallback={<Loading />}>{children}</Suspense>;
 }
 
+// My leave and My requests are for employees. Admins go to their own pages.
+function EmployeeOnly({ children }) {
+  const { user } = useAuth();
+  if (user.role === 'admin') return <Navigate to="/admin" replace />;
+  return children;
+}
+
 function GuestOnly({ children }) {
   const { user, ready, unreachable } = useAuth();
   if (unreachable) return <ServerDown />;
@@ -62,7 +70,7 @@ function NotFound() {
     <div className="py-24 text-center">
       <h1 className="text-[22px] sm:text-2xl">This page is not in the register</h1>
       <Link to="/" className="mt-4 inline-block text-accent underline underline-offset-4">
-        Back to your summary
+        Back to the start
       </Link>
     </div>
   );
@@ -76,12 +84,13 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route element={<RequireAuth><AppShell /></RequireAuth>}>
-        <Route index element={<Summary />} />
-        <Route path="requests" element={<MyRequests />} />
+        <Route index element={<EmployeeOnly><Summary /></EmployeeOnly>} />
+        <Route path="requests" element={<EmployeeOnly><MyRequests /></EmployeeOnly>} />
         <Route path="team-calendar" element={<RequireAdmin><TeamCalendar /></RequireAdmin>} />
         <Route path="profile" element={<Profile />} />
         <Route path="admin" element={<RequireAdmin><Overview /></RequireAdmin>} />
         <Route path="admin/requests" element={<RequireAdmin><AdminRequests /></RequireAdmin>} />
+        <Route path="admin/schedule" element={<RequireAdmin><Schedule /></RequireAdmin>} />
         <Route path="admin/employees" element={<RequireAdmin><Employees /></RequireAdmin>} />
         <Route path="admin/employees/:id" element={<RequireAdmin><EmployeeDetail /></RequireAdmin>} />
         <Route path="admin/setup" element={<RequireAdmin><Setup /></RequireAdmin>} />

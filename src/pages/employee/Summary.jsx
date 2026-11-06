@@ -334,7 +334,7 @@ export default function Summary() {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {data
             ? data.balances.map((balance) => <BalanceCard key={balance.leaveType.id} balance={balance} />)
-            : Array.from({ length: 5 }, (_, index) => <div key={index} className="skeleton h-36" />)}
+            : Array.from({ length: 5 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-lg bg-sunken motion-reduce:animate-none" />)}
         </div>
       </Reveal>
 

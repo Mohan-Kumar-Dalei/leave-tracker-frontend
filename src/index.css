@@ -1,170 +1,69 @@
 @import "@fontsource-variable/geist";
 @import "tailwindcss";
 
-/*
-  Quiet, light and exact. Soft grey page, white cards, Geist throughout, one blue
-  accent for actions. Change the tokens here and the whole app follows.
-*/
+/* Tailwind theme. Change a colour here and the whole app follows. */
+@theme {
+  --color-bg: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-sunken: #f0f1f4;
+  --color-ink: #12141a;
+  --color-muted: #626979;
+  --color-line: #e6e8ec;
+  --color-accent: #2f5bea;
+  --color-accent-deep: #2449c7;
+  --color-accent-soft: #edf2ff;
+  --color-on-accent: #ffffff;
+  --color-approved: #0e7f56;
+  --color-approved-soft: #e6f6ef;
+  --color-rejected: #c4362f;
+  --color-rejected-soft: #fdeceb;
+  --color-pending: #9a5b05;
+  --color-pending-soft: #fef4e0;
+  --color-cancelled: #626979;
+  --color-cancelled-soft: #f0f1f4;
 
-:root {
-  --bg: #f5f6f8;
-  --surface: #ffffff;
-  --sunken: #f0f1f4;
-  --ink: #12141a;
-  --muted: #626979;
-  --line: #e6e8ec;
-  --accent: #2f5bea;
-  --accent-deep: #2449c7;
-  --accent-soft: #edf2ff;
-  --on-accent: #ffffff;
-  --approved: #0e7f56;
-  --approved-soft: #e6f6ef;
-  --rejected: #c4362f;
-  --rejected-soft: #fdeceb;
-  --pending: #9a5b05;
-  --pending-soft: #fef4e0;
-  --cancelled: #626979;
-  --cancelled-soft: #f0f1f4;
   --font-text: "Geist Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+
   --shadow-card: 0 1px 2px rgb(18 20 26 / 0.04);
   --shadow-float: 0 12px 32px -12px rgb(18 20 26 / 0.18), 0 2px 6px rgb(18 20 26 / 0.05);
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
-}
 
-@theme inline {
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-sunken: var(--sunken);
-  --color-ink: var(--ink);
-  --color-muted: var(--muted);
-  --color-line: var(--line);
-  --color-accent: var(--accent);
-  --color-accent-deep: var(--accent-deep);
-  --color-accent-soft: var(--accent-soft);
-  --color-on-accent: var(--on-accent);
-  --color-approved: var(--approved);
-  --color-approved-soft: var(--approved-soft);
-  --color-rejected: var(--rejected);
-  --color-rejected-soft: var(--rejected-soft);
-  --color-pending: var(--pending);
-  --color-pending-soft: var(--pending-soft);
-  --color-cancelled: var(--cancelled);
-  --color-cancelled-soft: var(--cancelled-soft);
-  --font-text: var(--font-text);
-  --shadow-card: var(--shadow-card);
-  --shadow-float: var(--shadow-float);
-}
+  --ease-calm: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-sheet-in: sheet-in 0.32s var(--ease-calm);
+  --animate-modal-in: modal-in 0.24s var(--ease-calm);
 
-html {
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--font-text);
-  font-feature-settings: "ss01", "cv11";
-  -webkit-font-smoothing: antialiased;
-  -webkit-text-size-adjust: 100%;
-}
+  @keyframes sheet-in {
+    from {
+      transform: translateX(24px);
+      opacity: 0;
+    }
+  }
 
-body {
-  min-height: 100dvh;
-  background: var(--bg);
-  overflow-x: hidden;
+  @keyframes modal-in {
+    from {
+      transform: translateY(8px) scale(0.98);
+      opacity: 0;
+    }
+  }
 }
 
 @layer base {
   h1,
   h2,
   h3 {
-    font-weight: 600;
-    letter-spacing: -0.015em;
-    line-height: 1.25;
+    @apply font-semibold leading-tight tracking-[-0.015em];
   }
-}
 
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-button,
-select,
-a {
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: not-allowed;
-}
-
-/* Dialogs use the native element for focus trapping and Escape. */
-dialog.sheet {
-  margin: 12px 12px 12px auto;
-  height: calc(100dvh - 24px);
-  max-height: calc(100dvh - 24px);
-  width: min(480px, calc(100% - 24px));
-  max-width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface);
-  color: var(--ink);
-  padding: 0;
-  box-shadow: var(--shadow-float);
-}
-
-dialog.modal {
-  margin: auto;
-  width: min(440px, calc(100% - 32px));
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface);
-  color: var(--ink);
-  padding: 0;
-  box-shadow: var(--shadow-float);
-}
-
-dialog::backdrop {
-  background: rgb(18 20 26 / 0.32);
-}
-
-dialog.sheet[open] {
-  animation: sheet-in 0.32s var(--ease);
-}
-
-dialog.modal[open] {
-  animation: modal-in 0.24s var(--ease);
-}
-
-@keyframes sheet-in {
-  from {
-    transform: translateX(24px);
-    opacity: 0;
+  button,
+  select,
+  a {
+    @apply cursor-pointer;
   }
-}
 
-@keyframes modal-in {
-  from {
-    transform: translateY(8px) scale(0.98);
-    opacity: 0;
+  button:disabled {
+    @apply cursor-not-allowed;
   }
-}
 
-@keyframes pulse-soft {
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.skeleton {
-  background: var(--sunken);
-  border-radius: 8px;
-  animation: pulse-soft 1.4s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
   }
 }

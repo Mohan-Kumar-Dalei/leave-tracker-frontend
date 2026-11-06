@@ -34,7 +34,8 @@ Colours are tokens at the top of `src/index.css`. Change them there and the whol
 | Path | What is there |
 | --- | --- |
 | `src/pages/employee` | Summary and request history |
-| `src/pages/admin` | Overview, requests, team calendar, people, setup |
+| `src/pages/TeamCalendar.jsx` | Who is away, for employees and admins |
+| `src/pages/admin` | Overview, requests, people, setup |
 | `src/pages/auth` | Sign in, forgot and reset password |
 | `src/components` | Shell, apply form, review list, calendar, tabs, status badge, shared UI |
 | `src/lib` | API client, auth, dates, toasts |

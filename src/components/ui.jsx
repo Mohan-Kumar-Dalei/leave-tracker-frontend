@@ -138,7 +138,7 @@ export function RowsSkeleton({ rows = 4 }) {
   return (
     <div className="space-y-3 p-5" aria-hidden="true">
       {Array.from({ length: rows }, (_, index) => (
-        <div key={index} className="skeleton h-9" />
+        <div key={index} className="h-9 animate-pulse rounded-lg bg-sunken motion-reduce:animate-none" />
       ))}
     </div>
   );
@@ -177,6 +177,14 @@ export function Pagination({ page, pages, total, onChange }) {
 }
 
 // Uses the native dialog element, which handles focus and the Escape key.
+const DIALOG_BASE =
+  'rounded-2xl border border-line bg-surface p-0 text-ink shadow-float backdrop:bg-ink/30 motion-reduce:animate-none';
+
+const DIALOG_KIND = {
+  sheet: `${DIALOG_BASE} my-3 ml-auto mr-3 h-[calc(100dvh-24px)] max-h-[calc(100dvh-24px)] w-[min(480px,calc(100%-24px))] max-w-full open:animate-sheet-in`,
+  modal: `${DIALOG_BASE} m-auto w-[min(440px,calc(100%-32px))] open:animate-modal-in`,
+};
+
 export function Dialog({ open, onClose, title, kind = 'sheet', children, footer }) {
   const ref = useRef(null);
 
@@ -192,7 +200,7 @@ export function Dialog({ open, onClose, title, kind = 'sheet', children, footer 
   return (
     <dialog
       ref={ref}
-      className={kind}
+      className={DIALOG_KIND[kind]}
       aria-label={title}
       onClose={onClose}
       onClick={(event) => {

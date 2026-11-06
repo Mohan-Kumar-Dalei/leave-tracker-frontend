@@ -14,7 +14,7 @@ function Stat({ label, value, icon: Icon }) {
         <Icon className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
       </div>
       {value === undefined ? (
-        <div className="skeleton mt-2 h-8 w-12" />
+        <div className="mt-2 h-8 w-12 animate-pulse rounded-lg bg-sunken motion-reduce:animate-none" />
       ) : (
         <p className="mt-2 text-[26px] font-semibold leading-8 tracking-tight tabular-nums">{value}</p>
       )}

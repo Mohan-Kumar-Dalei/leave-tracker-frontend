@@ -7,16 +7,16 @@ import { ForgotPassword, Login, ResetPassword } from './pages/auth/AuthPages';
 import Profile from './pages/Profile';
 import MyRequests from './pages/employee/MyRequests';
 import Summary from './pages/employee/Summary';
+import TeamCalendar from './pages/TeamCalendar';
 
 const Overview = lazy(() => import('./pages/admin/Overview'));
 const AdminRequests = lazy(() => import('./pages/admin/AdminRequests'));
-const TeamCalendar = lazy(() => import('./pages/admin/TeamCalendar'));
 const Employees = lazy(() => import('./pages/admin/Employees'));
 const EmployeeDetail = lazy(() => import('./pages/admin/EmployeeDetail'));
 const Setup = lazy(() => import('./pages/admin/Setup'));
 
 function Loading() {
-  return <div className="skeleton h-40 rounded-xl" aria-label="Loading" />;
+  return <div className="h-40 animate-pulse rounded-xl bg-sunken motion-reduce:animate-none" aria-label="Loading" />;
 }
 
 function ServerDown() {
@@ -78,10 +78,10 @@ export default function App() {
       <Route element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route index element={<Summary />} />
         <Route path="requests" element={<MyRequests />} />
+        <Route path="team-calendar" element={<TeamCalendar />} />
         <Route path="profile" element={<Profile />} />
         <Route path="admin" element={<RequireAdmin><Overview /></RequireAdmin>} />
         <Route path="admin/requests" element={<RequireAdmin><AdminRequests /></RequireAdmin>} />
-        <Route path="admin/calendar" element={<RequireAdmin><TeamCalendar /></RequireAdmin>} />
         <Route path="admin/employees" element={<RequireAdmin><Employees /></RequireAdmin>} />
         <Route path="admin/employees/:id" element={<RequireAdmin><EmployeeDetail /></RequireAdmin>} />
         <Route path="admin/setup" element={<RequireAdmin><Setup /></RequireAdmin>} />

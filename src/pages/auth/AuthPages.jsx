@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Logo } from '../../components/AppShell';
-import { Button, Reveal, TextInput } from '../../components/ui';
+import { Button, PasswordInput, Reveal, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 
@@ -60,7 +60,7 @@ export function Login() {
     <AuthLayout title="Sign in" intro="Welcome back. Use your work email.">
       <form onSubmit={submit} className="space-y-4">
         <TextInput label="Email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} />
-        <TextInput label="Password" type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
+        <PasswordInput label="Password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
         <FormError message={error} />
         <Button type="submit" loading={busy} className="h-10! w-full">
           Sign in
@@ -147,8 +147,8 @@ export function ResetPassword() {
   return (
     <AuthLayout title="Choose a password" intro="At least 10 characters, with a letter and a number.">
       <form onSubmit={submit} className="space-y-4">
-        <TextInput label="New password" type="password" autoComplete="new-password" required minLength={10} value={password} onChange={(event) => setPassword(event.target.value)} />
-        <TextInput label="Repeat password" type="password" autoComplete="new-password" required value={confirm} onChange={(event) => setConfirm(event.target.value)} />
+        <PasswordInput label="New password" autoComplete="new-password" required minLength={10} value={password} onChange={(event) => setPassword(event.target.value)} />
+        <PasswordInput label="Repeat password" autoComplete="new-password" required value={confirm} onChange={(event) => setConfirm(event.target.value)} />
         <FormError message={error} />
         <Button type="submit" loading={busy} className="h-10! w-full">
           Save password

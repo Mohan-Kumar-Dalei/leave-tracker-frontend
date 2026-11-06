@@ -12,13 +12,11 @@ const PERSONAL_NAV = [
   { to: '/requests', label: 'My requests', icon: FileText },
 ];
 
-const TEAM_CALENDAR = { to: '/team-calendar', label: 'Team calendar', short: 'Calendar', icon: CalendarDays };
-
 const ADMIN_NAV = [
   { to: '/admin', label: 'Overview', short: 'Overview', icon: LayoutGrid, end: true },
   { to: '/admin/requests', label: 'Leave requests', short: 'Requests', icon: Inbox, badge: true },
-  TEAM_CALENDAR,
-  { to: '/admin/employees', label: 'People', short: 'People', icon: Users },
+  { to: '/team-calendar', label: 'Team calendar', short: 'Calendar', icon: CalendarDays },
+  { to: '/admin/employees', label: 'Employees', short: 'Employees', icon: Users },
   { to: '/admin/setup', label: 'Setup', short: 'Setup', icon: Settings2 },
 ];
 
@@ -124,8 +122,7 @@ function UserMenu({ user, onSignOut }) {
 export function AppShell() {
   const { user, signOut } = useAuth();
   const isAdmin = user.role === 'admin';
-  const personalNav = isAdmin ? PERSONAL_NAV : [...PERSONAL_NAV, TEAM_CALENDAR];
-  const phoneNav = isAdmin ? ADMIN_NAV : personalNav;
+  const phoneNav = isAdmin ? ADMIN_NAV : PERSONAL_NAV;
 
   useLiveUpdates(true);
 
@@ -157,7 +154,7 @@ export function AppShell() {
           )}
           <div className="space-y-0.5">
             {isAdmin && <p className="px-2.5 pb-1 text-xs font-medium text-muted">Personal</p>}
-            {personalNav.map((item) => (
+            {PERSONAL_NAV.map((item) => (
               <SideLink key={item.to} item={item} />
             ))}
           </div>

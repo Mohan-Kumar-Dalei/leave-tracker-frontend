@@ -18,9 +18,9 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../lib/auth';
 import { ApplyLeaveDialog } from '../../components/ApplyLeave';
-import { CalendarGrid } from '../../components/CalendarGrid';
 import { MonthlyBars } from '../../components/MonthlyBars';
 import { StatusBadge } from '../../components/StatusBadge';
+import { TeamCalendarView } from '../../components/TeamCalendarView';
 import { Button, Empty, IconButton, LoadError, Panel, PanelTitle, Reveal, RowsSkeleton, SelectBox } from '../../components/ui';
 import { api } from '../../lib/api';
 import { dayRange, dayWord, longDate, slashDate, weekday } from '../../lib/dates';
@@ -219,26 +219,6 @@ function subtitle(data) {
   return `${lead} Next up: ${next.title}, ${weekday(next.from)} ${longDate(next.from)}.`;
 }
 
-function toEvents(entries) {
-  const byDay = {};
-  for (const entry of entries) {
-    const cursor = new Date(`${entry.from}T00:00:00.000Z`);
-    const end = new Date(`${entry.to}T00:00:00.000Z`);
-    while (cursor <= end) {
-      const key = cursor.toISOString().slice(0, 10);
-      byDay[key] ??= [];
-      byDay[key].push({
-        key: `${entry.kind}-${entry.id}-${key}`,
-        tone: entry.kind === 'holiday' ? 'holiday' : entry.status,
-        label: entry.title,
-        detail: entry.title,
-      });
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
-    }
-  }
-  return byDay;
-}
-
 export default function Summary() {
   const { user } = useAuth();
   const [year, setYear] = useState(null);
@@ -251,8 +231,6 @@ export default function Summary() {
     queryFn: () => api.get(`/me/summary${year ? `?year=${year}` : ''}`),
     placeholderData: keepPreviousData,
   });
-
-  const events = useMemo(() => (data ? toEvents([...data.upcoming, ...data.past]) : {}), [data]);
 
   if (isError && !data) return <LoadError error={error} onRetry={refetch} />;
 
@@ -370,18 +348,13 @@ export default function Summary() {
         </>
       ) : (
         <Reveal>
-          <Panel>
-            <CalendarGrid
-              key={shownYear}
-              year={shownYear}
-              month={shownMonth}
-              today={today}
-              eventsByDay={events}
-              minMonth={0}
-              maxMonth={11}
-              onMonthChange={(_, next) => setMonth(next)}
-            />
-          </Panel>
+          <TeamCalendarView
+            year={shownYear}
+            month={shownMonth}
+            minMonth={0}
+            maxMonth={11}
+            onMonthChange={(_, next) => setMonth(next)}
+          />
         </Reveal>
       )}
 

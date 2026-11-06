@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Button, PageHeading, Panel, Reveal, TextInput } from '../components/ui';
+import { Button, PageHeading, Panel, PasswordInput, Reveal } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { slashDate } from '../lib/dates';
@@ -55,17 +55,15 @@ export default function Profile() {
               change.mutate();
             }}
           >
-            <TextInput
+            <PasswordInput
               label="Current password"
-              type="password"
               autoComplete="current-password"
               required
               value={form.currentPassword}
               onChange={(event) => setForm({ ...form, currentPassword: event.target.value })}
             />
-            <TextInput
+            <PasswordInput
               label="New password"
-              type="password"
               autoComplete="new-password"
               required
               minLength={10}

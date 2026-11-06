@@ -78,7 +78,7 @@ export default function App() {
       <Route element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route index element={<Summary />} />
         <Route path="requests" element={<MyRequests />} />
-        <Route path="team-calendar" element={<TeamCalendar />} />
+        <Route path="team-calendar" element={<RequireAdmin><TeamCalendar /></RequireAdmin>} />
         <Route path="profile" element={<Profile />} />
         <Route path="admin" element={<RequireAdmin><Overview /></RequireAdmin>} />
         <Route path="admin/requests" element={<RequireAdmin><AdminRequests /></RequireAdmin>} />

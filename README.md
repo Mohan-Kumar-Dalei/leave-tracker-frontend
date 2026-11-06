@@ -1,6 +1,6 @@
 # Leave Tracker
 
-React frontend for the Leave Tracker. Employees see balances, upcoming and past leaves and holidays, and their requests. Admins approve or reject requests, manage people, and keep the holiday list. The API lives in [leave-tracker-backend](https://github.com/Mohan-Kumar-Dalei/leave-tracker-backend).
+React frontend for the Leave Tracker. Employees see balances, upcoming and past leaves and holidays, and their requests. Admins approve or reject requests, manage employees, and keep the holiday list. The API lives in [leave-tracker-backend](https://github.com/Mohan-Kumar-Dalei/leave-tracker-backend).
 
 ## Run it locally
 
@@ -34,8 +34,8 @@ Colours are tokens at the top of `src/index.css`. Change them there and the whol
 | Path | What is there |
 | --- | --- |
 | `src/pages/employee` | Summary and request history |
-| `src/pages/TeamCalendar.jsx` | Who is away, for employees and admins |
-| `src/pages/admin` | Overview, requests, people, setup |
+| `src/pages/TeamCalendar.jsx` | Team calendar page for admins. Employees see the same view in My leave |
+| `src/pages/admin` | Overview, requests, employees, setup |
 | `src/pages/auth` | Sign in, forgot and reset password |
 | `src/components` | Shell, apply form, review list, calendar, tabs, status badge, shared UI |
 | `src/lib` | API client, auth, dates, toasts |

@@ -1,6 +1,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import { ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { useEffect, useId, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Select } from './Select';
 
 const EASE = [0.16, 1, 0.3, 1];
 
@@ -81,6 +82,31 @@ export function TextInput({ label, hint, error, ...props }) {
   );
 }
 
+export function PasswordInput({ label, hint, error, ...props }) {
+  const [visible, setVisible] = useState(false);
+  const Icon = visible ? EyeOff : Eye;
+
+  return (
+    <Field label={label} hint={hint} error={error}>
+      {(id) => (
+        <span className="relative block">
+          <input id={id} type={visible ? 'text' : 'password'} className={`${INPUT} pr-10 [&::-ms-reveal]:hidden`} {...props} />
+          <button
+            type="button"
+            aria-label={visible ? 'Hide password' : 'Show password'}
+            aria-pressed={visible}
+            title={visible ? 'Hide password' : 'Show password'}
+            onClick={() => setVisible((value) => !value)}
+            className="absolute inset-y-0 right-0 grid w-10 place-items-center rounded-r-lg text-muted transition-colors hover:text-ink"
+          >
+            <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+          </button>
+        </span>
+      )}
+    </Field>
+  );
+}
+
 export function TextArea({ label, hint, error, rows = 3, ...props }) {
   return (
     <Field label={label} hint={hint} error={error}>
@@ -89,15 +115,8 @@ export function TextArea({ label, hint, error, rows = 3, ...props }) {
   );
 }
 
-export function SelectBox({ className = '', children, ...props }) {
-  return (
-    <span className={`relative inline-block ${className}`}>
-      <select className={`${INPUT} appearance-none pr-9`} {...props}>
-        {children}
-      </select>
-      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-    </span>
-  );
+export function SelectBox(props) {
+  return <Select triggerClassName={INPUT} {...props} />;
 }
 
 export function SelectField({ label, hint, error, children, ...props }) {

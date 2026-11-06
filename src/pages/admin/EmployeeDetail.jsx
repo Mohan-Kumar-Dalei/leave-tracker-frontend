@@ -137,7 +137,7 @@ export default function EmployeeDetail() {
       <Reveal>
         <Link to="/admin/employees" className="mb-3 inline-flex min-h-9 items-center gap-1 text-sm text-muted hover:text-ink">
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          People
+          Employees
         </Link>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">

@@ -2,11 +2,11 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Dialog, Empty, LoadError, PageHeading, Pagination, Panel, Reveal, RowsSkeleton, SelectBox, SelectField, TextInput } from '../../components/ui';
+import { Button, Dialog, Empty, LoadError, PageHeading, Pagination, Panel, PasswordInput, Reveal, RowsSkeleton, SelectBox, TextInput } from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 
-const BLANK = { name: '', email: '', employeeId: '', department: '', designation: '', role: 'employee', joinedOn: '' };
+const BLANK = { name: '', email: '', employeeId: '', department: '', designation: '', joinedOn: '', password: '' };
 
 function AddEmployee({ open, onClose }) {
   const [form, setForm] = useState(BLANK);
@@ -23,7 +23,10 @@ function AddEmployee({ open, onClose }) {
     },
     onSuccess: ({ user }) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Employee added', `A set password link was sent to ${user.email}.`);
+      toast.success(
+        'Employee added',
+        form.password ? `${user.name} can sign in with the password you set.` : `A set password link was sent to ${user.email}.`,
+      );
       setForm(BLANK);
       onClose();
     },
@@ -41,7 +44,7 @@ function AddEmployee({ open, onClose }) {
             Cancel
           </Button>
           <Button type="submit" form="add-employee" loading={create.isPending}>
-            Add and send invite
+            {form.password ? 'Add employee' : 'Add and send invite'}
           </Button>
         </>
       }
@@ -63,10 +66,15 @@ function AddEmployee({ open, onClose }) {
           <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
           <TextInput label="Designation" maxLength={80} value={form.designation} onChange={set('designation')} />
         </div>
-        <SelectField label="Access" value={form.role} onChange={set('role')}>
-          <option value="employee">Employee</option>
-          <option value="admin">Admin, can decide requests</option>
-        </SelectField>
+        <PasswordInput
+          label="Password"
+            autoComplete="new-password"
+            minLength={10}
+            maxLength={72}
+            value={form.password}
+            onChange={set('password')}
+            hint="At least 10 characters, with a letter and a number. Leave it empty to mail them a link instead."
+          />
         {error && (
           <p role="alert" className="text-sm text-rejected">
             {error}
@@ -94,20 +102,21 @@ export default function Employees() {
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['employees', q, status, page],
-    queryFn: () => api.get(`/admin/employees${toQuery({ q, status, page, limit: 15 })}`),
+    queryFn: () => api.get(`/admin/employees${toQuery({ q, status, page, limit: 200 })}`),
     placeholderData: keepPreviousData,
   });
 
   return (
     <div>
-      <PageHeading title="People" actions={<Button onClick={() => setAdding(true)}>Add employee</Button>}>
+      <PageHeading title="Employees" actions={<Button onClick={() => setAdding(true)}>Add employee</Button>}>
+        {data ? `${data.total} ${data.total === 1 ? 'employee' : 'employees'}. ` : ''}
         Add employees, correct balances and turn off access when someone leaves.
       </PageHeading>
 
       <Reveal delay={0.08}>
         <div className="mb-4 flex flex-wrap gap-3">
           <label className="relative min-w-56 flex-1 sm:max-w-sm">
-            <span className="sr-only">Search people</span>
+            <span className="sr-only">Search employees</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
             <input
               type="search"
@@ -129,7 +138,7 @@ export default function Employees() {
           >
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
-            <option value="all">Everyone</option>
+            <option value="all">All employees</option>
           </SelectBox>
         </div>
 

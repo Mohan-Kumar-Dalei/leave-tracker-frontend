@@ -1,0 +1,18 @@
+# Security headers for the site on AWS Amplify, applied on each deploy.
+# The API sets its own headers. Scripts, fonts and data all load from this origin,
+# and /api is rewritten to the backend, so nothing needs a third party source.
+customHeaders:
+  - pattern: '**'
+    headers:
+      - key: Strict-Transport-Security
+        value: max-age=31536000
+      - key: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+      - key: X-Frame-Options
+        value: DENY
+      - key: X-Content-Type-Options
+        value: nosniff
+      - key: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - key: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=()

@@ -2,8 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Stamp } from '../../components/Stamp';
-import { Button, ConfirmDialog, Dialog, LoadError, Panel, Reveal, RowsSkeleton, SelectField, TextInput } from '../../components/ui';
+import { StatusBadge } from '../../components/StatusBadge';
+import { MonthlyBars } from '../../components/MonthlyBars';
+import { Button, ConfirmDialog, Dialog, LoadError, Panel, PanelTitle, Reveal, RowsSkeleton, SelectField, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { dayRange, dayWord, slashDate, isoFromCreatedAt } from '../../lib/dates';
@@ -129,18 +130,18 @@ export default function EmployeeDetail() {
   if (isPending) return <RowsSkeleton rows={6} />;
   if (isError) return <LoadError error={error} onRetry={refetch} />;
 
-  const { user, balances, adjustments, recent, year } = data;
+  const { user, balances, monthly, adjustments, recent, year } = data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Reveal>
-        <Link to="/admin/employees" className="mb-6 inline-flex min-h-10 items-center gap-1 text-sm text-muted hover:text-ink">
-          <ChevronLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
+        <Link to="/admin/employees" className="mb-3 inline-flex min-h-9 items-center gap-1 text-sm text-muted hover:text-ink">
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           People
         </Link>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[40px] sm:text-[56px]">{user.name}</h1>
+            <h1 className="text-[22px] sm:text-2xl">{user.name}</h1>
             <p className="mt-2 break-words text-base text-muted">
               {[user.designation, user.department, user.employeeId].filter(Boolean).join(', ')}
               {!user.isActive && ', inactive'}
@@ -165,15 +166,16 @@ export default function EmployeeDetail() {
 
       <Reveal delay={0.08}>
         <Panel>
-          <h2 className="border-b border-line px-5 py-3 text-[18px]">{year} balances</h2>
+          <PanelTitle>{year} balances</PanelTitle>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-muted">
                   <th className="px-5 py-2 font-normal">Leave type</th>
                   <th className="px-3 py-2 text-right font-normal">Entitled</th>
+                  <th className="px-3 py-2 text-right font-normal">Earlier records</th>
                   <th className="px-3 py-2 text-right font-normal">Approved</th>
-                  <th className="px-3 py-2 text-right font-normal">Waiting</th>
+                  <th className="px-3 py-2 text-right font-normal">Pending</th>
                   <th className="px-5 py-2 text-right font-normal">Available</th>
                 </tr>
               </thead>
@@ -182,6 +184,7 @@ export default function EmployeeDetail() {
                   <tr key={balance.leaveType.id} className="border-b border-line last:border-b-0">
                     <td className="px-5 py-2.5">{balance.leaveType.name}</td>
                     <td className="px-3 py-2.5 text-right">{balance.entitled ?? 'No limit'}</td>
+                    <td className="px-3 py-2.5 text-right">{balance.earlier}</td>
                     <td className="px-3 py-2.5 text-right">{balance.approved}</td>
                     <td className="px-3 py-2.5 text-right">{balance.pending}</td>
                     <td className="px-5 py-2.5 text-right font-medium">{balance.available ?? 'No limit'}</td>
@@ -193,9 +196,18 @@ export default function EmployeeDetail() {
         </Panel>
       </Reveal>
 
-      <Reveal delay={0.14} className="grid items-start gap-6 lg:grid-cols-[1.5fr_1fr]">
+      {monthly.some((days) => days > 0) && (
+        <Reveal delay={0.1}>
+          <Panel>
+            <PanelTitle>Leave used by month, {year}</PanelTitle>
+            <MonthlyBars months={monthly} />
+          </Panel>
+        </Reveal>
+      )}
+
+      <Reveal delay={0.14} className="grid items-start gap-4 lg:grid-cols-[1.5fr_1fr]">
         <Panel>
-          <h2 className="border-b border-line px-5 py-3 text-[18px]">Leave in {year}</h2>
+          <PanelTitle>Leave in {year}</PanelTitle>
           {recent.length === 0 && <p className="px-5 py-4 text-sm text-muted">No leave this year.</p>}
           <ul>
             {recent.map((leave) => (
@@ -206,14 +218,14 @@ export default function EmployeeDetail() {
                     {dayRange(leave.from, leave.to)}, {leave.days} {dayWord(leave.days)}
                   </p>
                 </div>
-                <Stamp status={leave.status} />
+                <StatusBadge status={leave.status} />
               </li>
             ))}
           </ul>
         </Panel>
 
         <Panel>
-          <h2 className="border-b border-line px-5 py-3 text-[18px]">Balance changes</h2>
+          <PanelTitle>Balance changes</PanelTitle>
           {adjustments.length === 0 && <p className="px-5 py-4 text-sm text-muted">No manual changes this year.</p>}
           <ul>
             {adjustments.map((item) => (

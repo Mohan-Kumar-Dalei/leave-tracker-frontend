@@ -55,18 +55,18 @@ export function NotificationBell() {
         onClick={() => setOpen((value) => !value)}
         className="relative"
       >
-        <Bell className="h-5 w-5" strokeWidth={1.5} />
+        <Bell className="h-5 w-5" />
         {unread > 0 && (
-          <span className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-sm bg-rejected px-1 text-[11px] font-medium tabular-nums text-surface">
+          <span className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-md bg-rejected px-1 text-[10px] font-medium tabular-nums text-surface">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
       </IconButton>
 
       {open && (
-        <div className="absolute inset-x-4 top-[60px] z-40 rounded border border-line bg-surface shadow-[0_12px_32px_-16px_rgba(28,35,33,0.4)] sm:inset-x-auto sm:right-0 sm:top-12 sm:w-96">
+        <div className="absolute inset-x-4 top-[52px] z-40 overflow-hidden rounded-xl border border-line bg-surface shadow-float sm:inset-x-auto sm:right-0 sm:top-11 sm:w-96">
           <div className="flex items-center justify-between border-b border-line px-4 py-2">
-            <h2 className="text-[18px]">Notifications</h2>
+            <h2 className="text-sm font-semibold">Notifications</h2>
             {unread > 0 && (
               <button type="button" onClick={() => readAll.mutate()} className="min-h-9 text-sm text-accent underline-offset-4 hover:underline">
                 Mark all read

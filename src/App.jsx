@@ -16,7 +16,7 @@ const EmployeeDetail = lazy(() => import('./pages/admin/EmployeeDetail'));
 const Setup = lazy(() => import('./pages/admin/Setup'));
 
 function Loading() {
-  return <div className="skeleton h-40" aria-label="Loading" />;
+  return <div className="skeleton h-40 rounded-xl" aria-label="Loading" />;
 }
 
 function ServerDown() {
@@ -24,7 +24,7 @@ function ServerDown() {
   return (
     <div className="grid min-h-dvh place-items-center px-5 text-center">
       <div>
-        <h1 className="text-[40px]">We cannot reach the server</h1>
+        <h1 className="text-[22px] sm:text-2xl">We cannot reach the server</h1>
         <p className="mt-3 text-base text-muted">Your session is safe. Please try again in a moment.</p>
         <Button className="mt-6" onClick={retry}>
           Try again
@@ -60,7 +60,7 @@ function GuestOnly({ children }) {
 function NotFound() {
   return (
     <div className="py-24 text-center">
-      <h1 className="text-[40px]">This page is not in the register</h1>
+      <h1 className="text-[22px] sm:text-2xl">This page is not in the register</h1>
       <Link to="/" className="mt-4 inline-block text-accent underline underline-offset-4">
         Back to your summary
       </Link>

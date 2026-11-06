@@ -2,14 +2,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { dayRange, dayWord, isoFromCreatedAt } from '../lib/dates';
+import { dayRange, dayWord } from '../lib/dates';
 import { useToast } from '../lib/toast';
-import { Stamp } from './Stamp';
+import { StatusBadge } from './StatusBadge';
 import { Button, ConfirmDialog, Dialog, TextArea } from './ui';
 
-const STAMP_HOLD_MS = 1300;
+const DECIDED_HOLD_MS = 900;
 
-// A decided row stays on screen long enough for its stamp to land, even if the
+// A decided row stays on screen briefly so the admin sees the result, even if the
 // live update has already removed it from the list.
 function useDecisions(items, keepFinished) {
   const [decided, setDecided] = useState({});
@@ -28,7 +28,7 @@ function useDecisions(items, keepFinished) {
       setTimeout(() => {
         setDecided(({ [leave.id]: _done, ...rest }) => rest);
         queryClient.invalidateQueries();
-      }, STAMP_HOLD_MS);
+      }, DECIDED_HOLD_MS);
     },
     onError: (issue) => {
       toast.error('That did not go through', issue.message);
@@ -97,7 +97,7 @@ export function ReviewList({ items, compact = false, keepFinished = true }) {
 
   const grid = compact
     ? 'grid gap-x-5 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center'
-    : 'grid gap-x-6 gap-y-2 lg:grid-cols-[minmax(170px,1fr)_minmax(190px,1fr)_minmax(0,1.5fr)_210px] lg:items-center';
+    : 'grid gap-x-6 gap-y-2 lg:grid-cols-[minmax(170px,1fr)_minmax(190px,1fr)_minmax(0,1.5fr)_180px] lg:items-center';
 
   return (
     <>
@@ -165,11 +165,7 @@ export function ReviewList({ items, compact = false, keepFinished = true }) {
                     </>
                   ) : (
                     <>
-                      <Stamp
-                        status={leave.status}
-                        fresh={fresh}
-                        date={leave.reviewedAt ? isoFromCreatedAt(leave.reviewedAt) : undefined}
-                      />
+                      <StatusBadge status={leave.status} fresh={fresh} />
                       {leave.status === 'approved' && !fresh && !compact && (
                         <Button variant="ghost" onClick={() => setCancelling(leave)}>
                           Cancel

@@ -1,32 +1,33 @@
-@import "@fontsource-variable/fraunces";
-@import "@fontsource-variable/hanken-grotesk";
+@import "@fontsource-variable/geist";
 @import "tailwindcss";
 
 /*
-  Design note: the leave register.
-  Every office once kept a ruled attendance book: warm paper, ink, hairlines and
-  rubber stamps. Paper #F4F1EA, ink #1C2321, register green #1F5C4D as the one
-  accent. Fraunces for headings and numbers, Hanken Grotesk for everything else.
-  Radius 4px. Rows are ruled, not boxed. The signature moment is a rubber stamp
-  landing on a request when an admin decides it.
+  Quiet, light and exact. Soft grey page, white cards, Geist throughout, one blue
+  accent for actions. Change the tokens here and the whole app follows.
 */
 
 :root {
-  --bg: #f4f1ea;
-  --surface: #fbf9f4;
-  --sunken: #ebe6da;
-  --ink: #1c2321;
-  --muted: #5c6058;
-  --line: #ded8ca;
-  --accent: #1f5c4d;
-  --accent-deep: #174639;
-  --on-accent: #f8f5ee;
-  --approved: #1f5c4d;
-  --rejected: #a63a2b;
-  --pending: #7f5b10;
-  --cancelled: #66685f;
-  --font-display: "Fraunces Variable", Georgia, serif;
-  --font-text: "Hanken Grotesk Variable", system-ui, sans-serif;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --sunken: #f0f1f4;
+  --ink: #12141a;
+  --muted: #626979;
+  --line: #e6e8ec;
+  --accent: #2f5bea;
+  --accent-deep: #2449c7;
+  --accent-soft: #edf2ff;
+  --on-accent: #ffffff;
+  --approved: #0e7f56;
+  --approved-soft: #e6f6ef;
+  --rejected: #c4362f;
+  --rejected-soft: #fdeceb;
+  --pending: #9a5b05;
+  --pending-soft: #fef4e0;
+  --cancelled: #626979;
+  --cancelled-soft: #f0f1f4;
+  --font-text: "Geist Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --shadow-card: 0 1px 2px rgb(18 20 26 / 0.04);
+  --shadow-float: 0 12px 32px -12px rgb(18 20 26 / 0.18), 0 2px 6px rgb(18 20 26 / 0.05);
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -39,19 +40,26 @@
   --color-line: var(--line);
   --color-accent: var(--accent);
   --color-accent-deep: var(--accent-deep);
+  --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
   --color-approved: var(--approved);
+  --color-approved-soft: var(--approved-soft);
   --color-rejected: var(--rejected);
+  --color-rejected-soft: var(--rejected-soft);
   --color-pending: var(--pending);
+  --color-pending-soft: var(--pending-soft);
   --color-cancelled: var(--cancelled);
-  --font-display: var(--font-display);
+  --color-cancelled-soft: var(--cancelled-soft);
   --font-text: var(--font-text);
+  --shadow-card: var(--shadow-card);
+  --shadow-float: var(--shadow-float);
 }
 
 html {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-text);
+  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
 }
@@ -66,10 +74,9 @@ body {
   h1,
   h2,
   h3 {
-    font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.25;
   }
 }
 
@@ -88,91 +95,67 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* The rubber stamp. Two rules of ink, set slightly crooked as a real one lands. */
-.stamp {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  padding: 4px 10px 3px;
-  border: 2px solid currentColor;
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 2px var(--surface), inset 0 0 0 3px currentColor;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  line-height: 1.2;
-  text-transform: uppercase;
-  white-space: nowrap;
-  opacity: 0.86;
-}
-
-.stamp small {
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  font-variant-numeric: tabular-nums;
-}
-
 /* Dialogs use the native element for focus trapping and Escape. */
 dialog.sheet {
-  margin: 0 0 0 auto;
-  height: 100dvh;
-  max-height: 100dvh;
-  width: min(520px, 100%);
+  margin: 12px 12px 12px auto;
+  height: calc(100dvh - 24px);
+  max-height: calc(100dvh - 24px);
+  width: min(480px, calc(100% - 24px));
   max-width: 100%;
-  border: 0;
-  border-left: 1px solid var(--line);
+  border: 1px solid var(--line);
+  border-radius: 16px;
   background: var(--surface);
   color: var(--ink);
   padding: 0;
+  box-shadow: var(--shadow-float);
 }
 
 dialog.modal {
   margin: auto;
-  width: min(460px, calc(100% - 32px));
+  width: min(440px, calc(100% - 32px));
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 16px;
   background: var(--surface);
   color: var(--ink);
   padding: 0;
+  box-shadow: var(--shadow-float);
 }
 
 dialog::backdrop {
-  background: rgb(28 35 33 / 0.45);
+  background: rgb(18 20 26 / 0.32);
 }
 
 dialog.sheet[open] {
-  animation: sheet-in 0.45s var(--ease);
+  animation: sheet-in 0.32s var(--ease);
 }
 
 dialog.modal[open] {
-  animation: modal-in 0.35s var(--ease);
+  animation: modal-in 0.24s var(--ease);
 }
 
 @keyframes sheet-in {
   from {
-    transform: translateX(48px);
+    transform: translateX(24px);
     opacity: 0;
   }
 }
 
 @keyframes modal-in {
   from {
-    transform: translateY(16px);
+    transform: translateY(8px) scale(0.98);
     opacity: 0;
   }
 }
 
 @keyframes pulse-soft {
   50% {
-    opacity: 0.45;
+    opacity: 0.5;
   }
 }
 
 .skeleton {
   background: var(--sunken);
-  border-radius: 4px;
+  border-radius: 8px;
   animation: pulse-soft 1.4s ease-in-out infinite;
 }
 

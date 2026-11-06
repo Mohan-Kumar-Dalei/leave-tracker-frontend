@@ -108,14 +108,14 @@ export default function Employees() {
         <div className="mb-4 flex flex-wrap gap-3">
           <label className="relative min-w-56 flex-1 sm:max-w-sm">
             <span className="sr-only">Search people</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" strokeWidth={1.5} aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
             <input
               type="search"
               maxLength={80}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search name, email, ID or department"
-              className="min-h-11 w-full rounded border border-line bg-surface pl-9 pr-3 text-base placeholder:text-muted focus:border-accent focus:outline-none sm:text-sm"
+              className="min-h-11 w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-base placeholder:text-muted focus:border-accent focus:outline-none sm:text-sm"
             />
           </label>
           <SelectBox

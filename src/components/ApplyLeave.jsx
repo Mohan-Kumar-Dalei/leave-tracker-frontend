@@ -139,12 +139,12 @@ function ApplyForm({ today, preset, formId, onDone, onBusy }) {
           {singleDay && (
             <fieldset>
               <legend className="mb-1.5 text-sm font-medium">Duration</legend>
-              <div className="grid grid-cols-3 gap-px overflow-hidden rounded border border-line bg-line">
+              <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-line bg-line">
                 {SESSIONS.map(([value, label]) => (
                   <label
                     key={value}
                     className={`grid min-h-11 cursor-pointer place-items-center px-2 text-sm transition-colors has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-accent ${
-                      session === value ? 'bg-accent text-on-accent' : 'bg-surface text-ink hover:bg-sunken'
+                      session === value ? 'bg-accent-soft font-medium text-accent' : 'bg-surface text-ink hover:bg-bg'
                     }`}
                   >
                     <input
@@ -164,12 +164,11 @@ function ApplyForm({ today, preset, formId, onDone, onBusy }) {
         </>
       )}
 
-      <div aria-live="polite" className="min-h-14 rounded bg-sunken px-4 py-3 text-sm">
+      <div aria-live="polite" className="min-h-11 rounded-lg bg-bg px-3 py-2.5 text-sm">
         {preview?.error && <p className="text-rejected">{preview.error}</p>}
         {preview && !preview.error && (
           <p>
-            <span className="font-display text-[22px] tabular-nums">{preview.days}</span>{' '}
-            working {dayWord(preview.days)}.
+            <span className="font-semibold tabular-nums">{preview.days}</span> working {dayWord(preview.days)}.
             {preview.tracksBalance
               ? ` ${preview.availableAfter} left after this.`
               : ' This leave is unpaid and does not use a balance.'}

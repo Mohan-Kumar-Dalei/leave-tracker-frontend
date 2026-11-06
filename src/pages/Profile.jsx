@@ -33,7 +33,7 @@ export default function Profile() {
   return (
     <div>
       <PageHeading title="Your profile">Your admin keeps these details up to date.</PageHeading>
-      <Reveal delay={0.08} className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+      <Reveal delay={0.08} className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <Panel>
           <dl>
             {rows.map(([label, value]) => (
@@ -46,7 +46,7 @@ export default function Profile() {
         </Panel>
 
         <Panel className="p-5">
-          <h2 className="mb-4 text-[22px]">Change password</h2>
+          <h2 className="mb-4 text-base font-semibold">Change password</h2>
           <form
             className="space-y-4"
             onSubmit={(event) => {

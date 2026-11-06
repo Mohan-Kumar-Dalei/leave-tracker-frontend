@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
+  Award,
   CalendarDays,
   CalendarRange,
   ChevronLeft,
@@ -9,58 +10,82 @@ import {
   List,
   MoreHorizontal,
   Palmtree,
+  RefreshCw,
+  Sparkles,
+  Sun,
+  Wallet,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '../../lib/auth';
 import { ApplyLeaveDialog } from '../../components/ApplyLeave';
 import { CalendarGrid } from '../../components/CalendarGrid';
-import { Stamp } from '../../components/Stamp';
-import { BigNumber, Button, Empty, IconButton, LoadError, Panel, Reveal, RowsSkeleton, SelectBox } from '../../components/ui';
+import { MonthlyBars } from '../../components/MonthlyBars';
+import { StatusBadge } from '../../components/StatusBadge';
+import { Button, Empty, IconButton, LoadError, Panel, PanelTitle, Reveal, RowsSkeleton, SelectBox } from '../../components/ui';
 import { api } from '../../lib/api';
 import { dayRange, dayWord, longDate, slashDate, weekday } from '../../lib/dates';
 
+const TYPE_LOOK = {
+  CLSL: { icon: Sun, tile: 'bg-[#edf2ff] text-[#2f5bea]' },
+  CO: { icon: RefreshCw, tile: 'bg-[#f1f6e4] text-[#5f8a12]' },
+  EL: { icon: Award, tile: 'bg-[#e6f6ef] text-[#0e7f56]' },
+  LWP: { icon: Wallet, tile: 'bg-[#fdeceb] text-[#c4362f]' },
+  RH: { icon: Sparkles, tile: 'bg-[#e6f5fb] text-[#0b7ea4]' },
+};
+
+const fallbackLook = { icon: CalendarDays, tile: 'bg-sunken text-muted' };
+
+function bookedDetail({ earlier, approved, pending }) {
+  const parts = [`${approved} approved`, `${pending} pending`];
+  if (earlier > 0) parts.unshift(`${earlier} from earlier records`);
+  return parts.join(', ');
+}
+
 function BookedInfo({ balance }) {
+  const detail = bookedDetail(balance);
   return (
     <span className="group relative inline-flex">
-      <button
-        type="button"
-        aria-label={`${balance.approved} approved, ${balance.pending} awaiting decision`}
-        className="grid h-5 w-5 place-items-center text-muted hover:text-ink"
-      >
-        <Info className="h-3.5 w-3.5" strokeWidth={1.5} />
+      <button type="button" aria-label={detail} className="grid h-5 w-5 place-items-center text-muted hover:text-ink">
+        <Info className="h-3.5 w-3.5" />
       </button>
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full right-0 z-10 mb-1 hidden whitespace-nowrap rounded bg-ink px-2.5 py-1.5 text-xs text-bg group-hover:block group-focus-within:block"
+        className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 hidden w-max max-w-56 rounded-lg bg-ink px-2.5 py-1.5 text-xs text-surface group-focus-within:block group-hover:block"
       >
-        {balance.approved} approved, {balance.pending} awaiting decision
+        {detail}
       </span>
     </span>
   );
 }
 
-function BalanceCell({ balance }) {
-  const { leaveType, available, entitled, booked, approved } = balance;
-  const tracks = leaveType.tracksBalance;
-  const used = tracks && entitled > 0 ? Math.min(100, ((entitled - available) / entitled) * 100) : 0;
+function BalanceCard({ balance }) {
+  const { leaveType, available, booked } = balance;
+  const look = TYPE_LOOK[leaveType.code] ?? fallbackLook;
+  const low = leaveType.tracksBalance && available <= 0;
 
   return (
-    <div className="bg-surface p-4 sm:p-5">
-      <h3 className="min-h-10 text-base" title={leaveType.name}>
-        {leaveType.name}
-      </h3>
-      <p className="mt-3 flex items-baseline gap-2">
-        <BigNumber value={tracks ? available : approved} size={2.5} />
-        <span className="text-sm text-muted">{tracks ? 'available' : `${dayWord(approved)} taken`}</span>
-      </p>
-      <div className="mt-3 h-1 overflow-hidden rounded-sm bg-sunken" aria-hidden="true">
-        {tracks && <div className="h-full origin-left bg-accent" style={{ transform: `scaleX(${used / 100})` }} />}
-      </div>
-      <p className="mt-3 flex items-center justify-between text-sm text-muted">
-        <span className="tabular-nums">
-          {booked} booked{tracks ? ` of ${entitled}` : ''}
+    <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+      <div className="flex items-start gap-3">
+        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${look.tile}`}>
+          <look.icon className="h-[18px] w-[18px]" aria-hidden="true" />
         </span>
-        <BookedInfo balance={balance} />
-      </p>
+        <h3 className="min-h-9 text-[13px] font-medium leading-[18px] tracking-normal">{leaveType.name}</h3>
+      </div>
+      <dl className="mt-4 space-y-2 text-[13px]">
+        {leaveType.tracksBalance && (
+          <div className="flex items-baseline justify-between">
+            <dt className="text-muted">Available</dt>
+            <dd className={`text-xl font-semibold tabular-nums ${low ? 'text-muted' : 'text-approved'}`}>{available}</dd>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <dt className="text-muted">Booked</dt>
+          <dd className="flex items-center gap-1 font-medium tabular-nums">
+            {booked}
+            <BookedInfo balance={balance} />
+          </dd>
+        </div>
+      </dl>
     </div>
   );
 }
@@ -80,8 +105,8 @@ const PAST_FILTERS = [
 function EntryRow({ entry, onAvail }) {
   const isLeave = entry.kind === 'leave';
   return (
-    <li className="grid gap-x-4 gap-y-1 border-b border-line px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(170px,220px)_minmax(180px,300px)_1fr_auto] sm:items-center sm:px-5">
-      <p className="text-sm tabular-nums text-ink">
+    <li className="grid gap-x-4 gap-y-1 border-b border-line px-4 py-3 last:border-b-0 sm:grid-cols-[170px_minmax(150px,240px)_1fr_90px] sm:items-center sm:px-5">
+      <p className="text-[13px] tabular-nums text-muted">
         {isLeave && entry.from !== entry.to ? (
           dayRange(entry.from, entry.to)
         ) : (
@@ -92,23 +117,23 @@ function EntryRow({ entry, onAvail }) {
       </p>
       <p className="flex items-center gap-2 text-sm font-medium">
         {isLeave ? (
-          <Palmtree className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.5} aria-hidden="true" />
+          <Palmtree className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
         ) : (
-          <CalendarDays className="h-4 w-4 shrink-0 text-muted" strokeWidth={1.5} aria-hidden="true" />
+          <CalendarDays className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
         )}
         <span className="min-w-0">
           {entry.title}
-          {entry.restricted && <span className="font-normal text-muted"> (Restricted holiday)</span>}
+          {entry.restricted && <span className="font-normal text-muted"> (Restricted)</span>}
         </span>
       </p>
-      <p className="text-sm text-muted">
+      <p className="min-w-0 text-[13px] text-muted">
         {isLeave ? `${entry.days} ${dayWord(entry.days)}. ${entry.reason}` : entry.note}
       </p>
-      <div className="min-h-9 justify-self-start sm:justify-self-end">
-        {isLeave && <Stamp status={entry.status} />}
-        {!isLeave && entry.availed && <span className="text-sm font-medium text-accent">Availed</span>}
+      <div className="justify-self-start sm:justify-self-end">
+        {isLeave && <StatusBadge status={entry.status} />}
+        {!isLeave && entry.availed && <span className="text-[13px] font-medium text-accent">Availed</span>}
         {!isLeave && entry.canAvail && (
-          <Button variant="secondary" onClick={() => onAvail(entry)}>
+          <Button variant="secondary" className="h-8!" onClick={() => onAvail(entry)}>
             Avail
           </Button>
         )}
@@ -131,7 +156,7 @@ function EntryPanel({ filters, entries, loading, scroll, onAvail, label }) {
           aria-label={label}
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
-          className="w-full sm:w-72"
+          className="w-full sm:w-64"
         >
           {filters.map(([value, text]) => (
             <option key={value} value={value}>
@@ -169,12 +194,12 @@ function MoreMenu({ year }) {
   return (
     <div ref={root} className="relative">
       <IconButton label="More actions" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="border border-line bg-surface">
-        <MoreHorizontal className="h-4 w-4" strokeWidth={1.5} />
+        <MoreHorizontal className="h-4 w-4" />
       </IconButton>
       {open && (
-        <div className="absolute right-0 top-12 z-20 w-56 rounded border border-line bg-surface shadow-[0_12px_32px_-16px_rgba(28,35,33,0.4)]">
-          <a href={`/api/me/leaves.csv?year=${year}`} className="flex min-h-11 items-center gap-3 px-4 text-sm hover:bg-bg" onClick={() => setOpen(false)}>
-            <Download className="h-4 w-4 text-muted" strokeWidth={1.5} />
+        <div className="absolute right-0 top-11 z-20 w-56 overflow-hidden rounded-xl border border-line bg-surface shadow-float">
+          <a href={`/api/me/leaves.csv?year=${year}`} className="flex h-10 items-center gap-2.5 px-3 text-sm hover:bg-bg" onClick={() => setOpen(false)}>
+            <Download className="h-4 w-4 text-muted" aria-hidden="true" />
             Download {year} as CSV
           </a>
         </div>
@@ -183,18 +208,15 @@ function MoreMenu({ year }) {
   );
 }
 
-function headline(data) {
+function subtitle(data) {
   const left = data.balances
     .filter((balance) => balance.leaveType.tracksBalance && !balance.leaveType.restrictedHolidayOnly)
     .reduce((sum, balance) => sum + balance.available, 0);
-  return `You have ${left} ${dayWord(left)} of leave left in ${data.year}`;
-}
-
-function nextUp(data) {
   const next = data.upcoming[0];
-  if (!next) return 'Nothing else is planned for this year.';
-  const when = `${weekday(next.from)}, ${longDate(next.from)}`;
-  return next.from <= data.today ? `${next.title} is on now.` : `Next up: ${next.title} on ${when}.`;
+  const lead = `${left} ${dayWord(left)} of leave left in ${data.year}.`;
+  if (!next) return lead;
+  if (next.from <= data.today) return `${lead} ${next.title} is on now.`;
+  return `${lead} Next up: ${next.title}, ${weekday(next.from)} ${longDate(next.from)}.`;
 }
 
 function toEvents(entries) {
@@ -218,6 +240,7 @@ function toEvents(entries) {
 }
 
 export default function Summary() {
+  const { user } = useAuth();
   const [year, setYear] = useState(null);
   const [view, setView] = useState('list');
   const [month, setMonth] = useState(null);
@@ -251,45 +274,39 @@ export default function Summary() {
     });
 
   return (
-    <div className="space-y-6">
-      <Reveal className="flex flex-wrap items-end justify-between gap-4">
+    <div className="space-y-4">
+      <Reveal className="flex flex-wrap items-center justify-between gap-3 pb-2">
         <div className="min-w-0">
-          {data ? (
-            <>
-              <h1 className="max-w-4xl text-[40px] text-balance sm:text-[56px]">{headline(data)}</h1>
-              <p className="mt-3 text-base text-muted sm:text-lg">{nextUp(data)}</p>
-            </>
-          ) : (
-            <div className="skeleton h-24 w-96 max-w-full" />
-          )}
+          <h1 className="text-[22px] sm:text-2xl">Welcome back, {user.name.split(' ')[0]}</h1>
+          <p className="mt-1 text-sm text-muted">{data ? subtitle(data) : ' '}</p>
         </div>
         <Button className="max-sm:w-full" onClick={() => setDialog({ open: true, preset: null })}>
           Apply Leave
         </Button>
       </Reveal>
 
-      <Reveal delay={0.08} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-y border-line py-2">
-        <p className="text-sm text-muted">
+      <Reveal delay={0.04} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <p className="text-[13px] text-muted">
           Leave booked this year: <span className="font-medium tabular-nums text-ink">{data?.bookedThisYear ?? 0}</span>
           <span className="mx-2 text-line">|</span>
           Absent: <span className="font-medium tabular-nums text-ink">{data?.absent ?? 0}</span>
         </p>
 
-        <div className="flex items-center">
+        <div className="flex items-center rounded-lg border border-line bg-surface shadow-card">
           <IconButton label="Previous year" onClick={() => changeYear(-1)}>
-            <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
+            <ChevronLeft className="h-4 w-4" />
           </IconButton>
-          <p className="flex items-center gap-2 text-sm tabular-nums">
-            <CalendarRange className="h-4 w-4 text-muted" strokeWidth={1.5} aria-hidden="true" />
+          <p className="flex items-center gap-2 px-1 text-[13px] font-medium tabular-nums">
+            <CalendarRange className="h-4 w-4 text-muted" aria-hidden="true" />
             01/01/{shownYear} - 31/12/{shownYear}
           </p>
           <IconButton label="Next year" onClick={() => changeYear(1)}>
-            <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
+            <ChevronRight className="h-4 w-4" />
           </IconButton>
         </div>
 
         <div className="flex items-center gap-2">
-          <div role="group" aria-label="View" className="flex overflow-hidden rounded border border-line bg-surface">
+          <div role="group" aria-label="View" className="flex gap-0.5 rounded-lg bg-sunken p-0.5">
             {[
               ['list', 'List view', List],
               ['calendar', 'Calendar view', CalendarDays],
@@ -301,11 +318,11 @@ export default function Summary() {
                 aria-pressed={view === value}
                 title={label}
                 onClick={() => setView(value)}
-                className={`grid h-10 w-10 place-items-center transition-colors max-sm:h-11 max-sm:w-11 ${
-                  view === value ? 'bg-accent text-on-accent' : 'text-muted hover:text-ink'
+                className={`grid h-8 w-9 place-items-center rounded-md transition-colors max-sm:h-10 max-sm:w-11 ${
+                  view === value ? 'bg-surface text-accent shadow-card' : 'text-muted hover:text-ink'
                 }`}
               >
-                <Icon className="h-4 w-4" strokeWidth={1.5} />
+                <Icon className="h-4 w-4" />
               </button>
             ))}
           </div>
@@ -313,17 +330,17 @@ export default function Summary() {
         </div>
       </Reveal>
 
-      <Reveal delay={0.14}>
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded border border-line bg-line lg:grid-cols-5 max-lg:[&>*:last-child:nth-child(odd)]:col-span-2">
+      <Reveal delay={0.08}>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {data
-            ? data.balances.map((balance) => <BalanceCell key={balance.leaveType.id} balance={balance} />)
-            : Array.from({ length: 5 }, (_, index) => <div key={index} className="h-44 bg-surface" />)}
+            ? data.balances.map((balance) => <BalanceCard key={balance.leaveType.id} balance={balance} />)
+            : Array.from({ length: 5 }, (_, index) => <div key={index} className="skeleton h-36" />)}
         </div>
       </Reveal>
 
       {view === 'list' ? (
         <>
-          <Reveal delay={0.2}>
+          <Reveal delay={0.12}>
             <EntryPanel
               label="Filter upcoming"
               filters={UPCOMING_FILTERS}
@@ -332,7 +349,7 @@ export default function Summary() {
               onAvail={avail}
             />
           </Reveal>
-          <Reveal delay={0.26}>
+          <Reveal delay={0.16}>
             <EntryPanel
               label="Filter past"
               filters={PAST_FILTERS}
@@ -342,6 +359,14 @@ export default function Summary() {
               scroll
             />
           </Reveal>
+          {data && data.monthly.some((days) => days > 0) && (
+            <Reveal delay={0.2}>
+              <Panel>
+                <PanelTitle>Leave used by month, {shownYear}</PanelTitle>
+                <MonthlyBars months={data.monthly} />
+              </Panel>
+            </Reveal>
+          )}
         </>
       ) : (
         <Reveal>

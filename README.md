@@ -21,15 +21,13 @@ The build goes to `dist/`. In production nginx serves it and forwards `/api` to 
 
 ## Design
 
-Built with the ApexUI skill. The direction is a paper leave register:
+Simple and light, close to the leave tools people already know:
 
-- Palette: paper `#F4F1EA`, surface `#FBF9F4`, ink `#1C2321`, one accent in register green `#1F5C4D`.
-- Type: Fraunces for headings and numbers, Hanken Grotesk for everything else, both self hosted.
-- Layout: ruled rows and hairlines, radius 4px, no gradients.
-- Signature moment: a rubber stamp lands on a request when an admin decides it (`src/components/Stamp.jsx`).
-- ApexUI components: Animated Tabs, Toast Stack and Rolling Counter, restyled in `src/ApexUI-Kit`.
+- Soft grey page `#F5F6F8`, white cards, ink `#12141A`, one blue accent `#2F5BEA` for actions.
+- Geist for all text, self hosted, with tabular figures for numbers.
+- Left sidebar on desktop, bottom tabs on phones, soft status pills for leave states.
 
-Colours and fonts are tokens at the top of `src/index.css`. Change them there and the whole app follows.
+Colours are tokens at the top of `src/index.css`. Change them there and the whole app follows.
 
 ## Layout of the code
 
@@ -38,6 +36,6 @@ Colours and fonts are tokens at the top of `src/index.css`. Change them there an
 | `src/pages/employee` | Summary and request history |
 | `src/pages/admin` | Overview, requests, team calendar, people, setup |
 | `src/pages/auth` | Sign in, forgot and reset password |
-| `src/components` | Shell, apply form, review list, calendar, stamp, shared UI |
+| `src/components` | Shell, apply form, review list, calendar, tabs, status badge, shared UI |
 | `src/lib` | API client, auth, dates, toasts |
 | `src/hooks/useLiveUpdates.js` | Live dashboard updates over server-sent events |

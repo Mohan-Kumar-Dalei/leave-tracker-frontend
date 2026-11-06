@@ -1,8 +1,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import AnimatedTabs from '../../ApexUI-Kit/AnimatedTabs/AnimatedTabs';
+import { Tabs } from '../../components/Tabs';
 import { ApplyLeaveDialog } from '../../components/ApplyLeave';
-import { Stamp } from '../../components/Stamp';
+import { StatusBadge } from '../../components/StatusBadge';
 import { Button, ConfirmDialog, Empty, LoadError, PageHeading, Pagination, Panel, Reveal, RowsSkeleton } from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
 import { dayRange, dayWord, isoFromCreatedAt, slashDate } from '../../lib/dates';
@@ -10,7 +10,7 @@ import { useToast } from '../../lib/toast';
 
 const TABS = [
   { id: 'all', label: 'All' },
-  { id: 'pending', label: 'Awaiting decision' },
+  { id: 'pending', label: 'Pending' },
   { id: 'approved', label: 'Approved' },
   { id: 'rejected', label: 'Rejected' },
   { id: 'cancelled', label: 'Cancelled' },
@@ -56,7 +56,7 @@ export default function MyRequests() {
       </PageHeading>
 
       <Reveal delay={0.08}>
-        <AnimatedTabs
+        <Tabs
           label="Filter by status"
           tabs={TABS}
           value={status}
@@ -77,7 +77,7 @@ export default function MyRequests() {
             {data?.items.map((leave) => (
               <li
                 key={leave.id}
-                className="grid gap-x-6 gap-y-2 border-b border-line p-4 last:border-b-0 sm:px-5 lg:grid-cols-[minmax(220px,1fr)_minmax(0,1.6fr)_220px] lg:items-center"
+                className="grid gap-x-6 gap-y-2 border-b border-line p-4 last:border-b-0 sm:px-5 lg:grid-cols-[minmax(220px,1fr)_minmax(0,1.6fr)_170px] lg:items-center"
               >
                 <div>
                   <p className="text-sm font-medium">{leave.leaveType?.name}</p>
@@ -94,10 +94,7 @@ export default function MyRequests() {
                   {leave.reviewNote && <p className="mt-1 text-ink">Note: {leave.reviewNote}</p>}
                 </div>
                 <div className="flex items-center gap-3 lg:justify-end">
-                  <Stamp
-                    status={leave.status}
-                    date={leave.reviewedAt ? isoFromCreatedAt(leave.reviewedAt) : undefined}
-                  />
+                  <StatusBadge status={leave.status} />
                   {canCancel(leave) && (
                     <Button variant="ghost" onClick={() => setCancelling(leave)}>
                       Cancel

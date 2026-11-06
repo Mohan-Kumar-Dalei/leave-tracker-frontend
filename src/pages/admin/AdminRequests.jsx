@@ -2,13 +2,13 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Download, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import AnimatedTabs from '../../ApexUI-Kit/AnimatedTabs/AnimatedTabs';
+import { Tabs } from '../../components/Tabs';
 import { ReviewList } from '../../components/ReviewList';
 import { Empty, LoadError, PageHeading, Pagination, Panel, Reveal, RowsSkeleton, SelectBox } from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
 
 const TABS = [
-  { id: 'pending', label: 'Waiting' },
+  { id: 'pending', label: 'Pending' },
   { id: 'approved', label: 'Approved' },
   { id: 'rejected', label: 'Rejected' },
   { id: 'cancelled', label: 'Cancelled' },
@@ -48,9 +48,9 @@ export default function AdminRequests() {
         actions={
           <a
             href={`/api/admin/leaves.csv${toQuery(query)}`}
-            className="inline-flex min-h-10 items-center gap-2 rounded border border-line bg-surface px-4 text-sm font-medium hover:border-ink"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium shadow-card hover:bg-bg"
           >
-            <Download className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
+            <Download className="h-4 w-4" aria-hidden="true" />
             Export CSV
           </a>
         }
@@ -59,7 +59,7 @@ export default function AdminRequests() {
       </PageHeading>
 
       <Reveal delay={0.08}>
-        <AnimatedTabs
+        <Tabs
           label="Filter by status"
           tabs={TABS}
           value={status}
@@ -73,14 +73,14 @@ export default function AdminRequests() {
         <div className="mb-4 flex flex-wrap gap-3">
           <label className="relative min-w-56 flex-1 sm:max-w-sm">
             <span className="sr-only">Search by name or employee ID</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" strokeWidth={1.5} aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
             <input
               type="search"
               maxLength={80}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search name or employee ID"
-              className="min-h-11 w-full rounded border border-line bg-surface pl-9 pr-3 text-base placeholder:text-muted focus:border-accent focus:outline-none sm:text-sm"
+              className="min-h-11 w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-base placeholder:text-muted focus:border-accent focus:outline-none sm:text-sm"
             />
           </label>
           <SelectBox

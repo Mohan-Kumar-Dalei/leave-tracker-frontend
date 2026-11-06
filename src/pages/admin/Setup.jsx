@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import AnimatedTabs from '../../ApexUI-Kit/AnimatedTabs/AnimatedTabs';
+import { Tabs } from '../../components/Tabs';
 import { Button, ConfirmDialog, Dialog, Empty, IconButton, LoadError, PageHeading, Panel, Reveal, RowsSkeleton, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
 import { slashDate, weekday } from '../../lib/dates';
@@ -96,7 +96,7 @@ function LeaveTypes() {
                 {type.tracksBalance ? `${type.annualQuota} days a year` : 'No limit'}
               </p>
               <IconButton label={`Edit ${type.name}`} onClick={() => setEditing(type)}>
-                <Pencil className="h-4 w-4" strokeWidth={1.5} />
+                <Pencil className="h-4 w-4" />
               </IconButton>
             </div>
           </li>
@@ -206,11 +206,11 @@ function Holidays() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2 sm:px-5">
         <div className="flex items-center gap-1">
           <IconButton label="Previous year" onClick={() => setYear(year - 1)}>
-            <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
+            <ChevronLeft className="h-4 w-4" />
           </IconButton>
           <h2 className="px-1 text-[22px] tabular-nums">{year}</h2>
           <IconButton label="Next year" onClick={() => setYear(year + 1)}>
-            <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
+            <ChevronRight className="h-4 w-4" />
           </IconButton>
         </div>
         <Button variant="secondary" onClick={() => setDialog({ item: null })}>
@@ -235,10 +235,10 @@ function Holidays() {
             </div>
             <div className="flex shrink-0">
               <IconButton label={`Edit ${holiday.name}`} onClick={() => setDialog({ item: holiday })}>
-                <Pencil className="h-4 w-4" strokeWidth={1.5} />
+                <Pencil className="h-4 w-4" />
               </IconButton>
               <IconButton label={`Remove ${holiday.name}`} onClick={() => setRemoving(holiday)}>
-                <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                <Trash2 className="h-4 w-4" />
               </IconButton>
             </div>
           </li>
@@ -268,7 +268,7 @@ export default function Setup() {
     <div>
       <PageHeading title="Setup">The holiday list and the leave rules everyone works from.</PageHeading>
       <Reveal delay={0.08}>
-        <AnimatedTabs
+        <Tabs
           label="Setup sections"
           tabs={[
             { id: 'holidays', label: 'Holidays' },

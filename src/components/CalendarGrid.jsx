@@ -80,7 +80,7 @@ export function CalendarGrid({ year, month, today, eventsByDay, onMonthChange, m
               aria-pressed={cell === selected}
               className={`flex min-h-14 min-w-0 flex-col items-stretch justify-start border-b border-r border-line p-1 text-left sm:min-h-[104px] sm:p-1.5 ${
                 weekend ? 'bg-bg/60' : ''
-              } ${cell === selected ? 'max-sm:bg-accent-soft' : ''} ${index % 7 === 6 ? 'border-r-0' : ''}`}
+              } ${cell === selected ? 'bg-accent-soft' : ''} ${index % 7 === 6 ? 'border-r-0' : ''}`}
             >
               {cell && (
                 <>
@@ -113,11 +113,11 @@ export function CalendarGrid({ year, month, today, eventsByDay, onMonthChange, m
         })}
       </div>
 
-      <div className="p-4 sm:hidden">
+      <div className="p-4">
         <p className="text-sm font-medium">
           {slashDate(selected)}, {weekday(selected)}
         </p>
-        {selectedEvents.length === 0 && <p className="mt-1 text-sm text-muted">Nothing on this day.</p>}
+        {selectedEvents.length === 0 && <p className="mt-1 text-sm text-muted">Nobody is on leave and there is no holiday on this day.</p>}
         <ul className="mt-2 space-y-2">
           {selectedEvents.map((event) => (
             <li key={event.key} className="flex items-center gap-2 text-sm">

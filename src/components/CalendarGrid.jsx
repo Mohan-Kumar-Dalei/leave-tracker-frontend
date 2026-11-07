@@ -19,7 +19,7 @@ const LEGEND = [
 
 // Month view. Wide screens show names inside the cells. On phones the cells are
 // too small for names, so a cell shows a count and the chosen day lists below.
-export function CalendarGrid({ year, month, today, eventsByDay, onMonthChange, minMonth, maxMonth }) {
+export function CalendarGrid({ year, month, today, eventsByDay, onMonthChange, minMonth, maxMonth, weekendDays = [0] }) {
   const cells = useMemo(() => monthGrid(year, month), [year, month]);
   const [picked, setPicked] = useState(null);
 
@@ -68,7 +68,8 @@ export function CalendarGrid({ year, month, today, eventsByDay, onMonthChange, m
       <div className="grid grid-cols-7">
         {cells.map((cell, index) => {
           const events = cell ? (eventsByDay[cell] ?? []) : [];
-          const weekend = index % 7 >= 5;
+          // Columns start on Monday, while day numbers start on Sunday.
+          const weekend = weekendDays.includes((index + 1) % 7);
           const isToday = cell === today;
           return (
             <button

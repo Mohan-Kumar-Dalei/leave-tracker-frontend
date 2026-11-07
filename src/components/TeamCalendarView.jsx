@@ -41,7 +41,7 @@ function toEvents(data) {
     const end = new Date(`${leave.to}T00:00:00.000Z`);
     while (cursor <= end) {
       const day = cursor.toISOString().slice(0, 10);
-      const dayOff = [0, 6].includes(cursor.getUTCDay()) || closed.has(day);
+      const dayOff = (data.weekendDays ?? [0]).includes(cursor.getUTCDay()) || closed.has(day);
       if (!dayOff) {
         add(day, {
           key: `l-${leave.id}-${day}`,
@@ -102,6 +102,7 @@ export function TeamCalendarView({ year, month, onMonthChange, minMonth, maxMont
             month={month}
             today={today}
             eventsByDay={events}
+            weekendDays={data?.weekendDays}
             minMonth={minMonth}
             maxMonth={maxMonth}
             onMonthChange={onMonthChange}

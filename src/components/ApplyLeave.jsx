@@ -11,7 +11,7 @@ const SESSIONS = [
   ['second', 'Second half'],
 ];
 
-function ApplyForm({ today, preset, formId, onDone, onBusy }) {
+function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -72,6 +72,9 @@ function ApplyForm({ today, preset, formId, onDone, onBusy }) {
   });
 
   useEffect(() => onBusy(submit.isPending), [submit.isPending, onBusy]);
+
+  // Sending stays off until the server has accepted these dates.
+  useEffect(() => onCanSend(Boolean(preview && !preview.error)), [preview, onCanSend]);
 
   const onSubmit = (event) => {
     event.preventDefault();
@@ -174,7 +177,7 @@ function ApplyForm({ today, preset, formId, onDone, onBusy }) {
               : ' This leave is unpaid and does not use a balance.'}
           </p>
         )}
-        {!preview && <p className="text-muted">Weekends and public holidays are not counted.</p>}
+        {!preview && <p className="text-muted">Sundays and public holidays are not counted.</p>}
       </div>
 
       <TextArea
@@ -197,6 +200,7 @@ function ApplyForm({ today, preset, formId, onDone, onBusy }) {
 
 export function ApplyLeaveDialog({ open, onClose, today, preset }) {
   const [busy, setBusy] = useState(false);
+  const [canSend, setCanSend] = useState(false);
   const formId = 'apply-leave-form';
 
   return (
@@ -209,13 +213,13 @@ export function ApplyLeaveDialog({ open, onClose, today, preset }) {
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" form={formId} loading={busy}>
+          <Button type="submit" form={formId} loading={busy} disabled={!canSend}>
             Send request
           </Button>
         </>
       }
     >
-      <ApplyForm key={preset?.from ?? 'blank'} today={today} preset={preset} formId={formId} onDone={onClose} onBusy={setBusy} />
+      <ApplyForm key={preset?.from ?? 'blank'} today={today} preset={preset} formId={formId} onDone={onClose} onBusy={setBusy} onCanSend={setCanSend} />
     </Dialog>
   );
 }

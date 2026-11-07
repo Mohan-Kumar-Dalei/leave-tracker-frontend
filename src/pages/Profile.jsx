@@ -10,6 +10,7 @@ export default function Profile() {
   const { user } = useAuth();
   const toast = useToast();
   const [form, setForm] = useState({ currentPassword: '', newPassword: '' });
+  const [repeat, setRepeat] = useState('');
   const [error, setError] = useState('');
 
   const change = useMutation({
@@ -17,6 +18,7 @@ export default function Profile() {
     onSuccess: (data) => {
       toast.success('Password changed', data.message);
       setForm({ currentPassword: '', newPassword: '' });
+      setRepeat('');
     },
     onError: (issue) => setError(issue.message),
   });
@@ -52,6 +54,10 @@ export default function Profile() {
             onSubmit={(event) => {
               event.preventDefault();
               setError('');
+              if (form.newPassword !== repeat) {
+                setError('The two new passwords do not match.');
+                return;
+              }
               change.mutate();
             }}
           >
@@ -70,6 +76,13 @@ export default function Profile() {
               hint="At least 10 characters, with a letter and a number."
               value={form.newPassword}
               onChange={(event) => setForm({ ...form, newPassword: event.target.value })}
+            />
+            <PasswordInput
+              label="Repeat new password"
+              autoComplete="new-password"
+              required
+              value={repeat}
+              onChange={(event) => setRepeat(event.target.value)}
             />
             {error && (
               <p role="alert" className="text-sm text-rejected">

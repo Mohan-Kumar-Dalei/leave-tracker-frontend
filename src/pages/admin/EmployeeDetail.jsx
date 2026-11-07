@@ -116,12 +116,6 @@ export default function EmployeeDetail() {
     queryFn: () => api.get(`/admin/employees/${id}`),
   });
 
-  const invite = useMutation({
-    mutationFn: () => api.post(`/admin/employees/${id}/invite`),
-    onSuccess: (result) => toast.success('Link sent', result.message),
-    onError: (issue) => toast.error('Could not send', issue.message),
-  });
-
   const toggle = useMutation({
     mutationFn: () => api.patch(`/admin/employees/${id}`, { isActive: !data.user.isActive }),
     onSuccess: () => {
@@ -172,11 +166,6 @@ export default function EmployeeDetail() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => setAdjusting({ item: null })}>Adjust balance</Button>
-            {user.isActive && (
-              <Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate()}>
-                Send password link
-              </Button>
-            )}
             {user.id !== me.id && (
               <Button variant={user.isActive ? 'danger' : 'secondary'} onClick={() => setToggling(true)}>
                 {user.isActive ? 'Turn off access' : 'Restore access'}

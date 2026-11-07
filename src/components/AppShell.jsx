@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { CalendarCheck, CalendarDays, FileText, History, Inbox, LayoutGrid, LogOut, Settings2, UserRound, Users } from 'lucide-react';
+import { CalendarCheck, CalendarDays, FileText, History, Inbox, KeyRound, LayoutGrid, LogOut, Settings2, UserRound, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
@@ -10,6 +10,7 @@ import { NotificationBell } from './NotificationBell';
 const PERSONAL_NAV = [
   { to: '/', label: 'My leave', icon: CalendarCheck, end: true },
   { to: '/requests', label: 'My requests', icon: FileText },
+  { to: '/profile', label: 'Change password', short: 'Password', icon: KeyRound },
 ];
 
 const ADMIN_NAV = [

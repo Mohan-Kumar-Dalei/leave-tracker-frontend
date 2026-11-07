@@ -23,10 +23,7 @@ function AddEmployee({ open, onClose }) {
     },
     onSuccess: ({ user }) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success(
-        'Employee added',
-        form.password ? `${user.name} can sign in with the password you set.` : `A set password link was sent to ${user.email}.`,
-      );
+      toast.success('Employee added', `${user.name} can sign in with the password you set.`);
       setForm(BLANK);
       onClose();
     },
@@ -44,7 +41,7 @@ function AddEmployee({ open, onClose }) {
             Cancel
           </Button>
           <Button type="submit" form="add-employee" loading={create.isPending}>
-            {form.password ? 'Add employee' : 'Add and send invite'}
+            Add employee
           </Button>
         </>
       }
@@ -59,7 +56,7 @@ function AddEmployee({ open, onClose }) {
         }}
       >
         <TextInput label="Full name" required maxLength={80} value={form.name} onChange={set('name')} />
-        <TextInput label="Work email" type="email" required maxLength={160} value={form.email} onChange={set('email')} hint="The invite link goes here." />
+        <TextInput label="Work email" type="email" required maxLength={160} value={form.email} onChange={set('email')} />
         <div className="grid gap-4 sm:grid-cols-2">
           <TextInput label="Employee ID" required maxLength={20} value={form.employeeId} onChange={set('employeeId')} />
           <TextInput label="Joining date" type="date" value={form.joinedOn} onChange={set('joinedOn')} />
@@ -68,12 +65,13 @@ function AddEmployee({ open, onClose }) {
         </div>
         <PasswordInput
           label="Password"
+          required
             autoComplete="new-password"
             minLength={10}
             maxLength={72}
             value={form.password}
             onChange={set('password')}
-            hint="At least 10 characters, with a letter and a number. Leave it empty to mail them a link instead."
+            hint="At least 10 characters, with a letter and a number. Share it with the employee yourself, they can change it after signing in."
           />
         {error && (
           <p role="alert" className="text-sm text-rejected">

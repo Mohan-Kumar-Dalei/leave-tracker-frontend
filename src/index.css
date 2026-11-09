@@ -21,6 +21,8 @@
   --color-pending-soft: #fef4e0;
   --color-cancelled: #626979;
   --color-cancelled-soft: #f0f1f4;
+  --color-scrollbar: #cfd3da;
+  --color-scrollbar-hover: #a3a9b4;
 
   --font-text: "Geist Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
 
@@ -73,5 +75,27 @@
 
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-accent;
+  }
+
+  /* Thin, quiet scroll bars. Chrome, Edge and Firefox use the standard
+     properties; Safari uses the ::-webkit-scrollbar rules below. */
+  * {
+    @apply [scrollbar-color:var(--color-scrollbar)_transparent] [scrollbar-width:thin];
+  }
+
+  ::-webkit-scrollbar {
+    @apply h-2.5 w-2.5 bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full border-2 border-solid border-transparent bg-scrollbar bg-clip-padding;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-scrollbar-hover;
+  }
+
+  ::-webkit-scrollbar-corner {
+    @apply bg-transparent;
   }
 }

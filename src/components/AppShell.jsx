@@ -6,6 +6,7 @@ import { useLiveUpdates } from '../hooks/useLiveUpdates';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { NotificationBell } from './NotificationBell';
+import { Avatar } from './ProfilePhoto';
 
 const PERSONAL_NAV = [
   { to: '/', label: 'My leave', icon: CalendarCheck, end: true },
@@ -21,14 +22,6 @@ const ADMIN_NAV = [
   { to: '/admin/employees', label: 'Employees', short: 'Employees', icon: Users },
   { to: '/admin/setup', label: 'Setup', short: 'Setup', icon: Settings2 },
 ];
-
-const initials = (name) =>
-  name
-    .split(' ')
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
 
 export function Logo() {
   return (
@@ -91,9 +84,9 @@ function UserMenu({ user, onSignOut }) {
         aria-expanded={open}
         aria-label="Account menu"
         onClick={() => setOpen((value) => !value)}
-        className="grid h-9 w-9 place-items-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent"
+        className="rounded-full"
       >
-        {initials(user.name)}
+        <Avatar user={user} size={36} />
       </button>
       {open && (
         <div className="absolute right-0 top-11 z-40 w-64 overflow-hidden rounded-xl border border-line bg-surface shadow-float">

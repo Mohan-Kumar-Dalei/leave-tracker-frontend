@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
 import { X } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
@@ -279,6 +279,31 @@ function SignatureEditor({ current, onDone }) {
           Cancel
         </Button>
       </div>
+    </div>
+  );
+}
+
+// The person's signature on its own, for the profile: what their mails end
+// with, and the box to paste a new one.
+export function SignatureSettings() {
+  const { data: compose } = useQuery({ queryKey: ['compose'], queryFn: () => api.get('/me/compose') });
+  const [editing, setEditing] = useState(false);
+  const signature = compose?.signature;
+
+  if (!signature) return null;
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-line bg-bg/50 p-3">
+        {editing ? <SignatureEditor current={signature.customHtml} onDone={() => setEditing(false)} /> : <SignatureCard signature={signature} />}
+      </div>
+      {!editing && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="secondary" onClick={() => setEditing(true)}>
+            {signature.customHtml ? 'Change signature' : 'Paste my signature'}
+          </Button>
+          <p className="text-[13px] text-muted">{signature.customHtml ? 'Your own signature.' : 'The standard signature.'}</p>
+        </div>
+      )}
     </div>
   );
 }

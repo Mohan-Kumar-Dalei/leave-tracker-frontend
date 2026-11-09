@@ -60,7 +60,7 @@ function MonthLeaves({ leaves, title }) {
   return (
     <Panel>
       <PanelTitle>{title}</PanelTitle>
-      {leaves.length === 0 && <p className="px-4 py-4 text-sm text-muted">Nobody has leave booked this month.</p>}
+      {leaves.length === 0 && <p className="px-4 py-4 text-sm text-muted">Nobody has applied for leave this month.</p>}
       <ul className="max-h-[32rem] overflow-y-auto">
         {leaves.map((leave) => (
           <li key={leave.id} className="border-b border-line px-4 py-2.5 last:border-b-0">

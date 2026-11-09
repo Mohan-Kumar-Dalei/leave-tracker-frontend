@@ -80,7 +80,7 @@ function BalanceCard({ balance }) {
           </div>
         )}
         <div className="flex items-center justify-between">
-          <dt className="text-muted">Booked</dt>
+          <dt className="text-muted">Applied</dt>
           <dd className="flex items-center gap-1 font-medium tabular-nums">
             {booked}
             <BookedInfo balance={balance} />
@@ -220,7 +220,7 @@ export default function Summary() {
 
       <Reveal delay={0.04} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
         <p className="text-[13px] text-muted">
-          Leave booked this year: <span className="font-medium tabular-nums text-ink">{data?.bookedThisYear ?? 0}</span>
+          Leave applied this year: <span className="font-medium tabular-nums text-ink">{data?.bookedThisYear ?? 0}</span>
           <span className="mx-2 text-line">|</span>
           Absent: <span className="font-medium tabular-nums text-ink">{data?.absent ?? 0}</span>
         </p>

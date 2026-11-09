@@ -227,7 +227,7 @@ export function Dialog({ open, onClose, title, kind = 'sheet', children, footer 
       }}
     >
       {open && (
-        <div className={`flex flex-col ${kind === 'sheet' ? 'h-full' : 'max-h-[85dvh]'}`}>
+        <div className={`flex flex-col ${kind === 'sheet' ? 'h-full' : 'max-h-[90dvh]'}`}>
           <header className="flex items-center justify-between gap-4 border-b border-line py-3 pl-5 pr-3">
             <h2 className="text-base font-semibold">{title}</h2>
             <IconButton label="Close" onClick={onClose}>

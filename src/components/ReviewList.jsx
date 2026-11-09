@@ -4,8 +4,9 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { dayRange, dayWord } from '../lib/dates';
 import { useToast } from '../lib/toast';
+import { ReviewDialog } from './ReviewDialog';
 import { StatusBadge } from './StatusBadge';
-import { Button, ConfirmDialog, Dialog, TextArea } from './ui';
+import { Button, ConfirmDialog } from './ui';
 
 const DECIDED_HOLD_MS = 900;
 
@@ -18,7 +19,7 @@ function useDecisions(items, keepFinished) {
   const toast = useToast();
 
   const mutation = useMutation({
-    mutationFn: ({ id, decision, note }) => api.patch(`/admin/leaves/${id}/review`, { decision, note: note || undefined }),
+    mutationFn: ({ id, decision, reply }) => api.patch(`/admin/leaves/${id}/review`, { decision, reply }),
     onSuccess: ({ leave }, { decision }) => {
       setDecided((current) => ({ ...current, [leave.id]: leave }));
       toast.success(
@@ -59,10 +60,8 @@ function useDecisions(items, keepFinished) {
 
 export function ReviewList({ items, compact = false, keepFinished = true }) {
   const { rows, isFresh, mutation } = useDecisions(items, keepFinished);
-  const [rejecting, setRejecting] = useState(null);
+  const [reviewing, setReviewing] = useState(null);
   const [cancelling, setCancelling] = useState(null);
-  const [note, setNote] = useState('');
-  const [noteError, setNoteError] = useState('');
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -79,21 +78,8 @@ export function ReviewList({ items, compact = false, keepFinished = true }) {
     },
   });
 
-  const closeReject = () => {
-    setRejecting(null);
-    setNote('');
-    setNoteError('');
-  };
-
-  const submitReject = (event) => {
-    event.preventDefault();
-    if (note.trim().length < 3) {
-      setNoteError('Tell the employee why, so they can plan around it.');
-      return;
-    }
-    mutation.mutate({ id: rejecting.id, decision: 'rejected', note: note.trim() });
-    closeReject();
-  };
+  const decide = ({ decision, reply }) =>
+    mutation.mutate({ id: reviewing.leave.id, decision, reply }, { onSuccess: () => setReviewing(null) });
 
   const grid = compact
     ? 'grid gap-x-5 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center'
@@ -114,7 +100,11 @@ export function ReviewList({ items, compact = false, keepFinished = true }) {
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                 className={`border-b border-line p-4 last:border-b-0 sm:px-5 ${grid}`}
               >
-                <div className="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setReviewing({ leave })}
+                  className="-m-1.5 min-w-0 rounded-lg p-1.5 text-left hover:bg-bg"
+                >
                   <p className="text-sm font-medium">{leave.user?.name}</p>
                   <p className="mt-0.5 truncate text-sm text-muted">
                     {leave.user?.employeeId}
@@ -126,7 +116,8 @@ export function ReviewList({ items, compact = false, keepFinished = true }) {
                     </p>
                   )}
                   {compact && <p className="mt-0.5 break-words text-sm text-muted">{leave.reason}</p>}
-                </div>
+                  <span className="mt-1 block text-[13px] text-accent">Open request</span>
+                </button>
 
                 {!compact && (
                   <div className="text-sm">
@@ -150,7 +141,7 @@ export function ReviewList({ items, compact = false, keepFinished = true }) {
                       <Button
                         className="max-sm:flex-1"
                         disabled={mutation.isPending}
-                        onClick={() => mutation.mutate({ id: leave.id, decision: 'approved' })}
+                        onClick={() => setReviewing({ leave, decision: 'approved' })}
                       >
                         Approve
                       </Button>
@@ -158,7 +149,7 @@ export function ReviewList({ items, compact = false, keepFinished = true }) {
                         variant="secondary"
                         className="max-sm:flex-1"
                         disabled={mutation.isPending}
-                        onClick={() => setRejecting(leave)}
+                        onClick={() => setReviewing({ leave, decision: 'rejected' })}
                       >
                         Reject
                       </Button>
@@ -180,37 +171,16 @@ export function ReviewList({ items, compact = false, keepFinished = true }) {
         </AnimatePresence>
       </ul>
 
-      <Dialog
-        open={Boolean(rejecting)}
-        onClose={closeReject}
-        title="Reject this request"
-        kind="modal"
-        footer={
-          <>
-            <Button variant="ghost" onClick={closeReject}>
-              Go back
-            </Button>
-            <Button variant="danger" type="submit" form="reject-form">
-              Reject request
-            </Button>
-          </>
-        }
-      >
-        <form id="reject-form" onSubmit={submitReject} className="space-y-3">
-          <p className="text-sm text-muted">
-            {rejecting?.user?.name}, {rejecting?.leaveType?.name}, {rejecting && dayRange(rejecting.from, rejecting.to)}
-          </p>
-          <TextArea
-            label="Reason for the employee"
-            data-autofocus
-            required
-            maxLength={300}
-            value={note}
-            error={noteError}
-            onChange={(event) => setNote(event.target.value)}
-          />
-        </form>
-      </Dialog>
+      {reviewing && (
+        <ReviewDialog
+          key={reviewing.leave.id + (reviewing.decision ?? '')}
+          leave={reviewing.leave}
+          decision={reviewing.decision}
+          busy={mutation.isPending}
+          onClose={() => setReviewing(null)}
+          onDecide={decide}
+        />
+      )}
 
       <ConfirmDialog
         open={Boolean(cancelling)}

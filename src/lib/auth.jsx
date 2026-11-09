@@ -62,7 +62,7 @@ export function AuthProvider({ children }) {
   }, [queryClient]);
 
   const value = useMemo(
-    () => ({ user, ready, unreachable, retry: loadUser, signIn, signOut }),
+    () => ({ user, ready, unreachable, retry: loadUser, signIn, signOut, setUser }),
     [user, ready, unreachable, loadUser, signIn, signOut],
   );
 

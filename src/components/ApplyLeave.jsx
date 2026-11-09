@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { dayWord, slashDate } from '../lib/dates';
 import { useToast } from '../lib/toast';
-import { Button, Dialog, SelectField, TextArea, TextInput } from './ui';
+import { CcPicker, MailBody, Recipients } from './MailParts';
+import { Button, Dialog, SelectField, TextInput } from './ui';
+
+const PLACEHOLDER = '[reason]';
 
 const SESSIONS = [
   ['full', 'Full day'],
@@ -22,8 +25,20 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   const [from, setFrom] = useState(preset?.from ?? today);
   const [to, setTo] = useState(preset?.to ?? today);
   const [session, setSession] = useState('full');
-  const [reason, setReason] = useState('');
+  const [message, setMessage] = useState('');
+  const [cc, setCc] = useState(null);
+  const [subject, setSubject] = useState(null);
   const [error, setError] = useState('');
+
+  // Who the mail goes to, who is copied by default, and the signature.
+  const { data: compose } = useQuery({ queryKey: ['compose'], queryFn: () => api.get('/me/compose') });
+  const chosenCc = cc ?? compose?.defaultCc.map((contact) => contact.email) ?? [];
+  const chosenSubject = subject ?? compose?.subject ?? 'Leave Application';
+  // The admins are already in To.
+  const ccContacts = useMemo(() => {
+    const to = new Set((compose?.to ?? []).map((person) => person.email));
+    return (compose?.contacts ?? []).filter((contact) => !to.has(contact.email));
+  }, [compose]);
 
   const selectedId = leaveTypeId || types[0]?.id || '';
   const selected = types.find((type) => type.id === selectedId);
@@ -60,9 +75,32 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
     };
   }, [selectedId, from, to, usedSession]);
 
+  // The letter starts from the server's draft. When the dates or type change,
+  // only the sentence with the dates is swapped, so the rest of what the
+  // employee typed stays.
+  const lastSentence = useRef('');
+  useEffect(() => {
+    if (!preview?.sentence) return;
+    const previous = lastSentence.current;
+    setMessage((current) => {
+      if (!current.trim()) return preview.draft;
+      if (previous && current.includes(previous)) return current.replace(previous, preview.sentence);
+      return current;
+    });
+    lastSentence.current = preview.sentence;
+  }, [preview]);
+
   const submit = useMutation({
     mutationFn: () =>
-      api.post('/leaves', { leaveTypeId: selectedId, from, to, session: usedSession, reason: reason.trim() }),
+      api.post('/leaves', {
+        leaveTypeId: selectedId,
+        from,
+        to,
+        session: usedSession,
+        subject: chosenSubject.trim(),
+        message: message.trim(),
+        cc: chosenCc,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries();
       toast.success('Request sent', 'Your admin has been told by mail and on their dashboard.');
@@ -79,8 +117,16 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   const onSubmit = (event) => {
     event.preventDefault();
     setError('');
-    if (reason.trim().length < 3) {
-      setError('Add a short reason for your admin.');
+    if (chosenSubject.trim().length < 3) {
+      setError('Write a subject for the mail.');
+      return;
+    }
+    if (message.includes(PLACEHOLDER)) {
+      setError(`Write your reason in place of ${PLACEHOLDER} in the mail.`);
+      return;
+    }
+    if (message.trim().length < 20) {
+      setError('Write a few lines for your admin.');
       return;
     }
     submit.mutate();
@@ -180,13 +226,23 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
         {!preview && <p className="text-muted">Sundays and public holidays are not counted.</p>}
       </div>
 
-      <TextArea
-        label="Reason"
+      <fieldset className="space-y-1 rounded-lg border border-line px-3 py-2">
+        <legend className="px-1 text-[13px] font-medium">Leave Application mail</legend>
+        <Recipients label="To" people={compose?.to ?? []} />
+        <CcPicker contacts={ccContacts} value={chosenCc} onChange={setCc} />
+        <div className="pb-1 pt-2">
+          <TextInput label="Subject" required maxLength={150} value={chosenSubject} onChange={(event) => setSubject(event.target.value)} />
+        </div>
+      </fieldset>
+
+      <MailBody
+        label="Message"
         required
-        maxLength={500}
-        value={reason}
-        hint="Your admin reads this before deciding."
-        onChange={(event) => setReason(event.target.value)}
+        maxLength={4000}
+        value={message}
+        signature={compose?.signature}
+        hint={`Replace ${PLACEHOLDER} with your reason. The dates update by themselves.`}
+        onChange={(event) => setMessage(event.target.value)}
       />
 
       {error && (

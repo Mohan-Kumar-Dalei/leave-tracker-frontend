@@ -102,12 +102,77 @@ function AdjustBalance({ item, onClose, employeeId, year, balances }) {
   );
 }
 
+// Department, designation and phone. Designation and phone go into the
+// signature of the leave mails this person sends.
+function EditDetails({ user, onClose }) {
+  const [form, setForm] = useState({
+    department: user.department ?? '',
+    designation: user.designation ?? '',
+    phone: user.phone ?? '',
+  });
+  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
+
+  const save = useMutation({
+    mutationFn: () => api.patch(`/admin/employees/${user.id}`, form),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee', user.id] });
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success('Details saved');
+      onClose();
+    },
+    onError: (issue) => setError(issue.message),
+  });
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Edit details"
+      kind="modal"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="details-form" loading={save.isPending}>
+            Save details
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="details-form"
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setError('');
+          save.mutate();
+        }}
+      >
+        <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
+        <TextInput label="Designation" maxLength={80} value={form.designation} onChange={set('designation')} hint="Empty means Analyst in mails." />
+        <TextInput label="Phone" type="tel" maxLength={20} value={form.phone} onChange={set('phone')} hint="Shown in their mail signature." />
+        {error && (
+          <p role="alert" className="text-sm text-rejected">
+            {error}
+          </p>
+        )}
+      </form>
+    </Dialog>
+  );
+}
+
 export default function EmployeeDetail() {
   const { id } = useParams();
   const { user: me } = useAuth();
   const [adjusting, setAdjusting] = useState(null);
   const [removing, setRemoving] = useState(null);
   const [toggling, setToggling] = useState(false);
+  const [editing, setEditing] = useState(false);
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -162,10 +227,15 @@ export default function EmployeeDetail() {
               {[user.designation, user.department, user.employeeId].filter(Boolean).join(', ')}
               {!user.isActive && ', inactive'}
             </p>
-            <p className="break-words text-base text-muted">{user.email}</p>
+            <p className="break-words text-base text-muted">
+              {[user.email, user.phone].filter(Boolean).join(', ')}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => setAdjusting({ item: null })}>Adjust balance</Button>
+            <Button variant="secondary" onClick={() => setEditing(true)}>
+              Edit details
+            </Button>
             {user.id !== me.id && (
               <Button variant={user.isActive ? 'danger' : 'secondary'} onClick={() => setToggling(true)}>
                 {user.isActive ? 'Turn off access' : 'Restore access'}
@@ -263,6 +333,8 @@ export default function EmployeeDetail() {
           </ul>
         </Panel>
       </Reveal>
+
+      {editing && <EditDetails user={user} onClose={() => setEditing(false)} />}
 
       {adjusting && (
         <AdjustBalance item={adjusting.item} onClose={() => setAdjusting(null)} employeeId={id} year={year} balances={balances} />

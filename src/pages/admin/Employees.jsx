@@ -6,7 +6,7 @@ import { Button, Dialog, Empty, LoadError, PageHeading, Pagination, Panel, Passw
 import { api, toQuery } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 
-const BLANK = { name: '', email: '', employeeId: '', department: '', designation: '', joinedOn: '', password: '' };
+const BLANK = { name: '', email: '', employeeId: '', department: '', designation: 'Analyst', phone: '', joinedOn: '', password: '' };
 
 function AddEmployee({ open, onClose }) {
   const [form, setForm] = useState(BLANK);
@@ -62,6 +62,7 @@ function AddEmployee({ open, onClose }) {
           <TextInput label="Joining date" type="date" value={form.joinedOn} onChange={set('joinedOn')} />
           <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
           <TextInput label="Designation" maxLength={80} value={form.designation} onChange={set('designation')} />
+          <TextInput label="Phone" type="tel" maxLength={20} value={form.phone} onChange={set('phone')} hint="Shown in their mail signature." />
         </div>
         <PasswordInput
           label="Password"

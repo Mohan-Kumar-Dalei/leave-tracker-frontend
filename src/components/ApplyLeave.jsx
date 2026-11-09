@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { dayWord, slashDate } from '../lib/dates';
 import { useToast } from '../lib/toast';
-import { CcPicker, MailBody, Recipients } from './MailParts';
+import { AddressField, MailBody } from './MailParts';
 import { Button, Dialog, SelectField, TextInput } from './ui';
 
 const PLACEHOLDER = '[reason]';
@@ -26,19 +26,21 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   const [to, setTo] = useState(preset?.to ?? today);
   const [session, setSession] = useState('full');
   const [message, setMessage] = useState('');
+  const [mailTo, setMailTo] = useState(null);
   const [cc, setCc] = useState(null);
   const [subject, setSubject] = useState(null);
   const [error, setError] = useState('');
 
   // Who the mail goes to, who is copied by default, and the signature.
   const { data: compose } = useQuery({ queryKey: ['compose'], queryFn: () => api.get('/me/compose') });
+  // To starts with the admins and CC with the usual list. Both can be changed.
+  const chosenTo = mailTo ?? compose?.to.map((person) => person.email) ?? [];
   const chosenCc = cc ?? compose?.defaultCc.map((contact) => contact.email) ?? [];
   const chosenSubject = subject ?? compose?.subject ?? 'Leave Application';
-  // The admins are already in To.
-  const ccContacts = useMemo(() => {
-    const to = new Set((compose?.to ?? []).map((person) => person.email));
-    return (compose?.contacts ?? []).filter((contact) => !to.has(contact.email));
-  }, [compose]);
+  const names = useMemo(
+    () => Object.fromEntries((compose?.contacts ?? []).map((contact) => [contact.email, contact.name])),
+    [compose],
+  );
 
   const selectedId = leaveTypeId || types[0]?.id || '';
   const selected = types.find((type) => type.id === selectedId);
@@ -99,6 +101,7 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
         session: usedSession,
         subject: chosenSubject.trim(),
         message: message.trim(),
+        mailTo: chosenTo,
         cc: chosenCc,
       }),
     onSuccess: () => {
@@ -117,6 +120,10 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   const onSubmit = (event) => {
     event.preventDefault();
     setError('');
+    if (chosenTo.length === 0) {
+      setError('Add at least one person in To.');
+      return;
+    }
     if (chosenSubject.trim().length < 3) {
       setError('Write a subject for the mail.');
       return;
@@ -228,8 +235,9 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
 
       <fieldset className="space-y-1 rounded-lg border border-line px-3 py-2">
         <legend className="px-1 text-[13px] font-medium">Leave Application mail</legend>
-        <Recipients label="To" people={compose?.to ?? []} />
-        <CcPicker contacts={ccContacts} value={chosenCc} onChange={setCc} />
+        <AddressField label="To" value={chosenTo} names={names} onChange={setMailTo} />
+        <div className="border-t border-line" />
+        <AddressField label="CC" value={chosenCc} names={names} onChange={setCc} />
         <div className="pb-1 pt-2">
           <TextInput label="Subject" required maxLength={150} value={chosenSubject} onChange={(event) => setSubject(event.target.value)} />
         </div>

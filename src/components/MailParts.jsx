@@ -1,72 +1,116 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import DOMPurify from 'dompurify';
 import { X } from 'lucide-react';
-import { useId } from 'react';
-import { SelectBox } from './ui';
+import { useId, useRef, useState } from 'react';
+import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import { useToast } from '../lib/toast';
+import { Button } from './ui';
 
 // Pieces that show a leave mail before it goes: who it is to, who is copied,
 // and the text with the sender's signature under it, like a mail app would.
 
-const nameFor = (contacts, email) => contacts.find((contact) => contact.email === email)?.name ?? email;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function Recipients({ label, people }) {
+// The same rules as the server, so the preview shows what the mail will carry.
+const PURIFY = {
+  ALLOWED_TAGS: ['a', 'b', 'strong', 'i', 'em', 'u', 'br', 'p', 'div', 'span', 'font', 'img', 'table', 'tbody', 'tr', 'td', 'hr', 'small'],
+  ALLOWED_ATTR: ['href', 'src', 'alt', 'width', 'height', 'style', 'color', 'size', 'face', 'cellpadding', 'cellspacing', 'border', 'valign', 'align'],
+  ALLOWED_URI_REGEXP: /^(https:|mailto:|tel:)/i,
+  // Plain values, so the link rule above must not drop them.
+  ADD_URI_SAFE_ATTR: ['width', 'height', 'cellpadding', 'cellspacing', 'border', 'valign', 'align', 'color', 'size', 'face'],
+};
+
+// A pasted style must not lift the signature out of its box, and links open
+// in a new tab without passing on where they came from.
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.style) {
+    node.style.removeProperty('position');
+    node.style.removeProperty('z-index');
+  }
+  if (node.tagName === 'A') {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
+});
+
+const clean = (html) => DOMPurify.sanitize(html, { ...PURIFY, ADD_ATTR: ['target', 'rel'] });
+
+// Addresses as removable chips, with a box to type more. Enter, comma or
+// leaving the box adds what was typed.
+export function AddressField({ label, value, onChange, names = {} }) {
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState('');
+  const id = useId();
+
+  const add = () => {
+    const typed = draft
+      .split(/[,;\s]+/)
+      .map((part) => part.trim().toLowerCase())
+      .filter(Boolean);
+    if (typed.length === 0) return;
+    const bad = typed.find((address) => !EMAIL.test(address));
+    if (bad) {
+      setError(`${bad} is not an email address.`);
+      return;
+    }
+    onChange([...value, ...typed.filter((address) => !value.includes(address))]);
+    setDraft('');
+    setError('');
+  };
+
   return (
-    <div className="flex min-h-10 flex-wrap items-center gap-1.5 text-sm">
-      <span className="w-8 shrink-0 text-[13px] font-medium text-muted">{label}</span>
-      {people.length === 0 && <span className="text-muted">Nobody</span>}
-      {people.map((person) => (
-        <span key={person.email} title={person.email} className="rounded-md bg-sunken px-2 py-1 text-[13px]">
-          {person.name}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-// value is a list of addresses. Anyone can be removed, and anyone from the
-// contact list can be added.
-export function CcPicker({ contacts, value, onChange }) {
-  const left = contacts.filter((contact) => !value.includes(contact.email));
-
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 text-sm">
-      <span className="w-8 shrink-0 text-[13px] font-medium text-muted">CC</span>
-      {value.map((email) => (
-        <span key={email} title={email} className="inline-flex items-center gap-1 rounded-md bg-sunken py-0.5 pl-2 pr-0.5 text-[13px]">
-          {nameFor(contacts, email)}
-          <button
-            type="button"
-            aria-label={`Remove ${nameFor(contacts, email)} from CC`}
-            onClick={() => onChange(value.filter((item) => item !== email))}
-            className="grid h-7 w-7 place-items-center rounded text-muted hover:bg-line hover:text-ink"
-          >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-        </span>
-      ))}
-      {left.length > 0 && (
-        <div className="mt-1 basis-full">
-          <SelectBox
-            aria-label="Add someone to CC"
-            className="w-full"
-            value=""
-            onChange={(event) => event.target.value && onChange([...value, event.target.value])}
-          >
-            <option value="">Add someone to CC</option>
-            {left.map((contact) => (
-              <option key={contact.email} value={contact.email}>
-                {contact.name === contact.email ? contact.email : `${contact.name} (${contact.email})`}
-              </option>
-            ))}
-          </SelectBox>
-        </div>
+    <div>
+      <div className="flex flex-wrap items-center gap-1.5 py-1 text-sm">
+        <label htmlFor={id} className="w-8 shrink-0 text-[13px] font-medium text-muted">
+          {label}
+        </label>
+        {value.map((email) => (
+          <span key={email} title={email} className="inline-flex max-w-full items-center gap-1 rounded-md bg-sunken py-0.5 pl-2 pr-0.5 text-[13px]">
+            <span className="truncate">{names[email] ?? email}</span>
+            <button
+              type="button"
+              aria-label={`Remove ${names[email] ?? email} from ${label}`}
+              onClick={() => onChange(value.filter((item) => item !== email))}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded text-muted hover:bg-line hover:text-ink"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </span>
+        ))}
+        <input
+          id={id}
+          type="email"
+          multiple
+          value={draft}
+          placeholder="Type an email and press Enter"
+          aria-invalid={Boolean(error)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setError('');
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ',') {
+              event.preventDefault();
+              add();
+            }
+            if (event.key === 'Backspace' && !draft && value.length) onChange(value.slice(0, -1));
+          }}
+          onBlur={add}
+          className="h-9 min-w-48 flex-1 rounded-md bg-transparent px-1 text-base placeholder:text-muted focus:outline-none sm:text-sm"
+        />
+      </div>
+      {error && (
+        <p role="alert" className="pb-1 pl-10 text-[13px] text-rejected">
+          {error}
+        </p>
       )}
     </div>
   );
 }
 
-export function SignatureCard({ signature }) {
-  if (!signature) return null;
+function StandardSignature({ signature }) {
   const link = 'text-[#1a73e8] hover:underline';
-
   return (
     <div className="flex items-center gap-4 font-[Arial,Helvetica,sans-serif]">
       <div className="shrink-0">
@@ -103,10 +147,110 @@ export function SignatureCard({ signature }) {
   );
 }
 
+export function SignatureCard({ signature }) {
+  if (!signature) return null;
+  if (signature.customHtml) {
+    return (
+      <div
+        className="max-w-full overflow-x-auto font-[Arial,Helvetica,sans-serif] text-[13px] text-[#202124] [&_a]:text-[#1a73e8] [&_img]:inline-block [&_img]:max-w-full"
+        // Cleaned on the server when saved, and again here before showing.
+        dangerouslySetInnerHTML={{ __html: clean(signature.customHtml) }}
+      />
+    );
+  }
+  return <StandardSignature signature={signature} />;
+}
+
+// A box to paste a signature copied from Gmail or Outlook. Pasted HTML is
+// cleaned before it lands in the box, and again by the server when saved.
+function SignatureEditor({ current, onDone }) {
+  const box = useRef(null);
+  const queryClient = useQueryClient();
+  const { setUser } = useAuth();
+  const toast = useToast();
+  const [error, setError] = useState('');
+
+  const save = useMutation({
+    mutationFn: (signatureHtml) => api.patch('/me/profile', { signatureHtml }),
+    onSuccess: ({ user }) => {
+      setUser(user);
+      queryClient.invalidateQueries({ queryKey: ['compose'] });
+      toast.success(user.signatureHtml ? 'Signature saved' : 'Standard signature back', 'Your leave mails use it from now on.');
+      onDone();
+    },
+    onError: (issue) => setError(issue.message),
+  });
+
+  const onPaste = (event) => {
+    event.preventDefault();
+    const html = event.clipboardData.getData('text/html');
+    const text = event.clipboardData.getData('text/plain');
+    const source = html || text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    const fragment = DOMPurify.sanitize(source, { ...PURIFY, ADD_ATTR: ['target', 'rel'], RETURN_DOM_FRAGMENT: true });
+
+    // Put the cleaned copy where the cursor is, keeping widths and spacing as
+    // they were. Without a cursor in the box, it goes at the end.
+    const selection = window.getSelection();
+    const inBox = selection.rangeCount && box.current.contains(selection.getRangeAt(0).commonAncestorContainer);
+    const range = inBox ? selection.getRangeAt(0) : document.createRange();
+    if (!inBox) {
+      range.selectNodeContents(box.current);
+      range.collapse(false);
+    }
+    range.deleteContents();
+    const last = fragment.lastChild;
+    range.insertNode(fragment);
+    if (last) {
+      range.setStartAfter(last);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[13px] text-muted">
+        Copy your signature from Gmail (select it in a sent mail and press Ctrl+C), then paste it here. Pictures must be on the web, not attached.
+      </p>
+      <div
+        ref={box}
+        role="textbox"
+        aria-multiline="true"
+        aria-label="Your signature"
+        contentEditable
+        suppressContentEditableWarning
+        onPaste={onPaste}
+        // Starts with the saved signature, already cleaned.
+        dangerouslySetInnerHTML={{ __html: clean(current || '') }}
+        className="min-h-28 max-w-full overflow-x-auto rounded-lg border border-line bg-surface p-3 font-[Arial,Helvetica,sans-serif] text-[13px] focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15 [&_img]:inline-block [&_img]:max-w-full"
+      />
+      {error && (
+        <p role="alert" className="text-[13px] text-rejected">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button loading={save.isPending} onClick={() => save.mutate(clean(box.current.innerHTML).trim())}>
+          Save signature
+        </Button>
+        <Button variant="secondary" disabled={save.isPending} onClick={() => save.mutate('')}>
+          Use the standard one
+        </Button>
+        <Button variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // A text box with the signature under it, inside one frame, the way a mail
-// app shows a reply being written. The signature itself is not editable.
+// app shows a mail being written. The signature can be swapped for a pasted one.
 export function MailBody({ label, value, onChange, signature, error, hint, rows = 9, ...props }) {
   const id = useId();
+  const [editing, setEditing] = useState(false);
+
   return (
     <div>
       <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-ink">
@@ -126,8 +270,19 @@ export function MailBody({ label, value, onChange, signature, error, hint, rows 
           {...props}
         />
         <div className="border-t border-dashed border-line bg-bg/50 px-3 py-3">
-          <p className="mb-2 text-xs text-muted">--</p>
-          <SignatureCard signature={signature} />
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted">--</p>
+            {!editing && signature && (
+              <button type="button" onClick={() => setEditing(true)} className="min-h-8 rounded px-2 text-[13px] font-medium text-accent hover:bg-accent-soft">
+                Change signature
+              </button>
+            )}
+          </div>
+          {editing ? (
+            <SignatureEditor current={signature?.customHtml} onDone={() => setEditing(false)} />
+          ) : (
+            <SignatureCard signature={signature} />
+          )}
         </div>
       </div>
       {hint && !error && <p className="mt-1.5 text-[13px] text-muted">{hint}</p>}

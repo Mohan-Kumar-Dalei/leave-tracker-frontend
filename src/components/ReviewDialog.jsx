@@ -41,6 +41,7 @@ export function ReviewDialog({ leave, decision: startDecision, onClose, onDecide
 
   const nameOf = (email) => compose?.contacts.find((contact) => contact.email === email)?.name ?? email;
   const ccNames = leave.cc ? leave.cc.map(nameOf) : (compose?.defaultCc ?? []).map((contact) => contact.name);
+  const toNames = leave.mailTo ? leave.mailTo.map(nameOf) : null;
   const duration = leave.from === leave.to ? SESSION[leave.session] : 'Full days';
 
   // The reply starts as the approval. Pressing Reject while that text is
@@ -108,6 +109,7 @@ export function ReviewDialog({ leave, decision: startDecision, onClose, onDecide
           <Detail label="Duration">{duration}</Detail>
           <Detail label="Applied">{leave.createdAt ? slashDate(isoFromCreatedAt(leave.createdAt)) : 'Not known'}</Detail>
           <Detail label="Subject">{leave.subject || 'Leave Application'}</Detail>
+          {toNames && <Detail label="To">{toNames.join(', ')}</Detail>}
           <Detail label="CC">{ccNames.length ? ccNames.join(', ') : 'Nobody'}</Detail>
           {!pending && (
             <Detail label="Status">

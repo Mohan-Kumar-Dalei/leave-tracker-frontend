@@ -169,6 +169,7 @@ function SignatureEditor({ current, onDone }) {
   const { setUser } = useAuth();
   const toast = useToast();
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const save = useMutation({
     mutationFn: (signatureHtml) => api.patch('/me/profile', { signatureHtml }),
@@ -187,6 +188,22 @@ function SignatureEditor({ current, onDone }) {
     const text = event.clipboardData.getData('text/plain');
     const source = html || text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     const fragment = DOMPurify.sanitize(source, { ...PURIFY, ADD_ATTR: ['target', 'rel'], RETURN_DOM_FRAGMENT: true });
+
+    // Pictures attached inside a mail, or not on https, cannot travel with the
+    // signature. Say so instead of dropping them without a word.
+    // Gmail shows attached pictures through mail.google.com links that only
+    // open for the signed-in sender, so those count as attached too.
+    fragment.querySelectorAll('img[src^="https://mail.google.com/"]').forEach((img) => img.removeAttribute('src'));
+    const pasted = new DOMParser().parseFromString(source, 'text/html').querySelectorAll('img').length;
+    const kept = fragment.querySelectorAll('img[src]').length;
+    fragment.querySelectorAll('img:not([src])').forEach((img) => img.remove());
+    setNotice(
+      pasted > kept
+        ? `${pasted - kept === 1 ? 'One picture' : `${pasted - kept} pictures`} could not be kept, because ${
+            pasted - kept === 1 ? 'it is' : 'they are'
+          } attached to a mail and not on a web link. Copy the signature from Gmail settings (Settings, See all settings, Signature) instead, or ask for the logo link.`
+        : '',
+    );
 
     // Put the cleaned copy where the cursor is, keeping widths and spacing as
     // they were. Without a cursor in the box, it goes at the end.
@@ -211,7 +228,7 @@ function SignatureEditor({ current, onDone }) {
   return (
     <div className="space-y-2">
       <p className="text-[13px] text-muted">
-        Copy your signature from Gmail (select it in a sent mail and press Ctrl+C), then paste it here. Pictures must be on the web, not attached.
+        In Gmail open Settings, See all settings, Signature. Select your whole signature there, press Ctrl+C, and paste it here with Ctrl+V.
       </p>
       <div
         ref={box}
@@ -225,6 +242,11 @@ function SignatureEditor({ current, onDone }) {
         dangerouslySetInnerHTML={{ __html: clean(current || '') }}
         className="min-h-28 max-w-full overflow-x-auto rounded-lg border border-line bg-surface p-3 font-[Arial,Helvetica,sans-serif] text-[13px] focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15 [&_img]:inline-block [&_img]:max-w-full"
       />
+      {notice && (
+        <p role="status" className="rounded-lg bg-pending-soft px-3 py-2 text-[13px] text-pending">
+          {notice}
+        </p>
+      )}
       {error && (
         <p role="alert" className="text-[13px] text-rejected">
           {error}

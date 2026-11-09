@@ -161,6 +161,22 @@ export function SignatureCard({ signature }) {
   return <StandardSignature signature={signature} />;
 }
 
+// The hosting firewall blocks request bodies over 8 KB or full of style
+// attributes, and pasted signatures are both. So the signature travels
+// gzipped and base64 encoded; the server unpacks it and cleans it again.
+const MAX_PACKED = 7800;
+
+async function packSignature(html) {
+  if (!html) return '';
+  const stream = new Blob([html]).stream().pipeThrough(new CompressionStream('gzip'));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  const packed = btoa(binary);
+  if (packed.length > MAX_PACKED) throw new Error('That signature is too big to save. Remove large pictures or extra lines and try again.');
+  return packed;
+}
+
 // A box to paste a signature copied from Gmail or Outlook. Pasted HTML is
 // cleaned before it lands in the box, and again by the server when saved.
 function SignatureEditor({ current, onDone }) {
@@ -172,7 +188,7 @@ function SignatureEditor({ current, onDone }) {
   const [notice, setNotice] = useState('');
 
   const save = useMutation({
-    mutationFn: (signatureHtml) => api.patch('/me/profile', { signatureHtml }),
+    mutationFn: async (signatureHtml) => api.patch('/me/profile', { signatureGzip: await packSignature(signatureHtml) }),
     onSuccess: ({ user }) => {
       setUser(user);
       queryClient.invalidateQueries({ queryKey: ['compose'] });

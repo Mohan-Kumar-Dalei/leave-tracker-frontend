@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { dayRange, dayWord, isoFromCreatedAt, slashDate } from '../lib/dates';
+import { SendingFrom } from './GmailConnect';
 import { MailBody } from './MailParts';
 import { StatusBadge } from './StatusBadge';
 import { Button, Dialog } from './ui';
@@ -126,7 +127,8 @@ export function ReviewDialog({ leave, decision: startDecision, onClose, onDecide
         </section>
 
         {pending ? (
-          <section>
+          <section className="space-y-2">
+            <SendingFrom />
             {notice && (
               <p role="status" className="mb-3 rounded-lg bg-pending-soft px-3 py-2 text-[13px] text-pending">
                 {notice}

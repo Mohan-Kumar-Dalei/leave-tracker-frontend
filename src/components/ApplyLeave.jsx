@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { dayWord, slashDate } from '../lib/dates';
 import { useToast } from '../lib/toast';
+import { SendingFrom } from './GmailConnect';
 import { AddressField, MailBody } from './MailParts';
 import { Button, Dialog, SelectField, TextInput } from './ui';
 
@@ -235,6 +236,7 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
 
       <fieldset className="space-y-1 rounded-lg border border-line px-3 py-2">
         <legend className="px-1 text-[13px] font-medium">Leave Application mail</legend>
+        <SendingFrom />
         <AddressField label="To" value={chosenTo} names={names} onChange={setMailTo} />
         <div className="border-t border-line" />
         <AddressField label="CC" value={chosenCc} names={names} onChange={setCc} />

@@ -1,5 +1,7 @@
-import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { GmailPanel } from '../components/GmailConnect';
 import { Button, PageHeading, Panel, PasswordInput, Reveal, TextInput } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -66,8 +68,34 @@ function SignatureDetails({ user, onSaved }) {
   );
 }
 
+// What Google's redirect back to /profile?gmail=... means.
+const GMAIL_RESULTS = {
+  connected: ['success', 'Gmail connected', 'Your leave mails now go from your own address.'],
+  'wrong-account': ['error', 'That was a different Google account', 'Choose the Gmail with the same address you sign in here with.'],
+  'no-permission': ['error', 'Permission to send was not given', 'Tick the box that lets the app send mail, then allow.'],
+  cancelled: ['error', 'Gmail was not connected', 'You closed the Google page before allowing.'],
+  expired: ['error', 'That took too long', 'Press Connect Gmail and try again.'],
+  failed: ['error', 'Gmail could not be connected', 'Please try again in a minute.'],
+  off: ['error', 'Not set up yet', 'Sending from Gmail is not set up on the server.'],
+};
+
 export default function Profile() {
   const { user, setUser } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const notify = useToast();
+  const announced = useRef('');
+
+  useEffect(() => {
+    const key = params.get('gmail');
+    const result = GMAIL_RESULTS[key];
+    if (!result || announced.current === key) return;
+    announced.current = key;
+    const [tone, title, body] = result;
+    notify[tone](title, body);
+    queryClient.invalidateQueries({ queryKey: ['gmail'] });
+    setParams({}, { replace: true });
+  }, [params, setParams, notify, queryClient]);
   const toast = useToast();
   const [form, setForm] = useState({ currentPassword: '', newPassword: '' });
   const [repeat, setRepeat] = useState('');
@@ -113,6 +141,7 @@ export default function Profile() {
               ))}
             </dl>
           </Panel>
+          <GmailPanel />
           <SignatureDetails user={user} onSaved={setUser} />
         </div>
 

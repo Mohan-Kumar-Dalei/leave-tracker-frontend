@@ -255,24 +255,27 @@ export default function EmployeeDetail() {
                   <th className="px-5 py-2 font-normal">Leave type</th>
                   <th className="whitespace-nowrap px-3 py-2 text-right font-normal">Total leave</th>
                   <th className="px-3 py-2 text-right font-normal">Applied</th>
-                  <th className="px-3 py-2 text-right font-normal">Adjusted</th>
+                  <th className="px-3 py-2 text-right font-normal">Approved</th>
                   <th className="px-5 py-2 text-right font-normal">Available</th>
                 </tr>
               </thead>
               <tbody className="tabular-nums">
                 {balances.map((balance) => {
-                  const parts = [`${balance.approved} approved`, `${balance.pending} pending`];
-                  if (balance.earlier > 0) parts.unshift(`${balance.earlier} from earlier records`);
-                  const adjusted = balance.adjusted > 0 ? `+${balance.adjusted}` : String(balance.adjusted);
+                  // Leave from the old sheet was taken, so it counts as approved.
+                  const approved = balance.earlier + balance.approved;
                   return (
                     <tr key={balance.leaveType.id} className="border-b border-line last:border-b-0">
                       <td className="px-5 py-2.5">{balance.leaveType.name}</td>
                       <td className="px-3 py-2.5 text-right">{balance.total ?? 'No limit'}</td>
-                      <td className="px-3 py-2.5 text-right">
+                      <td className="px-3 py-2.5 text-right" title={`${approved} approved, ${balance.pending} pending`}>
                         {balance.booked}
-                        <span className="block text-xs text-muted">{parts.join(', ')}</span>
                       </td>
-                      <td className={`px-3 py-2.5 text-right ${balance.adjusted ? 'text-ink' : 'text-muted'}`}>{adjusted}</td>
+                      <td
+                        className="px-3 py-2.5 text-right"
+                        title={balance.earlier > 0 ? `${balance.approved} in the app, ${balance.earlier} from the earlier sheet` : undefined}
+                      >
+                        {approved}
+                      </td>
                       <td className="px-5 py-2.5 text-right font-medium">{balance.available ?? 'No limit'}</td>
                     </tr>
                   );
@@ -280,6 +283,9 @@ export default function EmployeeDetail() {
               </tbody>
             </table>
           </div>
+          <p className="border-t border-line px-5 py-2.5 text-xs text-muted">
+            Applied is approved plus pending. Approved includes leave from the earlier sheet. Available is total leave minus applied, plus any balance changes listed below.
+          </p>
         </Panel>
       </Reveal>
 

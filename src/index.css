@@ -1,6 +1,9 @@
 @import "@fontsource-variable/geist";
 @import "tailwindcss";
 
+/* Dark mode follows the data-theme attribute on <html>, set by src/lib/theme.js. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* Tailwind theme. Change a colour here and the whole app follows. */
 @theme {
   --color-bg: #f5f6f8;
@@ -57,6 +60,33 @@
 }
 
 @layer base {
+  /* The same tokens, for dark mode. Every colour in the app comes from these. */
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --color-bg: #0f1117;
+    --color-surface: #171a22;
+    --color-sunken: #1f232d;
+    --color-ink: #e7e9ee;
+    --color-muted: #9aa1ae;
+    --color-line: #2a2f3b;
+    --color-accent: #5a7bff;
+    --color-accent-deep: #7f99ff;
+    --color-accent-soft: #1d2647;
+    --color-on-accent: #ffffff;
+    --color-approved: #34c58a;
+    --color-approved-soft: #0f2a20;
+    --color-rejected: #f87171;
+    --color-rejected-soft: #3a1a1c;
+    --color-pending: #f2b04a;
+    --color-pending-soft: #33270f;
+    --color-cancelled: #9aa1ae;
+    --color-cancelled-soft: #1f232d;
+    --color-scrollbar: #3a4050;
+    --color-scrollbar-hover: #55607a;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-float: 0 12px 32px -12px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.3);
+  }
+
   h1,
   h2,
   h3 {

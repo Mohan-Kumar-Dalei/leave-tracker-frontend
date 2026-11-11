@@ -21,7 +21,9 @@ function EntryRow({ entry, onAvail }) {
   const detail = isLeave ? (entry.detail ?? `${entry.days} ${dayWord(entry.days)}. ${entry.reason}`) : entry.note;
 
   return (
-    <li className="grid gap-x-4 gap-y-1 border-b border-line px-4 py-3 last:border-b-0 sm:grid-cols-[170px_minmax(150px,240px)_1fr_90px] sm:items-center sm:px-5">
+    // Laid out by the width of the list, not the screen: with the side column
+    // the list is narrower, so the note moves to its own line until there is room.
+    <li className="grid gap-x-4 gap-y-1 border-b border-line px-4 py-3 last:border-b-0 @xl:grid-cols-[150px_minmax(0,1fr)_auto] @xl:items-center @xl:px-5 @4xl:grid-cols-[170px_minmax(150px,240px)_1fr_90px]">
       <p className="text-[13px] tabular-nums text-muted">
         {isLeave && entry.from !== entry.to ? (
           dayRange(entry.from, entry.to)
@@ -42,8 +44,8 @@ function EntryRow({ entry, onAvail }) {
           {entry.restricted && <span className="font-normal text-muted"> (Restricted)</span>}
         </span>
       </p>
-      <p className="min-w-0 text-[13px] text-muted">{detail}</p>
-      <div className="justify-self-start sm:justify-self-end">
+      <p className="min-w-0 text-[13px] text-muted @xl:order-last @xl:col-span-full @4xl:order-none @4xl:col-span-1">{detail}</p>
+      <div className="justify-self-start @xl:justify-self-end">
         {isLeave && <StatusBadge status={entry.status} />}
         {!isLeave && entry.availed && <span className="text-[13px] font-medium text-accent">Availed</span>}
         {!isLeave && entry.canAvail && (
@@ -82,7 +84,7 @@ export function EntryPanel({ filters, entries, loading, scroll, onAvail, label }
       {loading && <RowsSkeleton rows={3} />}
       {!loading && shown.length === 0 && <Empty title="Nothing here yet" />}
       {!loading && shown.length > 0 && (
-        <ul tabIndex={scroll ? 0 : undefined} className={scroll ? 'max-h-96 overflow-y-auto' : undefined}>
+        <ul tabIndex={scroll ? 0 : undefined} className={`@container ${scroll ? 'max-h-96 overflow-y-auto' : ''}`}>
           {shown.map((entry) => (
             <EntryRow key={`${entry.kind}-${entry.id}`} entry={entry} onAvail={onAvail} />
           ))}

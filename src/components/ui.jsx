@@ -54,7 +54,7 @@ export function IconButton({ label, className = '', children, ...props }) {
 }
 
 const INPUT =
-  'w-full h-10 rounded-lg border border-line bg-surface px-3 text-base text-ink transition-shadow placeholder:text-muted hover:border-[#d3d6dc] focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15 sm:text-sm max-sm:h-11';
+  'w-full h-10 rounded-lg border border-line bg-surface px-3 text-base text-ink transition-shadow placeholder:text-muted hover:border-muted/40 focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15 sm:text-sm max-sm:h-11';
 
 export function Field({ label, hint, error, children }) {
   const id = useId();
@@ -197,7 +197,7 @@ export function Pagination({ page, pages, total, onChange }) {
 
 // Uses the native dialog element, which handles focus and the Escape key.
 const DIALOG_BASE =
-  'rounded-2xl border border-line bg-surface p-0 text-ink shadow-float backdrop:bg-ink/30 motion-reduce:animate-none';
+  'rounded-2xl border border-line bg-surface p-0 text-ink shadow-float backdrop:bg-black/40 backdrop:backdrop-blur-sm motion-reduce:animate-none';
 
 const DIALOG_KIND = {
   sheet: `${DIALOG_BASE} my-3 ml-auto mr-3 h-[calc(100dvh-24px)] max-h-[calc(100dvh-24px)] w-[min(480px,calc(100%-24px))] max-w-full open:animate-sheet-in`,

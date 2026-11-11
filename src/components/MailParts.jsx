@@ -147,8 +147,18 @@ function StandardSignature({ signature }) {
   );
 }
 
+// Signatures carry their own mail colours, made for a white page, so in dark
+// mode they sit on a white card like the mail itself.
 export function SignatureCard({ signature }) {
   if (!signature) return null;
+  return (
+    <div className="dark:rounded-md dark:bg-white dark:p-3">
+      <SignatureInner signature={signature} />
+    </div>
+  );
+}
+
+function SignatureInner({ signature }) {
   if (signature.customHtml) {
     return (
       <div
@@ -256,7 +266,7 @@ function SignatureEditor({ current, onDone }) {
         onPaste={onPaste}
         // Starts with the saved signature, already cleaned.
         dangerouslySetInnerHTML={{ __html: clean(current || '') }}
-        className="min-h-28 max-w-full overflow-x-auto rounded-lg border border-line bg-surface p-3 font-[Arial,Helvetica,sans-serif] text-[13px] focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15 [&_img]:inline-block [&_img]:max-w-full"
+        className="min-h-28 max-w-full overflow-x-auto rounded-lg border border-line bg-surface p-3 font-[Arial,Helvetica,sans-serif] text-[13px] dark:bg-white dark:text-[#202124] focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15 [&_img]:inline-block [&_img]:max-w-full"
       />
       {notice && (
         <p role="status" className="rounded-lg bg-pending-soft px-3 py-2 text-[13px] text-pending">

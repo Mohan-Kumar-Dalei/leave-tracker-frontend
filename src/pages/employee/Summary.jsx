@@ -22,16 +22,17 @@ import { ApplyLeaveDialog } from '../../components/ApplyLeave';
 import { EntryPanel, PAST_FILTERS, UPCOMING_FILTERS } from '../../components/EntryPanel';
 import { MonthlyBars } from '../../components/MonthlyBars';
 import { TeamCalendarView } from '../../components/TeamCalendarView';
+import { HomeSidebar } from '../../components/HomeSidebar';
 import { Button, IconButton, LoadError, Panel, PanelTitle, Reveal } from '../../components/ui';
 import { api } from '../../lib/api';
 import { dayWord, longDate, slashDate, weekday } from '../../lib/dates';
 
 const TYPE_LOOK = {
-  CLSL: { icon: Sun, tile: 'bg-[#edf2ff] text-[#2f5bea]' },
-  CO: { icon: RefreshCw, tile: 'bg-[#f1f6e4] text-[#5f8a12]' },
-  EL: { icon: Award, tile: 'bg-[#e6f6ef] text-[#0e7f56]' },
-  LWP: { icon: Wallet, tile: 'bg-[#fdeceb] text-[#c4362f]' },
-  RH: { icon: Sparkles, tile: 'bg-[#e6f5fb] text-[#0b7ea4]' },
+  CLSL: { icon: Sun, tile: 'bg-[#edf2ff] text-[#2f5bea] dark:bg-[#2f5bea]/20 dark:text-[#8aa4ff]' },
+  CO: { icon: RefreshCw, tile: 'bg-[#f1f6e4] text-[#5f8a12] dark:bg-[#5f8a12]/20 dark:text-[#a6d35a]' },
+  EL: { icon: Award, tile: 'bg-[#e6f6ef] text-[#0e7f56] dark:bg-[#0e7f56]/25 dark:text-[#4fd6a0]' },
+  LWP: { icon: Wallet, tile: 'bg-[#fdeceb] text-[#c4362f] dark:bg-[#c4362f]/20 dark:text-[#f88a84]' },
+  RH: { icon: Sparkles, tile: 'bg-[#e6f5fb] text-[#0b7ea4] dark:bg-[#0b7ea4]/25 dark:text-[#5cc8ec]' },
 };
 
 const fallbackLook = { icon: CalendarDays, tile: 'bg-sunken text-muted' };
@@ -59,13 +60,26 @@ function BookedInfo({ balance }) {
   );
 }
 
-function BalanceCard({ balance }) {
+// Cards sit 2 to a row on phones, 3 on wider screens and 5 on the widest. The
+// last row stretches its cards so no empty spot is left at the end.
+const SPAN_MD = { 0: 'md:col-span-2', 1: 'md:col-span-6', 2: 'md:col-span-3' };
+
+function cardSpan(index, count) {
+  const classes = [];
+  if (count % 2 === 1 && index === count - 1) classes.push('col-span-2');
+  const leftover = count % 3;
+  classes.push(leftover && index >= count - leftover ? SPAN_MD[leftover] : SPAN_MD[0]);
+  classes.push('2xl:col-span-1');
+  return classes.join(' ');
+}
+
+function BalanceCard({ balance, className = '' }) {
   const { leaveType, available, booked } = balance;
   const look = TYPE_LOOK[leaveType.code] ?? fallbackLook;
   const low = leaveType.tracksBalance && available <= 0;
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+    <div className={`rounded-xl border border-line bg-surface p-4 shadow-card ${className}`}>
       <div className="flex items-start gap-3">
         <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${look.tile}`}>
           <look.icon className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -76,7 +90,9 @@ function BalanceCard({ balance }) {
         {leaveType.tracksBalance && (
           <div className="flex items-baseline justify-between">
             <dt className="text-muted">Available</dt>
-            <dd className={`text-xl font-semibold tabular-nums ${low ? 'text-muted' : 'text-approved'}`}>{available}</dd>
+            <dd className={`text-xl font-semibold tabular-nums ${low ? 'text-muted' : 'text-approved'}`}>
+              {available}
+            </dd>
           </div>
         )}
         <div className="flex items-center justify-between">
@@ -109,7 +125,10 @@ function BalanceChanges({ items }) {
 
   return items.map((item) => (
     <Reveal key={item.id}>
-      <div role="status" className="flex items-start gap-3 rounded-xl border border-accent/20 bg-accent-soft py-2 pl-4 pr-2">
+      <div
+        role="status"
+        className="flex items-start gap-3 rounded-xl border border-accent/20 bg-accent-soft py-2 pl-4 pr-2"
+      >
         <Scale className="mt-1 h-[18px] w-[18px] shrink-0 text-accent" aria-hidden="true" />
         <div className="min-w-0 flex-1 py-0.5 text-sm">
           <p className="font-medium">{changeText(item)}</p>
@@ -146,12 +165,21 @@ function MoreMenu({ year }) {
 
   return (
     <div ref={root} className="relative">
-      <IconButton label="More actions" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="border border-line bg-surface">
+      <IconButton
+        label="More actions"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="border border-line bg-surface"
+      >
         <MoreHorizontal className="h-4 w-4" />
       </IconButton>
       {open && (
         <div className="absolute right-0 top-11 z-20 w-56 overflow-hidden rounded-xl border border-line bg-surface shadow-float">
-          <a href={`/api/me/leaves.csv?year=${year}`} className="flex h-10 items-center gap-2.5 px-3 text-sm hover:bg-bg" onClick={() => setOpen(false)}>
+          <a
+            href={`/api/me/leaves.csv?year=${year}`}
+            className="flex h-10 items-center gap-2.5 px-3 text-sm hover:bg-bg"
+            onClick={() => setOpen(false)}
+          >
             <Download className="h-4 w-4 text-muted" aria-hidden="true" />
             Download {year} as CSV
           </a>
@@ -220,7 +248,8 @@ export default function Summary() {
 
       <Reveal delay={0.04} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
         <p className="text-[13px] text-muted">
-          Leave applied this year: <span className="font-medium tabular-nums text-ink">{data?.bookedThisYear ?? 0}</span>
+          Leave applied this year:{' '}
+          <span className="font-medium tabular-nums text-ink">{data?.bookedThisYear ?? 0}</span>
           <span className="mx-2 text-line">|</span>
           Absent: <span className="font-medium tabular-nums text-ink">{data?.absent ?? 0}</span>
         </p>
@@ -263,56 +292,73 @@ export default function Summary() {
         </div>
       </Reveal>
 
-      <Reveal delay={0.08}>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          {data
-            ? data.balances.map((balance) => <BalanceCard key={balance.leaveType.id} balance={balance} />)
-            : Array.from({ length: 5 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-lg bg-sunken motion-reduce:animate-none" />)}
-        </div>
-      </Reveal>
+      <div className="grid items-start gap-4 lg:grid-cols-[264px_minmax(0,1fr)]">
+        <aside className="order-last lg:order-first">
+          <HomeSidebar />
+        </aside>
+        <div className="min-w-0 space-y-4">
+          <Reveal delay={0.08}>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-6 2xl:grid-cols-5">
+              {data
+                ? data.balances.map((balance, index) => (
+                    <BalanceCard
+                      key={balance.leaveType.id}
+                      balance={balance}
+                      className={cardSpan(index, data.balances.length)}
+                    />
+                  ))
+                : Array.from({ length: 5 }, (_, index) => (
+                    <div
+                      key={index}
+                      className={`h-36 animate-pulse rounded-lg bg-sunken motion-reduce:animate-none ${cardSpan(index, 5)}`}
+                    />
+                  ))}
+            </div>
+          </Reveal>
 
-      {view === 'list' ? (
-        <>
-          <Reveal delay={0.12}>
-            <EntryPanel
-              label="Filter upcoming"
-              filters={UPCOMING_FILTERS}
-              entries={data?.upcoming ?? []}
-              loading={isPending}
-              onAvail={avail}
-            />
-          </Reveal>
-          <Reveal delay={0.16}>
-            <EntryPanel
-              label="Filter past"
-              filters={PAST_FILTERS}
-              entries={data?.past ?? []}
-              loading={isPending}
-              onAvail={avail}
-              scroll
-            />
-          </Reveal>
-          {data && data.monthly.some((days) => days > 0) && (
-            <Reveal delay={0.2}>
-              <Panel>
-                <PanelTitle>Leave used by month, {shownYear}</PanelTitle>
-                <MonthlyBars months={data.monthly} />
-              </Panel>
+          {view === 'list' ? (
+            <>
+              <Reveal delay={0.12}>
+                <EntryPanel
+                  label="Filter upcoming"
+                  filters={UPCOMING_FILTERS}
+                  entries={data?.upcoming ?? []}
+                  loading={isPending}
+                  onAvail={avail}
+                />
+              </Reveal>
+              <Reveal delay={0.16}>
+                <EntryPanel
+                  label="Filter past"
+                  filters={PAST_FILTERS}
+                  entries={data?.past ?? []}
+                  loading={isPending}
+                  onAvail={avail}
+                  scroll
+                />
+              </Reveal>
+              {data && data.monthly.some((days) => days > 0) && (
+                <Reveal delay={0.2}>
+                  <Panel>
+                    <PanelTitle>Leave used by month, {shownYear}</PanelTitle>
+                    <MonthlyBars months={data.monthly} />
+                  </Panel>
+                </Reveal>
+              )}
+            </>
+          ) : (
+            <Reveal>
+              <TeamCalendarView
+                year={shownYear}
+                month={shownMonth}
+                minMonth={0}
+                maxMonth={11}
+                onMonthChange={(_, next) => setMonth(next)}
+              />
             </Reveal>
           )}
-        </>
-      ) : (
-        <Reveal>
-          <TeamCalendarView
-            year={shownYear}
-            month={shownMonth}
-            minMonth={0}
-            maxMonth={11}
-            onMonthChange={(_, next) => setMonth(next)}
-          />
-        </Reveal>
-      )}
-
+        </div>
+      </div>
       <ApplyLeaveDialog
         open={dialog.open}
         preset={dialog.preset}

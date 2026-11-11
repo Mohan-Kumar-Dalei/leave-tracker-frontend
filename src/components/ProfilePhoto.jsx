@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
-import { Camera, ZoomIn, ZoomOut } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Camera, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useToast } from '../lib/toast';
@@ -43,6 +43,65 @@ export function Avatar({ user, size = 36, className = '' }) {
     >
       {initials(user?.name)}
     </span>
+  );
+}
+
+// The photo at full size over a blurred page. Escape, the close button or a
+// click outside closes it.
+export function PhotoViewer({ user, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      aria-label={`${user.name}'s photo`}
+      onClose={onClose}
+      onClick={(event) => {
+        if (event.target === ref.current) onClose();
+      }}
+      className="m-auto overflow-visible bg-transparent p-0 backdrop:bg-black/70 backdrop:backdrop-blur-md open:animate-modal-in motion-reduce:animate-none"
+    >
+      <figure className="relative">
+        <img
+          src={`${user.avatarUrl}${user.avatarUrl.includes('?') ? '&' : '?'}tr=w-800,h-800,fo-auto`}
+          alt={user.name}
+          className="size-[min(80vw,70dvh,520px)] rounded-2xl bg-sunken object-cover shadow-float"
+        />
+        <figcaption className="mt-3 text-center text-sm font-medium text-white">{user.name}</figcaption>
+        <button
+          type="button"
+          aria-label="Close photo"
+          title="Close photo"
+          onClick={onClose}
+          className="absolute -right-3 -top-3 grid h-9 w-9 place-items-center rounded-full bg-surface text-ink shadow-float hover:bg-sunken"
+        >
+          <X className="h-[18px] w-[18px]" />
+        </button>
+      </figure>
+    </dialog>
+  );
+}
+
+// An avatar that opens the photo when there is one. Without a photo it
+// does what onClick says, or nothing.
+export function PhotoAvatar({ user, size, className = '', onClick }) {
+  const [viewing, setViewing] = useState(false);
+  const hasPhoto = Boolean(user?.avatarUrl);
+  if (!hasPhoto && !onClick) return <Avatar user={user} size={size} className={className} />;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => (hasPhoto ? setViewing(true) : onClick())}
+        className={`shrink-0 rounded-full transition-opacity hover:opacity-90 ${className}`}
+      >
+        <Avatar user={user} size={size} />
+        <span className="sr-only">{hasPhoto ? `View ${user.name}'s photo` : `Open ${user.name}'s profile card`}</span>
+      </button>
+      {viewing && <PhotoViewer user={user} onClose={() => setViewing(false)} />}
+    </>
   );
 }
 
@@ -274,7 +333,7 @@ export function ProfilePhotoPanel() {
 
   return (
     <Panel className="flex flex-wrap items-center gap-4 p-5">
-      <Avatar user={user} size={72} />
+      <PhotoAvatar user={user} size={72} />
       <div className="min-w-0 flex-1">
         <h2 className="text-base font-semibold">Profile photo</h2>
         <p className="mt-0.5 text-sm text-muted">Choose a photo, then drag and zoom to fit it in the circle.</p>

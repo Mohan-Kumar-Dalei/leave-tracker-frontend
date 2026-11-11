@@ -10,6 +10,7 @@ import Summary from './pages/employee/Summary';
 import TeamCalendar from './pages/TeamCalendar';
 
 const Overview = lazy(() => import('./pages/admin/Overview'));
+const Team = lazy(() => import('./pages/Team'));
 const AdminRequests = lazy(() => import('./pages/admin/AdminRequests'));
 const Employees = lazy(() => import('./pages/admin/Employees'));
 const EmployeeDetail = lazy(() => import('./pages/admin/EmployeeDetail'));
@@ -88,6 +89,7 @@ export default function App() {
         <Route path="requests" element={<EmployeeOnly><MyRequests /></EmployeeOnly>} />
         <Route path="team-calendar" element={<RequireAdmin><TeamCalendar /></RequireAdmin>} />
         <Route path="profile" element={<Profile />} />
+        <Route path="team" element={<Team />} />
         <Route path="admin" element={<RequireAdmin><Overview /></RequireAdmin>} />
         <Route path="admin/requests" element={<RequireAdmin><AdminRequests /></RequireAdmin>} />
         <Route path="admin/schedule" element={<RequireAdmin><Schedule /></RequireAdmin>} />

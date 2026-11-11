@@ -1,16 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
-import { CalendarCheck, CalendarDays, FileText, History, Inbox, LayoutGrid, LogOut, Settings2, UserRound, Users } from 'lucide-react';
+import { CalendarCheck, CalendarDays, FileText, History, Inbox, LayoutGrid, LogOut, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { setTheme, useTheme } from '../lib/theme';
 import { NotificationBell } from './NotificationBell';
 import { Avatar } from './ProfilePhoto';
+import { IconButton } from './ui';
 
 const PERSONAL_NAV = [
   { to: '/', label: 'My leave', icon: CalendarCheck, end: true },
   { to: '/requests', label: 'My requests', icon: FileText },
+  { to: '/team', label: 'Team', short: 'Team', icon: Network },
   { to: '/profile', label: 'Profile', short: 'Profile', icon: UserRound },
 ];
 
@@ -19,6 +22,7 @@ const ADMIN_NAV = [
   { to: '/admin/requests', label: 'Leave requests', short: 'Requests', icon: Inbox, badge: true },
   { to: '/team-calendar', label: 'Team calendar', short: 'Calendar', icon: CalendarDays },
   { to: '/admin/schedule', label: 'Upcoming & past', short: 'Upcoming', icon: History },
+  { to: '/team', label: 'Team', short: 'Team', icon: Network },
   { to: '/admin/employees', label: 'Employees', short: 'Employees', icon: Users },
   { to: '/admin/setup', label: 'Setup', short: 'Setup', icon: Settings2 },
 ];
@@ -108,6 +112,16 @@ function UserMenu({ user, onSignOut }) {
   );
 }
 
+function ThemeSwitch() {
+  const dark = useTheme() === 'dark';
+  const Icon = dark ? Sun : Moon;
+  return (
+    <IconButton label={dark ? 'Switch to light mode' : 'Switch to dark mode'} onClick={() => setTheme(dark ? 'light' : 'dark')}>
+      <Icon className="h-[18px] w-[18px]" />
+    </IconButton>
+  );
+}
+
 export function AppShell() {
   const { user, signOut } = useAuth();
   const isAdmin = user.role === 'admin';
@@ -145,6 +159,7 @@ export function AppShell() {
             <Logo />
           </Link>
           <div className="flex items-center gap-1.5">
+            <ThemeSwitch />
             <NotificationBell />
             <UserMenu user={user} onSignOut={signOut} />
           </div>

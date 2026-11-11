@@ -253,24 +253,30 @@ export default function EmployeeDetail() {
               <thead>
                 <tr className="border-b border-line text-left text-muted">
                   <th className="px-5 py-2 font-normal">Leave type</th>
-                  <th className="px-3 py-2 text-right font-normal">Entitled</th>
-                  <th className="px-3 py-2 text-right font-normal">Earlier records</th>
-                  <th className="px-3 py-2 text-right font-normal">Approved</th>
-                  <th className="px-3 py-2 text-right font-normal">Pending</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-normal">Total leave</th>
+                  <th className="px-3 py-2 text-right font-normal">Applied</th>
+                  <th className="px-3 py-2 text-right font-normal">Adjusted</th>
                   <th className="px-5 py-2 text-right font-normal">Available</th>
                 </tr>
               </thead>
               <tbody className="tabular-nums">
-                {balances.map((balance) => (
-                  <tr key={balance.leaveType.id} className="border-b border-line last:border-b-0">
-                    <td className="px-5 py-2.5">{balance.leaveType.name}</td>
-                    <td className="px-3 py-2.5 text-right">{balance.entitled ?? 'No limit'}</td>
-                    <td className="px-3 py-2.5 text-right">{balance.earlier}</td>
-                    <td className="px-3 py-2.5 text-right">{balance.approved}</td>
-                    <td className="px-3 py-2.5 text-right">{balance.pending}</td>
-                    <td className="px-5 py-2.5 text-right font-medium">{balance.available ?? 'No limit'}</td>
-                  </tr>
-                ))}
+                {balances.map((balance) => {
+                  const parts = [`${balance.approved} approved`, `${balance.pending} pending`];
+                  if (balance.earlier > 0) parts.unshift(`${balance.earlier} from earlier records`);
+                  const adjusted = balance.adjusted > 0 ? `+${balance.adjusted}` : String(balance.adjusted);
+                  return (
+                    <tr key={balance.leaveType.id} className="border-b border-line last:border-b-0">
+                      <td className="px-5 py-2.5">{balance.leaveType.name}</td>
+                      <td className="px-3 py-2.5 text-right">{balance.total ?? 'No limit'}</td>
+                      <td className="px-3 py-2.5 text-right">
+                        {balance.booked}
+                        <span className="block text-xs text-muted">{parts.join(', ')}</span>
+                      </td>
+                      <td className={`px-3 py-2.5 text-right ${balance.adjusted ? 'text-ink' : 'text-muted'}`}>{adjusted}</td>
+                      <td className="px-5 py-2.5 text-right font-medium">{balance.available ?? 'No limit'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

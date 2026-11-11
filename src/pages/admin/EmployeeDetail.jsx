@@ -37,7 +37,10 @@ const localToday = () => new Intl.DateTimeFormat('en-CA').format(new Date());
 function AdjustBalance({ item, onClose, employeeId, balances }) {
   const leaveOptions = balances.filter((balance) => !balance.leaveType.restrictedHolidayOnly);
   const mode = item ? 'days' : 'leave';
-  const [form, setForm] = useState({ days: item?.days ?? '', reason: item?.reason ?? '' });
+  const [form, setForm] = useState({
+    days: item?.days ?? '',
+    reason: item?.reason ?? '',
+  });
   const [taken, setTaken] = useState({
     leaveTypeId: '',
     from: localToday(),
@@ -138,7 +141,7 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
         {mode === 'leave' && (
           <>
             <p className="text-[13px] text-muted">
-              For days they were on leave but did not apply. It is saved as approved leave on those dates.
+              For days they were on leave but did not apply. Saved as approved leave.
             </p>
             <SelectField
               label="Leave type"
@@ -160,7 +163,11 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
                 value={taken.from}
                 onChange={(event) => {
                   const from = event.target.value;
-                  setTaken({ ...taken, from, to: taken.to < from ? from : taken.to });
+                  setTaken({
+                    ...taken,
+                    from,
+                    to: taken.to < from ? from : taken.to,
+                  });
                 }}
               />
               <TextInput
@@ -172,36 +179,50 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
                 onChange={(event) => setTaken({ ...taken, to: event.target.value })}
               />
             </div>
-            {singleDay && (
-              <fieldset>
-                <legend className="mb-1.5 text-[13px] font-medium">Duration</legend>
-                <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-line bg-line">
-                  {SESSIONS.map(([value, label]) => (
+            {/* Always shown, so the form keeps its height. Half days are for
+                one date only, so they are off for a range. */}
+            <fieldset>
+              <legend className="mb-1.5 text-[13px] font-medium">Duration</legend>
+              <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-line bg-line">
+                {SESSIONS.map(([value, label]) => {
+                  const off = !singleDay && value !== 'full';
+                  return (
                     <label
                       key={value}
-                      className={`grid min-h-10 cursor-pointer place-items-center px-2 text-sm transition-colors has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-accent ${
-                        taken.session === value
-                          ? 'bg-accent-soft font-medium text-accent'
-                          : 'bg-surface text-ink hover:bg-bg'
+                      title={off ? 'Half days are for one date only' : undefined}
+                      className={`grid min-h-10 place-items-center px-2 text-sm transition-colors has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-accent ${
+                        off
+                          ? 'cursor-not-allowed bg-surface text-muted/50'
+                          : session === value
+                            ? 'cursor-pointer bg-accent-soft font-medium text-accent'
+                            : 'cursor-pointer bg-surface text-ink hover:bg-bg'
                       }`}
                     >
                       <input
                         type="radio"
                         name="taken-session"
                         value={value}
-                        checked={taken.session === value}
+                        disabled={off}
+                        checked={session === value}
                         onChange={() => setTaken({ ...taken, session: value })}
                         className="sr-only"
                       />
                       {label}
                     </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-            <div aria-live="polite" className="min-h-11 rounded-lg bg-bg px-3 py-2.5 text-sm">
-              {preview?.error && <p className="text-rejected">{preview.error}</p>}
-              {preview && !preview.error && (
+                  );
+                })}
+              </div>
+            </fieldset>
+            {/* One fixed line for the count, problems and save errors, so the
+                form does not grow as it is filled in. */}
+            <div aria-live="polite" className="flex min-h-11 items-center rounded-lg bg-bg px-3 py-2 text-sm">
+              {error && (
+                <p role="alert" className="line-clamp-2 text-rejected">
+                  {error}
+                </p>
+              )}
+              {!error && preview?.error && <p className="line-clamp-2 text-rejected">{preview.error}</p>}
+              {!error && preview && !preview.error && (
                 <p>
                   <span className="font-semibold tabular-nums">{preview.days}</span> working {dayWord(preview.days)}
                   {preview.tracksBalance
@@ -209,7 +230,7 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
                     : '. No limit for this leave type.'}
                 </p>
               )}
-              {!preview && <p className="text-muted">Sundays and public holidays are not counted.</p>}
+              {!error && !preview && <p className="text-muted">Sundays and public holidays are not counted.</p>}
             </div>
             <TextInput
               label="Note"
@@ -217,7 +238,10 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
               value={taken.note}
               placeholder="Forgot to apply"
               hint="Optional. The employee can see this."
-              onChange={(event) => setTaken({ ...taken, note: event.target.value })}
+              onChange={(event) => {
+                setTaken({ ...taken, note: event.target.value });
+                setError('');
+              }}
             />
           </>
         )}
@@ -247,7 +271,7 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
             />
           </>
         )}
-        {error && (
+        {mode === 'days' && error && (
           <p role="alert" className="text-sm text-rejected">
             {error}
           </p>
@@ -334,6 +358,36 @@ function EditDetails({ user, onClose }) {
   );
 }
 
+const HALF = { first: 'first half', second: 'second half' };
+
+// A leave recorded from "Adjust balance": it shows with the balance changes
+// and, as approved, with the year's leave.
+function RecordedLeave({ leave, onRemove }) {
+  const note = leave.reason && leave.reason !== 'Recorded by admin' ? leave.reason : '';
+  return (
+    <li className="flex items-start justify-between gap-2 border-b border-line py-2 pl-5 pr-3 text-sm last:border-b-0">
+      <div className="min-w-0 py-1">
+        <p className="font-medium">
+          <span className="tabular-nums">-{leave.days}</span> {leave.leaveType?.name}
+        </p>
+        <p className="tabular-nums text-muted">
+          Leave taken {dayRange(leave.from, leave.to)}
+          {HALF[leave.session] ? `, ${HALF[leave.session]}` : leave.from === leave.to ? ', full day' : ''}
+        </p>
+        {note && <p className="break-words text-muted">{note}</p>}
+        <p className="text-xs text-muted">
+          {leave.recordedBy?.name}, {slashDate(isoFromCreatedAt(leave.createdAt))}
+        </p>
+      </div>
+      <div className="flex shrink-0">
+        <IconButton label={`Remove recorded ${leave.leaveType?.name}`} onClick={onRemove}>
+          <Trash2 className="h-4 w-4" />
+        </IconButton>
+      </div>
+    </li>
+  );
+}
+
 export default function EmployeeDetail() {
   const { id } = useParams();
   const { user: me } = useAuth();
@@ -364,7 +418,8 @@ export default function EmployeeDetail() {
   });
 
   const removeChange = useMutation({
-    mutationFn: (itemId) => api.delete(`/admin/employees/${id}/adjustments/${itemId}`),
+    mutationFn: (item) =>
+      api.delete(`/admin/employees/${id}/${item.kind === 'leave' ? 'leaves' : 'adjustments'}/${item.id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', id] });
       toast.success('Change removed', 'The employee has been notified.');
@@ -379,7 +434,12 @@ export default function EmployeeDetail() {
   if (isPending) return <RowsSkeleton rows={6} />;
   if (isError) return <LoadError error={error} onRetry={refetch} />;
 
-  const { user, balances, monthly, adjustments, recent, year } = data;
+  const { user, balances, monthly, adjustments, recent, recorded = [], year } = data;
+  // Balance changes and the leave recorded from "Adjust balance", newest first.
+  const changes = [
+    ...adjustments.map((item) => ({ ...item, kind: 'change' })),
+    ...recorded.map((leave) => ({ ...leave, kind: 'leave' })),
+  ].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 
   return (
     <div className="space-y-4">
@@ -477,7 +537,7 @@ export default function EmployeeDetail() {
       <Reveal delay={0.14} className="grid items-start gap-4 lg:grid-cols-[1.5fr_1fr]">
         <Panel>
           <PanelTitle>Leave in {year}</PanelTitle>
-          {recent.length === 0 && <p className="px-5 py-4 text-sm text-muted">No leave this year.</p>}
+          {recent.length === 0 && <p className="px-5 py-4 text-sm text-muted">No approved leave this year.</p>}
           <ul>
             {recent.map((leave) => (
               <li
@@ -488,7 +548,11 @@ export default function EmployeeDetail() {
                   <p className="font-medium">{leave.leaveType?.name}</p>
                   <p className="tabular-nums text-muted">
                     {dayRange(leave.from, leave.to)}, {leave.days} {dayWord(leave.days)}
+                    {HALF[leave.session] && `, ${HALF[leave.session]}`}
                   </p>
+                  {leave.recordedBy && (
+                    <p className="text-xs text-muted">Recorded by {leave.recordedBy.name} from Adjust balance</p>
+                  )}
                 </div>
                 <StatusBadge status={leave.status} />
               </li>
@@ -498,33 +562,37 @@ export default function EmployeeDetail() {
 
         <Panel>
           <PanelTitle>Balance changes</PanelTitle>
-          {adjustments.length === 0 && <p className="px-5 py-4 text-sm text-muted">No manual changes this year.</p>}
+          {changes.length === 0 && <p className="px-5 py-4 text-sm text-muted">No manual changes this year.</p>}
           <ul>
-            {adjustments.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-start justify-between gap-2 border-b border-line py-2 pl-5 pr-3 text-sm last:border-b-0"
-              >
-                <div className="min-w-0 py-1">
-                  <p className="font-medium">
-                    <span className="tabular-nums">{item.days > 0 ? `+${item.days}` : item.days}</span>{' '}
-                    {item.leaveType?.name}
-                  </p>
-                  <p className="break-words text-muted">{item.reason}</p>
-                  <p className="text-xs text-muted">
-                    {item.createdBy?.name}, {slashDate(isoFromCreatedAt(item.createdAt))}
-                  </p>
-                </div>
-                <div className="flex shrink-0">
-                  <IconButton label={`Edit ${item.leaveType?.name} change`} onClick={() => setAdjusting({ item })}>
-                    <Pencil className="h-4 w-4" />
-                  </IconButton>
-                  <IconButton label={`Remove ${item.leaveType?.name} change`} onClick={() => setRemoving(item)}>
-                    <Trash2 className="h-4 w-4" />
-                  </IconButton>
-                </div>
-              </li>
-            ))}
+            {changes.map((item) =>
+              item.kind === 'leave' ? (
+                <RecordedLeave key={item.id} leave={item} onRemove={() => setRemoving(item)} />
+              ) : (
+                <li
+                  key={item.id}
+                  className="flex items-start justify-between gap-2 border-b border-line py-2 pl-5 pr-3 text-sm last:border-b-0"
+                >
+                  <div className="min-w-0 py-1">
+                    <p className="font-medium">
+                      <span className="tabular-nums">{item.days > 0 ? `+${item.days}` : item.days}</span>{' '}
+                      {item.leaveType?.name}
+                    </p>
+                    <p className="break-words text-muted">{item.reason}</p>
+                    <p className="text-xs text-muted">
+                      {item.createdBy?.name}, {slashDate(isoFromCreatedAt(item.createdAt))}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0">
+                    <IconButton label={`Edit ${item.leaveType?.name} change`} onClick={() => setAdjusting({ item })}>
+                      <Pencil className="h-4 w-4" />
+                    </IconButton>
+                    <IconButton label={`Remove ${item.leaveType?.name} change`} onClick={() => setRemoving(item)}>
+                      <Trash2 className="h-4 w-4" />
+                    </IconButton>
+                  </div>
+                </li>
+              ),
+            )}
           </ul>
         </Panel>
       </Reveal>
@@ -538,16 +606,18 @@ export default function EmployeeDetail() {
       <ConfirmDialog
         open={Boolean(removing)}
         onClose={() => setRemoving(null)}
-        title="Remove this balance change?"
+        title={removing?.kind === 'leave' ? 'Remove this recorded leave?' : 'Remove this balance change?'}
         body={
-          removing
-            ? `${removing.days > 0 ? '+' : ''}${removing.days} ${removing.leaveType?.name}. The balance goes back and the employee is told.`
-            : ''
+          removing?.kind === 'leave'
+            ? `${removing.leaveType?.name}, ${dayRange(removing.from, removing.to)}. It is taken off the year's leave, the ${removing.days} ${dayWord(removing.days)} go back to the balance, and the employee is told.`
+            : removing
+              ? `${removing.days > 0 ? '+' : ''}${removing.days} ${removing.leaveType?.name}. The balance goes back and the employee is told.`
+              : ''
         }
-        confirmLabel="Remove change"
+        confirmLabel={removing?.kind === 'leave' ? 'Remove leave' : 'Remove change'}
         danger
         loading={removeChange.isPending}
-        onConfirm={() => removeChange.mutate(removing.id)}
+        onConfirm={() => removeChange.mutate(removing)}
       />
 
       <ConfirmDialog

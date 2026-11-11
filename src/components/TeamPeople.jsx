@@ -137,7 +137,7 @@ export function AllMembers({ members, onOpen, onClose }) {
           className="h-10 w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-base focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15 sm:text-sm"
         />
       </label>
-      <ul className="mt-3 max-h-[55dvh] divide-y divide-line overflow-y-auto">
+      <ul className="mt-3 h-[min(420px,50dvh)] divide-y divide-line overflow-y-auto overscroll-contain">
         {shown.map((member) => (
           <li key={member.id}>
             <MemberRow member={member} onOpen={onOpen} />

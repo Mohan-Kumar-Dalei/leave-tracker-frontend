@@ -227,14 +227,16 @@ export function Dialog({ open, onClose, title, kind = 'sheet', children, footer 
       }}
     >
       {open && (
-        <div className={`flex flex-col ${kind === 'sheet' ? 'h-full' : 'max-h-[90dvh]'}`}>
+        // A modal never gets taller than this; longer content scrolls inside it
+        // while the title and the buttons stay in place.
+        <div className={`flex flex-col ${kind === 'sheet' ? 'h-full' : 'max-h-[min(680px,84dvh)]'}`}>
           <header className="flex items-center justify-between gap-4 border-b border-line py-3 pl-5 pr-3">
             <h2 className="text-base font-semibold">{title}</h2>
             <IconButton label="Close" onClick={onClose}>
               <X className="h-[18px] w-[18px]" />
             </IconButton>
           </header>
-          <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">{children}</div>
           {footer && <footer className="flex justify-end gap-2 border-t border-line px-5 py-3">{footer}</footer>}
         </div>
       )}

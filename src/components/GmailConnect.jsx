@@ -6,69 +6,11 @@ import { api } from '../lib/api';
 import { useToast } from '../lib/toast';
 import { Button, Panel, PasswordInput } from './ui';
 
-// Two ways to send leave mails from one's own Gmail, both kept for now:
-//  1. Connect with Google: the app only gets permission to send, nothing to type.
-//  2. App Password: a 16 letter password made in the Google account.
-// The first that works is used; without either, mail goes from the app.
+// Leave mails go from a person's own Gmail once they save a Gmail App
+// Password: 16 letters made in their Google account. Without one, mail goes
+// from the app under their name.
 
 export const useGmail = () => useQuery({ queryKey: ['gmail'], queryFn: () => api.get('/me/gmail') });
-
-async function startConnect() {
-  const { url } = await api.post('/me/gmail/connect');
-  window.location.assign(url);
-}
-
-function GoogleConnect({ data }) {
-  const queryClient = useQueryClient();
-  const toast = useToast();
-
-  const connect = useMutation({
-    mutationFn: startConnect,
-    onError: (issue) => toast.error('Could not open Google', issue.message),
-  });
-
-  const disconnect = useMutation({
-    mutationFn: () => api.delete('/me/gmail'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gmail'] });
-      toast.success('Gmail disconnected');
-    },
-    onError: (issue) => toast.error('Could not disconnect', issue.message),
-  });
-
-  return (
-    <section>
-      <h3 className="text-sm font-semibold">Option 1: Connect with Google</h3>
-      {!data.available && <p className="mt-1 text-sm text-muted">Not set up on the server yet.</p>}
-
-      {data.available && data.connected && (
-        <>
-          <p className="mt-1 text-sm">
-            Connected as <span className="font-medium">{data.email}</span>. Your mails show in your Sent folder.
-          </p>
-          <Button variant="secondary" className="mt-3" loading={disconnect.isPending} onClick={() => disconnect.mutate()}>
-            Disconnect
-          </Button>
-        </>
-      )}
-
-      {data.available && !data.connected && (
-        <>
-          {data.needsReconnect ? (
-            <p role="status" className="mt-1 rounded-lg bg-pending-soft px-3 py-2 text-sm text-pending">
-              Google stopped accepting the connection to {data.email}. Connect it again.
-            </p>
-          ) : (
-            <p className="mt-1 text-sm text-muted">Sign in with Google and allow sending. The app can only send mail, it cannot read yours.</p>
-          )}
-          <Button className="mt-3" loading={connect.isPending} onClick={() => connect.mutate()}>
-            {data.needsReconnect ? 'Connect again' : 'Connect Gmail'}
-          </Button>
-        </>
-      )}
-    </section>
-  );
-}
 
 function AppPasswordConnect({ app }) {
   const queryClient = useQueryClient();
@@ -99,7 +41,7 @@ function AppPasswordConnect({ app }) {
     <section>
       <h3 className="flex items-center gap-1.5 text-sm font-semibold">
         <KeyRound className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
-        Option 2: Gmail App Password
+        Gmail App Password
       </h3>
       {!app.available && <p className="mt-1 text-sm text-muted">Not set up on the server yet.</p>}
 
@@ -176,10 +118,9 @@ export function GmailPanel() {
         <Mail className="h-4 w-4 text-muted" aria-hidden="true" />
         Send from your Gmail
       </h2>
-      <p className="mt-1 text-sm text-muted">Use either way. If both are set, Connect with Google is used first.</p>
-      <div className="mt-4 space-y-5 divide-y divide-line [&>*+*]:pt-5">
-        <GoogleConnect data={data} />
-        {data.appPassword && <AppPasswordConnect app={data.appPassword} />}
+      <p className="mt-1 text-sm text-muted">Your leave mails go from your own address and show in your Sent folder.</p>
+      <div className="mt-4">
+        <AppPasswordConnect app={data} />
       </div>
     </Panel>
   );
@@ -188,22 +129,20 @@ export function GmailPanel() {
 // One line above a mail being written: where it will be sent from.
 export function SendingFrom() {
   const { data } = useGmail();
-  if (!data) return null;
-  const app = data.appPassword ?? {};
-  if (!data.available && !app.available) return null;
+  if (!data?.available) return null;
 
-  if (data.connected || app.connected) {
+  if (data.connected) {
     return (
       <p className="text-[13px] text-muted">
-        Goes from your Gmail, <span className="text-ink">{data.connected ? data.email : app.email}</span>.
+        Goes from your Gmail, <span className="text-ink">{data.email}</span>.
       </p>
     );
   }
   return (
     <p className="text-[13px] text-muted">
-      {data.needsReconnect || app.needsReconnect ? 'Your Gmail needs connecting again. ' : 'Goes from the app under your name. '}
+      {data.needsReconnect ? 'Your Gmail App Password needs adding again. ' : 'Goes from the app under your name. '}
       <Link to="/profile" className="font-medium text-accent hover:underline">
-        Set up your Gmail
+        Add your Gmail App Password
       </Link>{' '}
       to send from your own address.
     </p>

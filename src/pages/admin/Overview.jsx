@@ -119,8 +119,11 @@ export default function Overview() {
             </div>
           </Reveal>
 
-          <div className="grid items-start gap-4 2xl:grid-cols-[1.8fr_1fr]">
-            <Reveal delay={0.08}>
+          {/* Wide screens: pending requests and the yearly usage on the left,
+              the people and holiday lists down the right, so neither column
+              leaves a gap. The second row takes up any extra height. */}
+          <div className="grid items-start gap-4 2xl:grid-cols-[1.8fr_1fr] 2xl:grid-rows-[auto_1fr]">
+            <Reveal delay={0.08} className="2xl:col-start-1 2xl:row-start-1">
               <Panel>
                 <PanelTitle
                   action={
@@ -142,7 +145,7 @@ export default function Overview() {
               </Panel>
             </Reveal>
 
-            <Reveal delay={0.12} className="space-y-4">
+            <Reveal delay={0.12} className="space-y-4 2xl:col-start-2 2xl:row-span-2 2xl:row-start-1">
               <PeopleList
                 title="Away today"
                 items={data?.awayToday ?? []}
@@ -175,13 +178,13 @@ export default function Overview() {
                 </ul>
               </Panel>
             </Reveal>
-          </div>
 
-          {data && (
-            <Reveal delay={0.1}>
-              <UsageByType rows={data.byType} />
-            </Reveal>
-          )}
+            {data && (
+              <Reveal delay={0.1} className="2xl:col-start-1 2xl:row-start-2">
+                <UsageByType rows={data.byType} />
+              </Reveal>
+            )}
+          </div>
         </div>
       </div>
     </div>

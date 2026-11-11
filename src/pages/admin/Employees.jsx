@@ -157,7 +157,7 @@ export default function Employees() {
                     <span className="block truncate text-muted">{person.email}</span>
                   </span>
                   <span className="text-muted md:text-ink">{person.department || 'No department'}</span>
-                  <span className="text-muted">{person.designation || 'No designation'}</span>
+                  <span className="text-muted">{person.designation || 'Analyst'}</span>
                   <span className="tabular-nums text-muted md:text-right">
                     {person.isActive ? person.employeeId : 'Inactive'}
                   </span>

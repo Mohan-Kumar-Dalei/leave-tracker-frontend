@@ -224,7 +224,7 @@ export default function EmployeeDetail() {
           <div className="min-w-0">
             <h1 className="text-[22px] sm:text-2xl">{user.name}</h1>
             <p className="mt-2 break-words text-base text-muted">
-              {[user.designation, user.department, user.employeeId].filter(Boolean).join(', ')}
+              {[user.designation || (user.role === 'admin' ? '' : 'Analyst'), user.department, user.employeeId].filter(Boolean).join(', ')}
               {!user.isActive && ', inactive'}
             </p>
             <p className="break-words text-base text-muted">

@@ -4,10 +4,10 @@ import { useSearchParams } from 'react-router-dom';
 import { GmailPanel } from '../components/GmailConnect';
 import { SignatureSettings } from '../components/MailParts';
 import { ProfilePhotoPanel } from '../components/ProfilePhoto';
-import { Button, PageHeading, Panel, PasswordInput, Reveal } from '../components/ui';
+import { Button, PageHeading, Panel, PanelTitle, PasswordInput, Reveal, TextInput } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { slashDate } from '../lib/dates';
+import { isoFromCreatedAt, slashDate } from '../lib/dates';
 import { useToast } from '../lib/toast';
 
 // What Google's redirect back to /profile?gmail=... means.
@@ -21,8 +21,110 @@ const GMAIL_RESULTS = {
   off: ['error', 'Not set up yet', 'Sending from Gmail is not set up on the server.'],
 };
 
+const EDITABLE = ['name', 'phone', 'designation', 'department'];
+
+const pick = (user) => Object.fromEntries(EDITABLE.map((key) => [key, user[key] ?? '']));
+
+// The person's own details. Name, phone, designation and department are theirs
+// to change; email and employee ID stay with the admin. Joined is the day the
+// account was made in the Leave Tracker.
+function ProfileDetails() {
+  const { user, setUser } = useAuth();
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(() => pick(user));
+  const [error, setError] = useState('');
+
+  const save = useMutation({
+    mutationFn: () => api.patch('/me/profile', form),
+    onSuccess: ({ user: saved }) => {
+      setUser(saved);
+      setEditing(false);
+      toast.success('Details saved');
+    },
+    onError: (issue) => setError(issue.message),
+  });
+
+  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
+  const joined = user.createdAt ? slashDate(isoFromCreatedAt(user.createdAt)) : 'Not known';
+  const designation = user.designation || (user.role === 'admin' ? 'Not set' : 'Analyst');
+
+  const rows = [
+    ['Name', user.name],
+    ['Email', user.email],
+    ['Employee ID', user.employeeId],
+    ['Department', user.department || 'Not set'],
+    ['Designation', designation],
+    ['Phone', user.phone || 'Not set'],
+    ['Joined', joined],
+  ];
+
+  return (
+    <Panel>
+      <PanelTitle
+        action={
+          !editing && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setForm(pick(user));
+                setError('');
+                setEditing(true);
+              }}
+            >
+              Edit
+            </Button>
+          )
+        }
+      >
+        Your details
+      </PanelTitle>
+
+      {editing ? (
+        <form
+          className="space-y-4 p-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setError('');
+            save.mutate();
+          }}
+        >
+          <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextInput label="Phone" type="tel" maxLength={20} placeholder="+91 98765 43210" value={form.phone} onChange={set('phone')} />
+            <TextInput label="Designation" maxLength={80} placeholder="Analyst" value={form.designation} onChange={set('designation')} />
+            <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
+          </div>
+          <p className="text-[13px] text-muted">Your email and employee ID are set by your admin.</p>
+          {error && (
+            <p role="alert" className="text-sm text-rejected">
+              {error}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button type="submit" loading={save.isPending}>
+              Save details
+            </Button>
+            <Button variant="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <dl>
+          {rows.map(([label, value]) => (
+            <div key={label} className="grid grid-cols-[130px_1fr] gap-3 border-b border-line px-5 py-3 text-sm last:border-b-0">
+              <dt className="text-muted">{label}</dt>
+              <dd className="min-w-0 break-words">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </Panel>
+  );
+}
+
 export default function Profile() {
-  const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const queryClient = useQueryClient();
   const notify = useToast();
@@ -53,37 +155,15 @@ export default function Profile() {
     onError: (issue) => setError(issue.message),
   });
 
-  const rows = [
-    ['Name', user.name],
-    ['Email', user.email],
-    ['Employee ID', user.employeeId],
-    ['Department', user.department || 'Not set'],
-    ['Designation', user.designation || (user.role === 'admin' ? 'Not set' : 'Analyst')],
-    ['Phone', user.phone || 'Not set'],
-    ['Joined', user.joinedOn ? slashDate(user.joinedOn.slice(0, 10)) : 'Not set'],
-  ];
-
   return (
     <div>
       <PageHeading title="Your profile">
-        Your admin keeps your work details up to date. You can set your mail signature, Gmail and password here.
+        Keep your details, photo, mail signature, Gmail and password up to date here.
       </PageHeading>
       <Reveal delay={0.08} className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <div className="space-y-4">
           <ProfilePhotoPanel />
-          <Panel>
-            <dl>
-              {rows.map(([label, value]) => (
-                <div
-                  key={label}
-                  className="grid grid-cols-[130px_1fr] gap-3 border-b border-line px-5 py-3 text-sm last:border-b-0"
-                >
-                  <dt className="text-muted">{label}</dt>
-                  <dd className="min-w-0 break-words">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </Panel>
+          <ProfileDetails />
           <GmailPanel />
           <Panel className="p-5">
             <h2 className="text-base font-semibold">Mail signature</h2>

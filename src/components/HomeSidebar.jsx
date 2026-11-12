@@ -3,17 +3,39 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { PhotoAvatar } from './ProfilePhoto';
 import { AllMembers, LeaveTag, MemberProfile, MemberRow, leaveFirst, useTeam } from './TeamPeople';
+import { SkyBanner } from './SkyBanner';
 import { Panel } from './ui';
 
 // The column at the side of the home page: who you are, who you report to,
 // and the people in your department with who is on leave today.
 
+// Waves hello the first time the card shows after signing in, not on every
+// visit to the page. The mark is cleared on sign out (lib/auth.jsx). The
+// short window keeps React's double render in development from losing it.
+const firstSeen = new Map();
+
+function firstLookThisSignIn(userId) {
+  const key = `lt-hello-${userId}`;
+  try {
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, '1');
+      firstSeen.set(userId, Date.now());
+      return true;
+    }
+  } catch {
+    // Without storage, skip the hello rather than wave on every visit.
+    return false;
+  }
+  return Date.now() - (firstSeen.get(userId) ?? 0) < 1500;
+}
+
 function ProfileCard({ me, onOpen }) {
+  const [wave] = useState(() => firstLookThisSignIn(me.id));
   return (
-    <Panel className="text-center">
-      <div aria-hidden="true" className="h-14 bg-accent-soft" />
-      <div className="-mt-10 px-4 pb-4">
-        <PhotoAvatar user={me} size={80} onClick={() => onOpen(me)} className="mx-auto block ring-4 ring-surface" />
+    <Panel className="overflow-hidden text-center">
+      <SkyBanner className="h-20" />
+      <div className="relative -mt-10 px-4 pb-4">
+        <PhotoAvatar user={me} size={80} onClick={() => onOpen(me)} wave={wave} className="mx-auto block ring-4 ring-surface" />
         <p className="mt-3 text-sm">
           <span className="text-muted">{me.employeeId} - </span>
           <span className="font-semibold">{me.name}</span>

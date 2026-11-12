@@ -83,7 +83,7 @@ export function MemberProfile({ member, onClose }) {
   return (
     <Dialog open onClose={onClose} title={member.name} kind="modal">
       <div className="flex flex-col items-center text-center">
-        <PhotoAvatar user={member} size={96} />
+        <PhotoAvatar user={member} size={96} wave />
         <p className="mt-3 text-lg font-semibold">{member.name}</p>
         <p className="text-sm text-muted">
           {member.employeeId}, {member.designation}

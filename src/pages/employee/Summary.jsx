@@ -23,19 +23,20 @@ import { EntryPanel, PAST_FILTERS, UPCOMING_FILTERS } from '../../components/Ent
 import { MonthlyBars } from '../../components/MonthlyBars';
 import { TeamCalendarView } from '../../components/TeamCalendarView';
 import { HomeSidebar } from '../../components/HomeSidebar';
+import { MandalaBackdrop } from '../../components/MandalaCorner';
 import { Button, IconButton, LoadError, Panel, PanelTitle, Reveal } from '../../components/ui';
 import { api } from '../../lib/api';
 import { dayWord, longDate, slashDate, weekday } from '../../lib/dates';
 
 const TYPE_LOOK = {
-  CLSL: { icon: Sun, tile: 'bg-[#edf2ff] text-[#2f5bea] dark:bg-[#2f5bea]/20 dark:text-[#8aa4ff]' },
-  CO: { icon: RefreshCw, tile: 'bg-[#f1f6e4] text-[#5f8a12] dark:bg-[#5f8a12]/20 dark:text-[#a6d35a]' },
-  EL: { icon: Award, tile: 'bg-[#e6f6ef] text-[#0e7f56] dark:bg-[#0e7f56]/25 dark:text-[#4fd6a0]' },
-  LWP: { icon: Wallet, tile: 'bg-[#fdeceb] text-[#c4362f] dark:bg-[#c4362f]/20 dark:text-[#f88a84]' },
-  RH: { icon: Sparkles, tile: 'bg-[#e6f5fb] text-[#0b7ea4] dark:bg-[#0b7ea4]/25 dark:text-[#5cc8ec]' },
+  CLSL: { icon: Sun, tile: 'bg-[#edf2ff] text-[#2f5bea] dark:bg-[#2f5bea]/20 dark:text-[#8aa4ff]', ink: 'text-[#2f5bea] dark:text-[#8aa4ff]' },
+  CO: { icon: RefreshCw, tile: 'bg-[#f1f6e4] text-[#5f8a12] dark:bg-[#5f8a12]/20 dark:text-[#a6d35a]', ink: 'text-[#5f8a12] dark:text-[#a6d35a]' },
+  EL: { icon: Award, tile: 'bg-[#e6f6ef] text-[#0e7f56] dark:bg-[#0e7f56]/25 dark:text-[#4fd6a0]', ink: 'text-[#0e7f56] dark:text-[#4fd6a0]' },
+  LWP: { icon: Wallet, tile: 'bg-[#fdeceb] text-[#c4362f] dark:bg-[#c4362f]/20 dark:text-[#f88a84]', ink: 'text-[#c4362f] dark:text-[#f88a84]' },
+  RH: { icon: Sparkles, tile: 'bg-[#e6f5fb] text-[#0b7ea4] dark:bg-[#0b7ea4]/25 dark:text-[#5cc8ec]', ink: 'text-[#0b7ea4] dark:text-[#5cc8ec]' },
 };
 
-const fallbackLook = { icon: CalendarDays, tile: 'bg-sunken text-muted' };
+const fallbackLook = { icon: CalendarDays, tile: 'bg-sunken text-muted', ink: 'text-muted' };
 
 function bookedDetail({ earlier, approved, pending }) {
   const parts = [`${approved} approved`, `${pending} pending`];
@@ -73,13 +74,39 @@ function cardSpan(index, count) {
   return classes.join(' ');
 }
 
-function BalanceCard({ balance, className = '' }) {
+// One mandala is shared by each pair of cards side by side: its centre sits
+// on the top edge, in the gap between them, so the first card shows a
+// quarter in its top right corner and the second the next quarter in its top
+// left corner. Cards are paired within their row, and rows change with the
+// screen size (see cardSpan above), so the side is worked out for each size.
+const SIDE = {
+  right: { base: '-right-28', md: 'md:left-auto md:-right-28', xl: '2xl:left-auto 2xl:-right-28' },
+  left: { base: '-left-28', md: 'md:right-auto md:-left-28', xl: '2xl:right-auto 2xl:-left-28' },
+};
+const sideFor = (place) => (place % 2 === 0 ? 'right' : 'left');
+
+function mandalaPlace(index, count) {
+  const leftover = count % 3;
+  const mdPlace = leftover && index >= count - leftover ? index - (count - leftover) : index % 3;
+  return [
+    '-top-28',
+    SIDE[sideFor(index % 2)].base,
+    SIDE[sideFor(mdPlace)].md,
+    SIDE[sideFor(index % 5)].xl,
+  ].join(' ');
+}
+
+function BalanceCard({ balance, index = 0, count = 1, className = '' }) {
   const { leaveType, available, booked } = balance;
   const look = TYPE_LOOK[leaveType.code] ?? fallbackLook;
   const low = leaveType.tracksBalance && available <= 0;
 
   return (
-    <div className={`rounded-xl border border-line bg-surface p-4 shadow-card ${className}`}>
+    <div className={`relative isolate overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card ${className}`}>
+      {/* A mandala in the spirit of Odisha's jhoti chita, shared with the card
+          beside it, with a faint layer of the card colour over it so the text
+          stays easy to read. */}
+      <MandalaBackdrop className={`h-56 w-56 ${mandalaPlace(index, count)} ${look.ink}`} />
       <div className="flex items-start gap-3">
         <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${look.tile}`}>
           <look.icon className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -304,6 +331,8 @@ export default function Summary() {
                     <BalanceCard
                       key={balance.leaveType.id}
                       balance={balance}
+                      index={index}
+                      count={data.balances.length}
                       className={cardSpan(index, data.balances.length)}
                     />
                   ))

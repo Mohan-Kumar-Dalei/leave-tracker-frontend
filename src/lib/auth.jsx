@@ -57,6 +57,14 @@ export function AuthProvider({ children }) {
 
   const signOut = useCallback(async () => {
     await api.post('/auth/logout').catch(() => {});
+    try {
+      // So the profile card waves hello again after the next sign in.
+      Object.keys(sessionStorage)
+        .filter((key) => key.startsWith('lt-hello-'))
+        .forEach((key) => sessionStorage.removeItem(key));
+    } catch {
+      // Storage may be off; nothing to clear then.
+    }
     setUser(null);
     queryClient.clear();
   }, [queryClient]);

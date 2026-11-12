@@ -84,20 +84,42 @@ export function PhotoViewer({ user, onClose }) {
   );
 }
 
+// A hand that pops up beside the photo, waves hello a few times, and goes.
+// A real photo cannot blink or move on its own, so the hello is drawn on top.
+function Hello({ size }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{ fontSize: Math.max(16, Math.round(size * 0.34)) }}
+      className="pointer-events-none absolute -bottom-1 -right-2 origin-[70%_80%] animate-hello leading-none drop-shadow-sm motion-reduce:hidden"
+    >
+      👋
+    </span>
+  );
+}
+
 // An avatar that opens the photo when there is one. Without a photo it
-// does what onClick says, or nothing.
-export function PhotoAvatar({ user, size, className = '', onClick }) {
+// does what onClick says, or nothing. With `wave`, it waves hello once.
+export function PhotoAvatar({ user, size, className = '', onClick, wave = false }) {
   const [viewing, setViewing] = useState(false);
   const hasPhoto = Boolean(user?.avatarUrl);
-  if (!hasPhoto && !onClick) return <Avatar user={user} size={size} className={className} />;
+  if (!hasPhoto && !onClick) {
+    return (
+      <span className={`relative inline-block shrink-0 rounded-full ${className}`}>
+        <Avatar user={user} size={size} />
+        {wave && <Hello size={size} />}
+      </span>
+    );
+  }
   return (
     <>
       <button
         type="button"
         onClick={() => (hasPhoto ? setViewing(true) : onClick())}
-        className={`shrink-0 rounded-full transition-opacity hover:opacity-90 ${className}`}
+        className={`relative shrink-0 rounded-full transition-opacity hover:opacity-90 ${className}`}
       >
         <Avatar user={user} size={size} />
+        {wave && <Hello size={size} />}
         <span className="sr-only">{hasPhoto ? `View ${user.name}'s photo` : `Open ${user.name}'s profile card`}</span>
       </button>
       {viewing && <PhotoViewer user={user} onClose={() => setViewing(false)} />}

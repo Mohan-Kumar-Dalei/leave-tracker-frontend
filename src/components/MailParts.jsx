@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
 import { X } from 'lucide-react';
-import { useId, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useToast } from '../lib/toast';
@@ -33,6 +33,8 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
     node.setAttribute('rel', 'noopener noreferrer');
   }
 });
+
+import { trimSignature } from '../lib/trimSignature';
 
 const clean = (html) => DOMPurify.sanitize(html, { ...PURIFY, ADD_ATTR: ['target', 'rel'] });
 
@@ -158,14 +160,52 @@ export function SignatureCard({ signature }) {
   );
 }
 
+// Shows its content at full size when it fits, and shrinks it to the
+// available width when it does not, so a wide pasted signature never needs a
+// scroll bar. The mail itself still carries it at full size.
+function FitWidth({ children }) {
+  const outer = useRef(null);
+  const inner = useRef(null);
+  const [fit, setFit] = useState({ scale: 1, height: null });
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (!outer.current || !inner.current) return;
+      const room = outer.current.clientWidth;
+      const natural = inner.current.offsetWidth;
+      const scale = natural > room && room > 0 ? Math.max(0.4, room / natural) : 1;
+      setFit({ scale, height: scale < 1 ? Math.ceil(inner.current.offsetHeight * scale) : null });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(outer.current);
+    observer.observe(inner.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={outer} className="max-w-full overflow-hidden" style={fit.height ? { height: fit.height } : undefined}>
+      <div
+        ref={inner}
+        className="w-max max-w-none origin-top-left"
+        style={fit.scale < 1 ? { transform: `scale(${fit.scale})` } : undefined}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function SignatureInner({ signature }) {
   if (signature.customHtml) {
     return (
-      <div
-        className="max-w-full overflow-x-auto font-[Arial,Helvetica,sans-serif] text-[13px] text-[#202124] [&_a]:text-[#1a73e8] [&_img]:inline-block [&_img]:max-w-full"
-        // Cleaned on the server when saved, and again here before showing.
-        dangerouslySetInnerHTML={{ __html: clean(signature.customHtml) }}
-      />
+      <FitWidth>
+        <div
+          className="pb-1 font-[Arial,Helvetica,sans-serif] text-[13px] text-[#202124] [&_a]:text-[#1a73e8] [&_img]:inline-block"
+          // Cleaned on the server when saved, and again here before showing.
+          dangerouslySetInnerHTML={{ __html: clean(signature.customHtml) }}
+        />
+      </FitWidth>
     );
   }
   return <StandardSignature signature={signature} />;
@@ -266,7 +306,7 @@ function SignatureEditor({ current, onDone }) {
         onPaste={onPaste}
         // Starts with the saved signature, already cleaned.
         dangerouslySetInnerHTML={{ __html: clean(current || '') }}
-        className="min-h-28 max-w-full overflow-x-auto rounded-lg border border-line bg-surface p-3 font-[Arial,Helvetica,sans-serif] text-[13px] dark:bg-white dark:text-[#202124] focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15 [&_img]:inline-block [&_img]:max-w-full"
+        className="min-h-28 max-w-full overflow-x-auto overflow-y-hidden rounded-lg border border-line bg-surface p-3 font-[Arial,Helvetica,sans-serif] text-[13px] dark:bg-white dark:text-[#202124] focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15 [&_img]:inline-block [&_img]:max-w-full"
       />
       {notice && (
         <p role="status" className="rounded-lg bg-pending-soft px-3 py-2 text-[13px] text-pending">
@@ -279,7 +319,7 @@ function SignatureEditor({ current, onDone }) {
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button loading={save.isPending} onClick={() => save.mutate(clean(box.current.innerHTML).trim())}>
+        <Button loading={save.isPending} onClick={() => save.mutate(trimSignature(clean(box.current.innerHTML)))}>
           Save signature
         </Button>
         <Button variant="secondary" disabled={save.isPending} onClick={() => save.mutate('')}>

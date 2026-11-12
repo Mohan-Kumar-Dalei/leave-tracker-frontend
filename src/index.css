@@ -57,6 +57,93 @@
       opacity: 0;
     }
   }
+
+  /* The sky on the profile card: drifting clouds, birds, sun and stars. */
+  --animate-drift: drift 60s linear infinite;
+  --animate-fly: fly 18s linear infinite;
+  --animate-flap: flap 0.45s ease-in-out infinite alternate;
+  --animate-twinkle: twinkle 2.8s ease-in-out infinite;
+  --animate-glow: glow 4s ease-in-out infinite;
+  --animate-hello: hello 2.6s ease-in-out both;
+
+  @keyframes drift {
+    from {
+      transform: translateX(-90px);
+    }
+    to {
+      transform: translateX(410px);
+    }
+  }
+
+  @keyframes fly {
+    0% {
+      transform: translate(-40px, 34px);
+    }
+    50% {
+      transform: translate(160px, 20px);
+    }
+    100% {
+      transform: translate(380px, 30px);
+    }
+  }
+
+  @keyframes flap {
+    to {
+      transform: scaleY(0.35);
+    }
+  }
+
+  @keyframes twinkle {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes glow {
+    0%,
+    100% {
+      opacity: 0.25;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.55;
+      transform: scale(1.18);
+    }
+  }
+
+  /* A hand that pops up, waves hello, and goes. */
+  @keyframes hello {
+    0% {
+      opacity: 0;
+      transform: scale(0.4) rotate(0deg);
+    }
+    10% {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+    20%,
+    40%,
+    60% {
+      transform: rotate(18deg);
+    }
+    30%,
+    50%,
+    70% {
+      transform: rotate(-10deg);
+    }
+    80% {
+      opacity: 1;
+      transform: rotate(0deg);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(0.6) rotate(0deg);
+    }
+  }
 }
 
 @layer base {

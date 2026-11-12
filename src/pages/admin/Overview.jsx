@@ -3,13 +3,19 @@ import { CalendarCheck2, Clock3, Palmtree, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ReviewList } from '../../components/ReviewList';
 import { HomeSidebar } from '../../components/HomeSidebar';
+import { MandalaBackdrop } from '../../components/MandalaCorner';
 import { Empty, LoadError, Panel, PanelTitle, Reveal, RowsSkeleton } from '../../components/ui';
 import { api } from '../../lib/api';
 import { dayWord, longDate, shortRange, weekday } from '../../lib/dates';
 
-function Stat({ label, value, icon: Icon }) {
+// The stat cards sit 2 or 4 to a row, so cards pair up the same way at every
+// size: each pair shares one mandala, centred on the top edge in the gap
+// between them (the first shows its top right corner, the second its top left).
+function Stat({ label, value, icon: Icon, index, ink }) {
+  const side = index % 2 === 0 ? '-right-[88px]' : '-left-[88px]';
   return (
-    <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+    <div className="relative isolate overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card">
+      <MandalaBackdrop className={`-top-[88px] h-44 w-44 ${side} ${ink}`} />
       <div className="flex items-center justify-between gap-2">
         <p className="text-[13px] text-muted">{label}</p>
         <Icon className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
@@ -112,10 +118,16 @@ export default function Overview() {
         <div className="min-w-0 space-y-4">
           <Reveal delay={0.04}>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Stat label="Pending requests" value={data?.pendingCount} icon={Clock3} />
-              <Stat label="Away today" value={data?.awayToday.length} icon={Palmtree} />
-              <Stat label="Active employees" value={data?.employees} icon={Users} />
-              <Stat label="Days used this month" value={data?.approvedDaysThisMonth} icon={CalendarCheck2} />
+              <Stat index={0} ink="text-pending" label="Pending requests" value={data?.pendingCount} icon={Clock3} />
+              <Stat index={1} ink="text-accent" label="Away today" value={data?.awayToday.length} icon={Palmtree} />
+              <Stat index={2} ink="text-approved" label="Active employees" value={data?.employees} icon={Users} />
+              <Stat
+                index={3}
+                ink="text-[#0b7ea4] dark:text-[#5cc8ec]"
+                label="Days used this month"
+                value={data?.approvedDaysThisMonth}
+                icon={CalendarCheck2}
+              />
             </div>
           </Reveal>
 

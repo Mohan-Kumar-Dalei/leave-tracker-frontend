@@ -6,7 +6,8 @@ import { IconButton } from './ui';
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const CHIP = {
-  holiday: 'bg-sunken text-ink',
+  holiday: 'bg-rejected-soft text-rejected',
+  restricted: 'bg-[#fff6c2] text-[#7a6200] dark:bg-[#3b3410] dark:text-[#f0dc7a]',
   approved: 'bg-accent-soft text-accent',
   pending: 'bg-pending-soft text-pending',
 };
@@ -15,6 +16,7 @@ const LEGEND = [
   ['approved', 'Approved'],
   ['pending', 'Pending'],
   ['holiday', 'Holiday'],
+  ['restricted', 'Restricted holiday'],
 ];
 
 // Month view. Wide screens show names inside the cells. On phones the cells are
@@ -58,8 +60,8 @@ export function CalendarGrid({ year, month, today, eventsByDay, onMonthChange, m
       </div>
 
       <div className="grid grid-cols-7 border-b border-line bg-bg text-center text-xs font-medium text-muted">
-        {WEEKDAYS.map((day) => (
-          <div key={day} className="py-2">
+        {WEEKDAYS.map((day, index) => (
+          <div key={day} className={`py-2 ${weekendDays.includes((index + 1) % 7) ? 'text-rejected' : ''}`}>
             {day}
           </div>
         ))}
@@ -70,6 +72,9 @@ export function CalendarGrid({ year, month, today, eventsByDay, onMonthChange, m
           const events = cell ? (eventsByDay[cell] ?? []) : [];
           // Columns start on Monday, while day numbers start on Sunday.
           const weekend = weekendDays.includes((index + 1) % 7);
+          const holiday = events.some((event) => event.tone === 'holiday');
+          // Sundays and office holidays are days off, shown in red.
+          const off = weekend || holiday;
           const isToday = cell === today;
           return (
             <button
@@ -80,14 +85,14 @@ export function CalendarGrid({ year, month, today, eventsByDay, onMonthChange, m
               aria-label={cell ? `${slashDate(cell)}, ${events.length} entries` : undefined}
               aria-pressed={cell === selected}
               className={`flex min-h-14 min-w-0 flex-col items-stretch justify-start border-b border-r border-line p-1 text-left sm:min-h-[104px] sm:p-1.5 ${
-                weekend ? 'bg-bg/60' : ''
+                holiday ? 'bg-rejected-soft/40' : weekend ? 'bg-bg/60' : ''
               } ${cell === selected ? 'bg-accent-soft' : ''} ${index % 7 === 6 ? 'border-r-0' : ''}`}
             >
               {cell && (
                 <>
                   <span
                     className={`inline-grid h-6 w-6 place-items-center rounded-full text-xs font-medium tabular-nums ${
-                      isToday ? 'bg-accent text-on-accent' : 'text-muted'
+                      isToday ? 'bg-accent text-on-accent' : off ? 'font-semibold text-rejected' : 'text-muted'
                     }`}
                   >
                     {Number(cell.slice(8))}

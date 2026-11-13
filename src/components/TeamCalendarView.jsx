@@ -30,7 +30,8 @@ function toEvents(data) {
     if (!holiday.restricted) closed.add(holiday.date);
     add(holiday.date, {
       key: `h-${holiday.id}`,
-      tone: 'holiday',
+      // Office holidays show in red, like Sundays; restricted ones are optional.
+      tone: holiday.restricted ? 'restricted' : 'holiday',
       label: holiday.name,
       detail: `${holiday.name}${holiday.restricted ? ' (Restricted holiday)' : ''}`,
     });

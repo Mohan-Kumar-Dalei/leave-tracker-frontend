@@ -14,16 +14,16 @@ import { dayWord, longDate, shortRange, weekday } from '../../lib/dates';
 function Stat({ label, value, icon: Icon, index, ink }) {
   const side = index % 2 === 0 ? '-right-[88px]' : '-left-[88px]';
   return (
-    <div className="relative isolate overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card">
+    <div className="relative isolate flex min-h-28 flex-col justify-between overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card sm:p-5">
       <MandalaBackdrop className={`-top-[88px] h-44 w-44 ${side} ${ink}`} />
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[13px] text-muted">{label}</p>
-        <Icon className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 text-sm leading-5 text-muted">{label}</p>
+        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
       </div>
       {value === undefined ? (
-        <div className="mt-2 h-8 w-12 animate-pulse rounded-lg bg-sunken motion-reduce:animate-none" />
+        <div className="mt-3 h-9 w-14 animate-pulse rounded-lg bg-sunken motion-reduce:animate-none" />
       ) : (
-        <p className="mt-2 text-[26px] font-semibold leading-8 tracking-tight tabular-nums">{value}</p>
+        <p className="mt-3 text-[30px] font-semibold leading-9 tracking-tight tabular-nums">{value}</p>
       )}
     </div>
   );
@@ -117,17 +117,19 @@ export default function Overview() {
         </aside>
         <div className="min-w-0 space-y-4">
           <Reveal delay={0.04}>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Stat index={0} ink="text-pending" label="Pending requests" value={data?.pendingCount} icon={Clock3} />
-              <Stat index={1} ink="text-accent" label="Away today" value={data?.awayToday.length} icon={Palmtree} />
-              <Stat index={2} ink="text-approved" label="Active employees" value={data?.employees} icon={Users} />
-              <Stat
-                index={3}
-                ink="text-[#0b7ea4] dark:text-[#5cc8ec]"
-                label="Days used this month"
-                value={data?.approvedDaysThisMonth}
-                icon={CalendarCheck2}
-              />
+            <div className="@container">
+              <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
+                <Stat index={0} ink="text-pending" label="Pending requests" value={data?.pendingCount} icon={Clock3} />
+                <Stat index={1} ink="text-accent" label="Away today" value={data?.awayToday.length} icon={Palmtree} />
+                <Stat index={2} ink="text-approved" label="Active employees" value={data?.employees} icon={Users} />
+                <Stat
+                  index={3}
+                  ink="text-[#0b7ea4] dark:text-[#5cc8ec]"
+                  label="Days used this month"
+                  value={data?.approvedDaysThisMonth}
+                  icon={CalendarCheck2}
+                />
+              </div>
             </div>
           </Reveal>
 

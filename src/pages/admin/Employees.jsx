@@ -2,11 +2,33 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Dialog, Empty, LoadError, PageHeading, Pagination, Panel, PasswordInput, Reveal, RowsSkeleton, SelectBox, TextInput } from '../../components/ui';
+import {
+  Button,
+  Dialog,
+  Empty,
+  LoadError,
+  PageHeading,
+  Pagination,
+  Panel,
+  PasswordInput,
+  Reveal,
+  RowsSkeleton,
+  SelectBox,
+  TextInput,
+} from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 
-const BLANK = { name: '', email: '', employeeId: '', department: '', designation: 'Analyst', phone: '', joinedOn: '', password: '' };
+const BLANK = {
+  name: '',
+  email: '',
+  employeeId: '',
+  department: '',
+  designation: 'Analyst',
+  phone: '',
+  joinedOn: '',
+  password: '',
+};
 
 function AddEmployee({ open, onClose }) {
   const [form, setForm] = useState(BLANK);
@@ -56,24 +78,38 @@ function AddEmployee({ open, onClose }) {
         }}
       >
         <TextInput label="Full name" required maxLength={80} value={form.name} onChange={set('name')} />
-        <TextInput label="Work email" type="email" required maxLength={160} value={form.email} onChange={set('email')} />
+        <TextInput
+          label="Work email"
+          type="email"
+          required
+          maxLength={160}
+          value={form.email}
+          onChange={set('email')}
+        />
         <div className="grid gap-4 sm:grid-cols-2">
           <TextInput label="Employee ID" required maxLength={20} value={form.employeeId} onChange={set('employeeId')} />
           <TextInput label="Joining date" type="date" value={form.joinedOn} onChange={set('joinedOn')} />
           <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
           <TextInput label="Designation" maxLength={80} value={form.designation} onChange={set('designation')} />
-          <TextInput label="Phone" type="tel" maxLength={20} value={form.phone} onChange={set('phone')} hint="Shown in their mail signature." />
+          <TextInput
+            label="Phone"
+            type="tel"
+            maxLength={20}
+            value={form.phone}
+            onChange={set('phone')}
+            hint="Shown in their mail signature."
+          />
         </div>
         <PasswordInput
           label="Password"
           required
-            autoComplete="new-password"
-            minLength={10}
-            maxLength={72}
-            value={form.password}
-            onChange={set('password')}
-            hint="At least 10 characters, with a letter and a number. Share it with the employee yourself, they can change it after signing in."
-          />
+          autoComplete="new-password"
+          minLength={10}
+          maxLength={72}
+          value={form.password}
+          onChange={set('password')}
+          hint="At least 10 characters, with a letter and a number. Share it with the employee yourself, they can change it after signing in."
+        />
         {error && (
           <p role="alert" className="text-sm text-rejected">
             {error}
@@ -107,16 +143,21 @@ export default function Employees() {
 
   return (
     <div>
-      <PageHeading title="Employees" actions={<Button onClick={() => setAdding(true)}>Add employee</Button>}>
-        {data ? `${data.total} ${data.total === 1 ? 'employee' : 'employees'}. ` : ''}
-        Add employees, correct balances and turn off access when someone leaves.
-      </PageHeading>
+      {/* The heading and the search stay in place; only the list scrolls under them.
+          On phones they sit below the app's own top bar (h-14). */}
+      <div className="sticky top-14 z-10 -mx-4 bg-bg px-4 pb-1 pt-3 sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-8 lg:px-8 lg:pt-4">
+        <PageHeading title="Employees" actions={<Button onClick={() => setAdding(true)}>Add employee</Button>}>
+          {data ? `${data.total} ${data.total === 1 ? 'employee' : 'employees'}. ` : ''}
+          Add employees, correct balances and turn off access when someone leaves.
+        </PageHeading>
 
-      <Reveal delay={0.08}>
-        <div className="mb-4 flex flex-wrap gap-3">
+        <div className="mb-3 flex flex-wrap gap-3">
           <label className="relative min-w-56 flex-1 sm:max-w-sm">
             <span className="sr-only">Search employees</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+              aria-hidden="true"
+            />
             <input
               type="search"
               maxLength={80}
@@ -140,7 +181,9 @@ export default function Employees() {
             <option value="all">All employees</option>
           </SelectBox>
         </div>
+      </div>
 
+      <Reveal delay={0.08}>
         <Panel>
           {isPending && <RowsSkeleton />}
           {isError && <LoadError error={error} onRetry={refetch} />}

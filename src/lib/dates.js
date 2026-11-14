@@ -50,3 +50,12 @@ export function monthGrid(year, month) {
 export const isoFromCreatedAt = (value) => new Intl.DateTimeFormat('en-CA').format(new Date(value));
 
 export const dayWord = (count) => (count === 1 ? 'day' : 'days');
+
+// "Good morning" before noon, "Good afternoon" until 5 in the evening, then
+// "Good evening", by the reader's own clock.
+export function greeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return 'Good morning';
+  if (hour >= 12 && hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}

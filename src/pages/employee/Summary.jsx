@@ -26,7 +26,7 @@ import { HomeSidebar } from '../../components/HomeSidebar';
 import { MandalaBackdrop } from '../../components/MandalaCorner';
 import { Button, IconButton, LoadError, Panel, PanelTitle, Reveal } from '../../components/ui';
 import { api } from '../../lib/api';
-import { dayWord, longDate, slashDate, weekday } from '../../lib/dates';
+import { dayWord, longDate, slashDate, weekday, greeting } from '../../lib/dates';
 
 const TYPE_LOOK = {
   CLSL: { icon: Sun, tile: 'bg-[#edf2ff] text-[#2f5bea] dark:bg-[#2f5bea]/20 dark:text-[#8aa4ff]', ink: 'text-[#2f5bea] dark:text-[#8aa4ff]' },
@@ -263,7 +263,9 @@ export default function Summary() {
     <div className="space-y-4">
       <Reveal className="flex flex-wrap items-center justify-between gap-3 pb-2">
         <div className="min-w-0">
-          <h1 className="text-[22px] sm:text-2xl">Welcome back, {user.name.split(' ')[0]}</h1>
+          <h1 className="text-[22px] sm:text-2xl">
+            {greeting()}, {user.name.split(' ')[0]}
+          </h1>
           <p className="mt-1 text-sm text-muted">{data ? subtitle(data) : ' '}</p>
         </div>
         <Button className="max-sm:w-full" onClick={() => setDialog({ open: true, preset: null })}>

@@ -6,7 +6,8 @@ import { HomeSidebar } from '../../components/HomeSidebar';
 import { MandalaBackdrop } from '../../components/MandalaCorner';
 import { Empty, LoadError, Panel, PanelTitle, Reveal, RowsSkeleton } from '../../components/ui';
 import { api } from '../../lib/api';
-import { dayWord, longDate, shortRange, weekday } from '../../lib/dates';
+import { useAuth } from '../../lib/auth';
+import { dayWord, greeting, longDate, shortRange, weekday } from '../../lib/dates';
 
 // The stat cards sit 2 or 4 to a row, so cards pair up the same way at every
 // size: each pair shares one mandala, centred on the top edge in the gap
@@ -98,6 +99,7 @@ function subtitle(data) {
 }
 
 export default function Overview() {
+  const { user } = useAuth();
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['admin-overview'],
     queryFn: () => api.get('/admin/overview'),
@@ -108,7 +110,9 @@ export default function Overview() {
   return (
     <div className="space-y-4">
       <Reveal className="pb-2">
-        <h1 className="text-[22px] sm:text-2xl">Overview</h1>
+        <h1 className="text-[22px] sm:text-2xl">
+          {greeting()}, {user.name.split(' ')[0]}
+        </h1>
         <p className="mt-1 text-sm text-muted">{data ? subtitle(data) : ' '}</p>
       </Reveal>
       <div className="grid items-start gap-4 lg:grid-cols-[264px_minmax(0,1fr)]">

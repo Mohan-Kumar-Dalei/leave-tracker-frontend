@@ -3,6 +3,8 @@ import { Bell } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import { pathFor } from '../lib/home';
 import { IconButton } from './ui';
 
 const timeAgo = (value) => {
@@ -20,6 +22,7 @@ export function NotificationBell({ inSidebar = false }) {
   const [open, setOpen] = useState(false);
   const root = useRef(null);
   const navigate = useNavigate();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data } = useQuery({ queryKey: ['notifications'], queryFn: () => api.get('/notifications') });
@@ -46,7 +49,8 @@ export function NotificationBell({ inSidebar = false }) {
   const openItem = (item) => {
     if (!item.readAt) readOne.mutate(item.id);
     setOpen(false);
-    if (item.link?.startsWith('/')) navigate(item.link);
+    // Notifications carry the app's older addresses; open the person's own page.
+    if (item.link?.startsWith('/')) navigate(pathFor(user, item.link) ?? item.link);
   };
 
   return (

@@ -3,13 +3,14 @@ import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { Button } from './components/ui';
 import { useAuth } from './lib/auth';
-import { homeOf } from './lib/home';
+import { baseOf, homeOf, pathFor, positionOf } from './lib/home';
 import { ForgotPassword, Login, ResetPassword } from './pages/auth/AuthPages';
 import Profile from './pages/Profile';
 import MyRequests from './pages/employee/MyRequests';
 import Summary from './pages/employee/Summary';
 import TeamCalendar from './pages/TeamCalendar';
 
+const Landing = lazy(() => import('./pages/Landing'));
 const Overview = lazy(() => import('./pages/admin/Overview'));
 const Team = lazy(() => import('./pages/Team'));
 const AdminRequests = lazy(() => import('./pages/admin/AdminRequests'));
@@ -22,6 +23,45 @@ const DepartmentHome = lazy(() => import('./pages/org/DepartmentHome'));
 const Register = lazy(() => import('./pages/org/Register'));
 const AcceptInvite = lazy(() => import('./pages/org/JoinPages').then((module) => ({ default: module.AcceptInvite })));
 const JoinDepartment = lazy(() => import('./pages/org/JoinPages').then((module) => ({ default: module.JoinDepartment })));
+
+// The pages under each person's address (see lib/home.js), by position.
+// '' is the page their address opens on.
+const STAFF_PAGES = [
+  ['requests', AdminRequests],
+  ['calendar', TeamCalendar],
+  ['upcoming', Schedule],
+  ['department', Team],
+  ['employees', Employees],
+  ['employees/:id', EmployeeDetail],
+  ['setup', Setup],
+  ['profile', Profile],
+];
+
+const PAGES = {
+  employee: [
+    ['', Summary],
+    ['requests', MyRequests],
+    ['department', Team],
+    ['profile', Profile],
+  ],
+  // Assistant managers and managers run their department and take leave too.
+  assistantmanager: [
+    ['', Overview],
+    ...STAFF_PAGES,
+    ['my-leave', Summary],
+    ['my-requests', MyRequests],
+    ['my-department/:id', DepartmentHome],
+  ],
+  manager: [
+    ['', Overview],
+    ...STAFF_PAGES,
+    ['my-leave', Summary],
+    ['my-requests', MyRequests],
+    ['my-department/:id', DepartmentHome],
+  ],
+  // HR opens on the organisation and sees the whole company.
+  hr: [['', Organisation], ['overview', Overview], ...STAFF_PAGES, ['departments/:id', DepartmentHome]],
+};
 
 function Public({ children }) {
   return <Suspense fallback={null}>{children}</Suspense>;
@@ -51,29 +91,7 @@ function RequireAuth({ children }) {
   const location = useLocation();
   if (unreachable) return <ServerDown />;
   if (!ready) return null;
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  return children;
-}
-
-// Admin pages: department admins (managers and assistant managers) and HR.
-function RequireAdmin({ children }) {
-  const { user } = useAuth();
-  if (user.role !== 'admin' && user.role !== 'owner') return <Navigate to="/" replace />;
-  return <Suspense fallback={<Loading />}>{children}</Suspense>;
-}
-
-// The organisation is for its owner, the company's HR or CEO.
-function RequireOwner({ children }) {
-  const { user } = useAuth();
-  if (user.role !== 'owner') return <Navigate to="/" replace />;
-  return <Suspense fallback={<Loading />}>{children}</Suspense>;
-}
-
-// My leave and My requests are for everyone who takes leave: employees, and
-// managers and assistant managers too. HR goes to the organisation.
-function EmployeeOnly({ children }) {
-  const { user } = useAuth();
-  if (user.role === 'owner') return <Navigate to={homeOf(user)} replace />;
+  if (!user) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
   return children;
 }
 
@@ -96,32 +114,56 @@ function NotFound() {
   );
 }
 
+// Someone's own part of the app. Another person's address, or the wrong
+// position, takes them to their own.
+function PersonArea() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const base = baseOf(user);
+  const here = decodeURIComponent(location.pathname);
+  const mine = decodeURIComponent(base);
+  if (here !== mine && !here.startsWith(`${mine}/`)) return <Navigate to={base} replace />;
+
+  const relative = mine.replace(/^\/employee\//, '');
+  return (
+    <Routes>
+      <Route path={relative} element={<AppShell />}>
+        {PAGES[positionOf(user)].map(([path, Page]) => {
+          const element = (
+            <Suspense fallback={<Loading />}>
+              <Page />
+            </Suspense>
+          );
+          return path ? <Route key={path} path={path} element={element} /> : <Route key="home" index element={element} />;
+        })}
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
+  );
+}
+
+// The app's older addresses (in notifications, mails and bookmarks) move to
+// the person's own ones.
+function OldAddress() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const to = pathFor(user, `${location.pathname}${location.search}`);
+  if (to) return <Navigate to={to} replace />;
+  return <NotFound />;
+}
+
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Public><Landing /></Public>} />
       <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
       <Route path="/forgot-password" element={<GuestOnly><ForgotPassword /></GuestOnly>} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/register" element={<GuestOnly><Public><Register /></Public></GuestOnly>} />
       <Route path="/join/invite/:token" element={<Public><AcceptInvite /></Public>} />
       <Route path="/join/:code" element={<Public><JoinDepartment /></Public>} />
-
-      <Route element={<RequireAuth><AppShell /></RequireAuth>}>
-        <Route index element={<EmployeeOnly><Summary /></EmployeeOnly>} />
-        <Route path="requests" element={<EmployeeOnly><MyRequests /></EmployeeOnly>} />
-        <Route path="team-calendar" element={<RequireAdmin><TeamCalendar /></RequireAdmin>} />
-        <Route path="profile" element={<Profile />} />
-        <Route path="team" element={<Team />} />
-        <Route path="admin" element={<RequireAdmin><Overview /></RequireAdmin>} />
-        <Route path="admin/requests" element={<RequireAdmin><AdminRequests /></RequireAdmin>} />
-        <Route path="admin/schedule" element={<RequireAdmin><Schedule /></RequireAdmin>} />
-        <Route path="admin/employees" element={<RequireAdmin><Employees /></RequireAdmin>} />
-        <Route path="admin/employees/:id" element={<RequireAdmin><EmployeeDetail /></RequireAdmin>} />
-        <Route path="admin/setup" element={<RequireAdmin><Setup /></RequireAdmin>} />
-        <Route path="organisation" element={<RequireOwner><Organisation /></RequireOwner>} />
-        <Route path="departments/:id" element={<Suspense fallback={<Loading />}><DepartmentHome /></Suspense>} />
-        <Route path="*" element={<NotFound />} />
-      </Route>
+      <Route path="/employee/*" element={<RequireAuth><PersonArea /></RequireAuth>} />
+      <Route path="*" element={<RequireAuth><OldAddress /></RequireAuth>} />
     </Routes>
   );
 }

@@ -11,30 +11,37 @@ import { NotificationBell } from './NotificationBell';
 import { Avatar } from './ProfilePhoto';
 import { IconButton } from './ui';
 
+// Menus by position. `to` is the page under the person's own address
+// (lib/home.js), '' being the page it opens on.
 const PERSONAL_NAV = [
-  { to: '/', label: 'Dashboard', icon: LayoutGrid, end: true },
-  { to: '/requests', label: 'My requests', icon: FileText },
-  { to: '/team', label: 'Department', short: 'Department', icon: Network },
-  { to: '/profile', label: 'Profile', short: 'Profile', icon: UserRound },
+  { to: '', label: 'Dashboard', icon: LayoutGrid, end: true },
+  { to: 'requests', label: 'My requests', icon: FileText },
+  { to: 'department', label: 'Department', short: 'Department', icon: Network },
+  { to: 'profile', label: 'Profile', short: 'Profile', icon: UserRound },
 ];
 
-// Department admins (managers and assistant managers) see their department;
-// they take leave too, so they also have My leave.
+const STAFF_NAV = [
+  { to: 'requests', label: 'Leave requests', short: 'Requests', icon: Inbox, badge: true },
+  { to: 'calendar', label: 'Team calendar', short: 'Calendar', icon: CalendarDays },
+  { to: 'upcoming', label: 'Upcoming & past', short: 'Upcoming', icon: History },
+  { to: 'department', label: 'Department', short: 'Department', icon: Network },
+  { to: 'employees', label: 'Employees', short: 'Employees', icon: Users },
+  { to: 'setup', label: 'Setup', short: 'Setup', icon: Settings2 },
+];
+
+// Assistant managers and managers see their department; they take leave too,
+// so they also have My leave.
 const ADMIN_NAV = [
-  { to: '/admin', label: 'Overview', short: 'Overview', icon: LayoutGrid, end: true },
-  { to: '/admin/requests', label: 'Leave requests', short: 'Requests', icon: Inbox, badge: true },
-  { to: '/team-calendar', label: 'Team calendar', short: 'Calendar', icon: CalendarDays },
-  { to: '/admin/schedule', label: 'Upcoming & past', short: 'Upcoming', icon: History },
-  { to: '/team', label: 'Department', short: 'Department', icon: Network },
-  { to: '/admin/employees', label: 'Employees', short: 'Employees', icon: Users },
-  { to: '/admin/setup', label: 'Setup', short: 'Setup', icon: Settings2 },
-  { to: '/', label: 'My leave', short: 'My leave', icon: CalendarCheck, end: true },
+  { to: '', label: 'Overview', short: 'Overview', icon: LayoutGrid, end: true },
+  ...STAFF_NAV,
+  { to: 'my-leave', label: 'My leave', short: 'My leave', icon: CalendarCheck },
 ];
 
-// HR (the owner) runs the organisation and sees the whole company's leave.
+// HR runs the organisation and sees the whole company's leave.
 const OWNER_NAV = [
-  { to: '/organisation', label: 'Organisation', short: 'Organisation', icon: Building2 },
-  ...ADMIN_NAV.filter((item) => item.to !== '/'),
+  { to: '', label: 'Organisation', short: 'Organisation', icon: Building2, end: true },
+  { to: 'overview', label: 'Overview', short: 'Overview', icon: LayoutGrid },
+  ...STAFF_NAV,
 ];
 
 export function Logo() {
@@ -133,7 +140,7 @@ function UserMenu({ user, onSignOut, inSidebar = false }) {
             <p className="truncate text-sm font-medium">{user.name}</p>
             <p className="truncate text-[13px] text-muted">{user.email}</p>
           </div>
-          <Link to="/profile" className={itemClass}>
+          <Link to={`${homeOf(user)}/profile`} className={itemClass}>
             <UserRound className="h-4 w-4 text-muted" aria-hidden="true" />
             Profile, Gmail and password
           </Link>
@@ -183,9 +190,11 @@ export function AppShell() {
   });
   const myDepartment = mine?.items?.[0];
   const baseNav = user.role === 'owner' ? OWNER_NAV : isAdmin ? ADMIN_NAV : PERSONAL_NAV;
-  const nav = myDepartment
-    ? [...baseNav, { to: `/departments/${myDepartment.id}`, label: 'My department', short: 'My dept', icon: Building2 }]
+  const pages = myDepartment
+    ? [...baseNav, { to: `my-department/${myDepartment.id}`, label: 'My department', short: 'My dept', icon: Building2 }]
     : baseNav;
+  // Every link points under the person's own address, e.g. /employee/CON-030/requests.
+  const nav = pages.map((item) => ({ ...item, to: item.to ? `${home}/${item.to}` : home, end: item.end ?? !item.to }));
 
   useLiveUpdates(true);
 

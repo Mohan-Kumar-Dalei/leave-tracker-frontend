@@ -69,9 +69,16 @@ export function AuthProvider({ children }) {
     queryClient.clear();
   }, [queryClient]);
 
+  // Pages that save the profile hand back the user record without the
+  // position (which names the person's part of the URL), so keep it.
+  const updateUser = useCallback(
+    (next) => setUser((previous) => (next ? { ...next, position: next.position ?? previous?.position } : next)),
+    [],
+  );
+
   const value = useMemo(
-    () => ({ user, ready, unreachable, retry: loadUser, signIn, signOut, setUser }),
-    [user, ready, unreachable, loadUser, signIn, signOut],
+    () => ({ user, ready, unreachable, retry: loadUser, signIn, signOut, setUser: updateUser }),
+    [user, ready, unreachable, loadUser, signIn, signOut, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

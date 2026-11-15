@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { positionOf } from '../lib/home';
 import { PhotoAvatar } from './ProfilePhoto';
 import { AllMembers, LeaveTag, MemberProfile, MemberRow, leaveFirst, useTeam } from './TeamPeople';
 import { SkyBanner } from './SkyBanner';
@@ -74,12 +75,24 @@ export function HomeSidebar({ show = 3 }) {
     designation: user.designation || (user.role === 'admin' ? 'Admin' : 'Analyst'),
     leave: null,
   };
-  // On the dashboard everyone reports to the department's admin (the Assistant
-  // Manager), not to their team lead; team leads show in the Employee tree.
-  const admins = data.members.filter((member) => member.role === 'admin' && member.id !== user.id);
+  // On the dashboard, "Reporting to" is whoever decides your leave: the
+  // department's assistant manager for an employee (not their team lead, who
+  // shows in the Employee tree), and the manager for the assistant manager.
+  const admins = data.members.filter(
+    (member) => member.role === 'admin' && member.id !== user.id && member.department === me.department,
+  );
+  const isAssistant = (member) => /assistant\s*manager/i.test(member.designation ?? '');
+  const position = positionOf(user);
   const manager =
-    user.role === 'admin' ? null : (admins.find((member) => member.department === me.department) ?? admins[0]);
-  const others = leaveFirst(data.members.filter((member) => member.id !== user.id));
+    position === 'hr' || position === 'manager'
+      ? null
+      : position === 'assistantmanager'
+        ? (admins.find((member) => !isAssistant(member)) ?? null)
+        : (admins.find(isAssistant) ?? admins[0] ?? null);
+  // Only the people in the same department, now that there are several.
+  const others = leaveFirst(
+    data.members.filter((member) => member.id !== user.id && member.department === me.department),
+  );
   const away = others.filter((member) => member.leave).length;
   const rest = others.length - show;
 

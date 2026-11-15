@@ -20,6 +20,7 @@ export default function AdminRequests() {
   const status = TABS.some((tab) => tab.id === params.get('status')) ? params.get('status') : 'pending';
   const [page, setPage] = useState(1);
   const [leaveType, setLeaveType] = useState('');
+  const [department, setDepartment] = useState('');
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
 
@@ -31,7 +32,7 @@ export default function AdminRequests() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const query = { status: status === 'all' ? '' : status, leaveType, q };
+  const query = { status: status === 'all' ? '' : status, leaveType, q, department };
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['admin-leaves', query, page],
@@ -99,6 +100,25 @@ export default function AdminRequests() {
               </option>
             ))}
           </SelectBox>
+          {/* HR and anyone running more than one department can pick one. */}
+          {data?.departments?.length > 1 && (
+            <SelectBox
+              aria-label="Filter by department"
+              value={department}
+              onChange={(event) => {
+                setDepartment(event.target.value);
+                setPage(1);
+              }}
+              className="w-full sm:w-56"
+            >
+              <option value="">All departments</option>
+              {data.departments.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </SelectBox>
+          )}
         </div>
 
         <Panel>

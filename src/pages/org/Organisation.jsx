@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { EmployeeIdField } from '../../components/EmployeeIdField';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -378,6 +379,10 @@ function AddEmployee({ departments, defaultDepartment, onClose }) {
           </p>
           <dl className="space-y-2 rounded-lg bg-sunken p-3">
             <div className="flex justify-between gap-3">
+              <dt className="text-muted">Employee ID</dt>
+              <dd className="font-medium">{created.person.employeeId}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
               <dt className="text-muted">Sign in with</dt>
               <dd className="truncate font-medium">{created.person.email}</dd>
             </div>
@@ -420,7 +425,7 @@ function AddEmployee({ departments, defaultDepartment, onClose }) {
         <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} data-autofocus />
         <TextInput label="Work email" type="email" required maxLength={160} value={form.email} onChange={set('email')} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput label="Employee ID" required maxLength={20} value={form.employeeId} onChange={set('employeeId')} />
+          <EmployeeIdField />
           <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
         </div>
         <TextInput

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { EmployeeIdField } from '../../components/EmployeeIdField';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Button, PasswordInput, TextInput } from '../../components/ui';
@@ -78,7 +79,7 @@ export function AcceptInvite() {
     setProblem('');
     setBusy(true);
     try {
-      const body = { name: form.name || data.name, employeeId: form.employeeId, password: passwords.password };
+      const body = { name: form.name || data.name, password: passwords.password };
       if (form.phone) body.phone = form.phone;
       setDone(await api.post(`/join/invite/${token}`, body));
     } catch (issue) {
@@ -97,7 +98,7 @@ export function AcceptInvite() {
         <TextInput label="Work email" value={data.email} disabled readOnly />
         <TextInput label="Full name" required minLength={2} maxLength={80} defaultValue={data.name} onChange={set('name')} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput label="Employee ID" required maxLength={20} value={form.employeeId} onChange={set('employeeId')} />
+          <EmployeeIdField />
           <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
         </div>
         <PasswordInput
@@ -172,7 +173,7 @@ export function JoinDepartment() {
         <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} />
         <TextInput label="Work email" type="email" autoComplete="username" required maxLength={160} value={form.email} onChange={set('email')} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput label="Employee ID" required maxLength={20} value={form.employeeId} onChange={set('employeeId')} />
+          <EmployeeIdField hint="Yours once approved" />
           <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
         </div>
         <TextInput

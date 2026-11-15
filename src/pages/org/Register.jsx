@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { EmployeeIdField } from '../../components/EmployeeIdField';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, PasswordInput, TextInput } from '../../components/ui';
@@ -147,7 +148,7 @@ export default function Register() {
         {role === 'manager' ? (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <TextInput label="Employee ID" required maxLength={20} value={form.employeeId} onChange={set('employeeId')} />
+              <EmployeeIdField hint="Yours once HR approves" />
               <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">

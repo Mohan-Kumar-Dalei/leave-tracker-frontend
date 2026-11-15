@@ -87,7 +87,7 @@ function AddEmployee({ open, onClose }) {
           onChange={set('email')}
         />
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput label="Employee ID" required maxLength={20} value={form.employeeId} onChange={set('employeeId')} />
+          <TextInput label="Employee ID" maxLength={20} placeholder="Leave empty for the next CON number" value={form.employeeId} onChange={set('employeeId')} />
           <TextInput label="Joining date" type="date" value={form.joinedOn} onChange={set('joinedOn')} />
           <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
           <TextInput label="Designation" maxLength={80} value={form.designation} onChange={set('designation')} />

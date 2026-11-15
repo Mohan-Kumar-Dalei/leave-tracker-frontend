@@ -107,9 +107,17 @@ export function ReviewList({ items, compact = false, keepFinished = true }) {
                   className="-m-1.5 min-w-0 rounded-lg p-1.5 text-left hover:bg-bg"
                 >
                   <p className="text-sm font-medium">{leave.user?.name}</p>
-                  <p className="mt-0.5 truncate text-sm text-muted">
-                    {leave.user?.employeeId}
-                    {leave.user?.department && `, ${leave.user.department}`}
+                  <p className="mt-0.5 truncate text-sm text-muted">{leave.user?.employeeId}</p>
+                  {/* Which department it came from, and who it was reported to. */}
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                    {(leave.department || leave.user?.department) && (
+                      <span className="rounded bg-sunken px-1.5 py-px font-medium">{leave.department || leave.user.department}</span>
+                    )}
+                    {leave.reportedTo?.length > 0 && (
+                      <span className="text-muted">
+                        To: <span className="font-medium text-ink">{leave.reportedTo.join(', ')}</span>
+                      </span>
+                    )}
                   </p>
                   {compact && (
                     <p className="mt-1 text-sm">

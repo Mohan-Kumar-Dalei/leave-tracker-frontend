@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, Link2, Mail, RefreshCw } from 'lucide-react';
+import { Check, Copy, Link2, Mail, RefreshCw, Search } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Avatar } from '../../components/ProfilePhoto';
@@ -93,6 +93,7 @@ function InviteTeam({ id, joinLink }) {
   const [emails, setEmails] = useState('');
   const [error, setError] = useState('');
   const [confirmNew, setConfirmNew] = useState(false);
+  const [mailing, setMailing] = useState(false);
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -126,13 +127,13 @@ function InviteTeam({ id, joinLink }) {
   return (
     <Panel>
       <PanelTitle>Invite your team</PanelTitle>
-      <div className="space-y-5 p-4">
+      <div className="space-y-3 p-4">
         <div>
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <Link2 className="h-4 w-4 text-muted" aria-hidden="true" />
             Join link
           </p>
-          <p className="mt-0.5 text-[13px] text-muted">Share it on mail or WhatsApp. People who open it ask to join, and you approve them below.</p>
+          <p className="mt-0.5 text-[13px] text-muted">Share it on mail or WhatsApp; you approve people below.</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <input
               readOnly
@@ -152,30 +153,48 @@ function InviteTeam({ id, joinLink }) {
           </div>
         </div>
 
-        <form
-          className="space-y-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setError('');
-            const list = emails.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean);
-            if (!list.length) return setError('Add at least one email.');
-            return send.mutate(list);
-          }}
-        >
-          <TextArea
-            label="Or mail the link"
-            hint="One or more emails, separated by commas or new lines. The mail goes from your Gmail."
-            rows={3}
-            value={emails}
-            onChange={(event) => setEmails(event.target.value)}
-            placeholder="asha@contify.com, ravi@contify.com"
-          />
-          {error && <p className="text-sm text-rejected">{error}</p>}
-          <Button type="submit" variant="secondary" loading={send.isPending}>
+        {/* Mailing the link is a second way in, so it stays folded until wanted. */}
+        {mailing ? (
+          <form
+            className="space-y-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setError('');
+              const list = emails.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean);
+              if (!list.length) return setError('Add at least one email.');
+              return send.mutate(list);
+            }}
+          >
+            <TextArea
+              label="Mail the link"
+              hint="Emails separated by commas or new lines. It goes from your Gmail."
+              rows={2}
+              value={emails}
+              onChange={(event) => setEmails(event.target.value)}
+              placeholder="asha@contify.com, ravi@contify.com"
+            />
+            {error && <p className="text-sm text-rejected">{error}</p>}
+            <div className="flex gap-2">
+              <Button type="submit" variant="secondary" loading={send.isPending}>
+                <Mail className="h-4 w-4" aria-hidden="true" />
+                Send invitations
+              </Button>
+              <Button variant="ghost" onClick={() => setMailing(false)}>
+                Close
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setMailing(true)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-accent underline-offset-4 hover:underline"
+          >
             <Mail className="h-4 w-4" aria-hidden="true" />
-            Send invitations
-          </Button>
-        </form>
+            Or mail the link to people
+          </button>
+        )}
+        {!mailing && error && <p className="text-sm text-rejected">{error}</p>}
       </div>
 
       <ConfirmDialog
@@ -247,7 +266,7 @@ function Requests({ id, requests }) {
           ))}
         </ul>
       ) : (
-        <Empty title="Nobody is waiting">When someone opens your join link and asks to join, they show here.</Empty>
+        <p className="px-4 py-4 text-sm text-muted">Nobody is waiting. People who open your join link show here.</p>
       )}
     </Panel>
   );
@@ -265,33 +284,46 @@ function Team({ id, members, canChooseAssistant }) {
     },
     onError: (issue) => toast.error('Could not do that', issue.message),
   });
+  const [search, setSearch] = useState('');
   const hasAssistant = members.some((person) => person.place === 'assistant');
   const order = { manager: 0, assistant: 1, member: 2 };
-  const sorted = [...members].sort((a, b) => order[a.place] - order[b.place] || a.name.localeCompare(b.name));
+  const query = search.trim().toLowerCase();
+  const sorted = [...members]
+    .filter((person) => `${person.name} ${person.employeeId ?? ''} ${person.designation ?? ''}`.toLowerCase().includes(query))
+    .sort((a, b) => order[a.place] - order[b.place] || a.name.localeCompare(b.name));
 
+  // The list scrolls inside the panel, so a big team fits on one screen.
   return (
-    <Panel>
-      <PanelTitle
-        action={
-          <span className="grid h-6 min-w-6 place-items-center rounded-md bg-sunken px-1.5 text-xs font-medium tabular-nums">
-            {members.length}
-          </span>
-        }
-      >
-        Team
-      </PanelTitle>
+    <Panel className="flex flex-col lg:max-h-[calc(100dvh-170px)]">
+      <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
+        <h2 className="text-sm font-semibold">Team</h2>
+        <span className="grid h-6 min-w-6 place-items-center rounded-md bg-sunken px-1.5 text-xs font-medium tabular-nums">
+          {members.length}
+        </span>
+        <label className="relative ml-auto w-full max-w-56">
+          <span className="sr-only">Search the team</span>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search name or ID"
+            className="h-9 w-full rounded-lg border border-line bg-surface pl-8 pr-2 text-base placeholder:text-muted focus:border-accent focus:outline-none sm:text-sm"
+          />
+        </label>
+      </div>
       {canChooseAssistant && !hasAssistant && members.length > 1 && (
-        <p className="border-b border-line bg-accent-soft px-4 py-2.5 text-[13px]">
+        <p className="border-b border-line bg-accent-soft px-4 py-2 text-[13px]">
           Choose the assistant manager: look at the designations and press <span className="font-medium">Make assistant manager</span>.
         </p>
       )}
       {sorted.length ? (
-        <ul className="divide-y divide-line">
+        <ul className="max-h-[60dvh] min-h-0 flex-1 divide-y divide-line overflow-y-auto overscroll-contain lg:max-h-none">
           {sorted.map((person) => {
             const suggested = !hasAssistant && person.place === 'member' && looksLikeAssistant(person);
             return (
-              <li key={person.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <Avatar user={person} size={34} />
+              <li key={person.id} className="flex flex-wrap items-center gap-3 px-4 py-2">
+                <Avatar user={person} size={30} />
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-medium">
                     {person.name}
@@ -305,7 +337,12 @@ function Team({ id, members, canChooseAssistant }) {
                   <p className="truncate text-xs text-muted">{[person.designation, person.employeeId].filter(Boolean).join(' · ')}</p>
                 </div>
                 {canChooseAssistant && person.place === 'member' && (
-                  <Button variant={suggested ? 'primary' : 'ghost'} disabled={choose.isPending} onClick={() => choose.mutate(person)}>
+                  <Button
+                    variant={suggested ? 'primary' : 'ghost'}
+                    className="h-8!"
+                    disabled={choose.isPending}
+                    onClick={() => choose.mutate(person)}
+                  >
                     Make assistant manager
                   </Button>
                 )}
@@ -313,6 +350,8 @@ function Team({ id, members, canChooseAssistant }) {
             );
           })}
         </ul>
+      ) : members.length ? (
+        <p className="px-4 py-4 text-sm text-muted">Nobody matches.</p>
       ) : (
         <Empty title="Nobody yet">Share the join link to bring your team in.</Empty>
       )}
@@ -347,7 +386,7 @@ export default function DepartmentHome() {
       {isError && <LoadError error={error} onRetry={refetch} />}
 
       {data && (
-        <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
           <Reveal className="space-y-4">
             {data.you.canInviteAssistant && <InviteAssistant id={id} pending={data.assistantInvite} />}
             <InviteTeam id={id} joinLink={data.joinLink} />

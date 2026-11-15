@@ -64,16 +64,20 @@ function bookedDetail({ earlier, approved, pending }) {
   return parts.join(', ');
 }
 
+// The card clips what spills over its edge (for the mandala), so the tooltip
+// is placed against the card itself, not the icon: just above the Applied row
+// (always the card's last row), right-aligned and never wider than the card,
+// wrapping onto more lines when the card is narrow.
 function BookedInfo({ balance }) {
   const detail = bookedDetail(balance);
   return (
-    <span className="group relative inline-flex">
+    <span className="group inline-flex">
       <button type="button" aria-label={detail} className="grid h-5 w-5 place-items-center text-muted hover:text-ink">
         <Info className="h-3.5 w-3.5" />
       </button>
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 hidden w-max max-w-56 rounded-lg bg-ink px-2.5 py-1.5 text-xs text-surface group-focus-within:block group-hover:block"
+        className="pointer-events-none absolute bottom-[42px] right-3 z-10 hidden w-max max-w-[calc(100%-1.5rem)] rounded-lg bg-ink px-2.5 py-1.5 text-left text-xs leading-snug font-normal text-surface shadow-float group-focus-within:block group-hover:block"
       >
         {detail}
       </span>

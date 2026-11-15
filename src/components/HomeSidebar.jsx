@@ -74,10 +74,11 @@ export function HomeSidebar({ show = 3 }) {
     designation: user.designation || (user.role === 'admin' ? 'Admin' : 'Analyst'),
     leave: null,
   };
-  // The person they report to; without one set, an employee reports to the admin.
+  // On the dashboard everyone reports to the department's admin (the Assistant
+  // Manager), not to their team lead; team leads show in the Employee tree.
+  const admins = data.members.filter((member) => member.role === 'admin' && member.id !== user.id);
   const manager =
-    data.members.find((member) => member.id === me.reportsTo) ??
-    (user.role === 'admin' ? null : data.members.find((member) => member.role === 'admin' && member.id !== user.id));
+    user.role === 'admin' ? null : (admins.find((member) => member.department === me.department) ?? admins[0]);
   const others = leaveFirst(data.members.filter((member) => member.id !== user.id));
   const away = others.filter((member) => member.leave).length;
   const rest = others.length - show;

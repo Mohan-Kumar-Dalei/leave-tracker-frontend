@@ -16,6 +16,43 @@ const LINE = {
 
 const firstName = (name = '') => name.trim().split(/\s+/)[0];
 
+// Whether the admin last chose Reply all, kept in this browser.
+const QUOTE_KEY = 'lt-reply-all';
+const savedQuote = () => {
+  try {
+    return localStorage.getItem(QUOTE_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+const saveQuote = (on) => {
+  try {
+    localStorage.setItem(QUOTE_KEY, on ? '1' : '0');
+  } catch {
+    // Storage may be off; the choice then lasts for this request only.
+  }
+};
+
+// "Sat, 14 Nov 2026 at 6:31 PM", as Gmail writes it above a quoted mail.
+function sentAt(value) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+      .formatToParts(new Date(value))
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.weekday}, ${parts.day} ${parts.month} ${parts.year} at ${parts.hour}:${parts.minute} ${String(
+    parts.dayPeriod,
+  ).toUpperCase()}`;
+}
+
 export const replyDraft = (leave, me, decision) =>
   `Hi ${firstName(leave.user?.name)},\n\n${LINE[decision]}\n\nThanks,\n${firstName(me.name)}`;
 
@@ -38,6 +75,7 @@ export function ReviewDialog({ leave, decision: startDecision, onClose, onDecide
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [sending, setSending] = useState(null);
+  const [quote, setQuote] = useState(savedQuote);
   const pending = leave.status === 'pending';
 
   const nameOf = (email) => compose?.contacts.find((contact) => contact.email === email)?.name ?? email;
@@ -66,7 +104,7 @@ export function ReviewDialog({ leave, decision: startDecision, onClose, onDecide
       return;
     }
     setSending(decision);
-    onDecide({ decision, reply: reply.trim() });
+    onDecide({ decision, reply: reply.trim(), quoteOriginal: quote });
   };
 
   return (
@@ -147,6 +185,35 @@ export function ReviewDialog({ leave, decision: startDecision, onClose, onDecide
                 setNotice('');
               }}
             />
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-line px-3 py-2.5 text-sm hover:bg-bg">
+              <input
+                id="reply-all-quote"
+                type="checkbox"
+                checked={quote}
+                onChange={(event) => {
+                  setQuote(event.target.checked);
+                  saveQuote(event.target.checked);
+                }}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
+              />
+              <span>
+                <span className="font-medium">Reply all with {firstName(leave.user?.name)}'s mail</span>
+                <span className="block text-[13px] text-muted">
+                  Their leave mail is quoted under your reply, the way Gmail does it, so everyone sees both.
+                </span>
+              </span>
+            </label>
+            {quote && (
+              <div className="rounded-lg bg-bg px-3 py-2.5 text-[13px]">
+                <p className="text-muted">
+                  On {leave.createdAt ? sentAt(leave.createdAt) : 'the day they applied'}, {leave.user?.name} &lt;
+                  {leave.user?.email}&gt; wrote:
+                </p>
+                <p className="mt-2 whitespace-pre-wrap break-words border-l-2 border-line pl-3 leading-relaxed text-muted">
+                  {leave.message || leave.reason}
+                </p>
+              </div>
+            )}
           </section>
         ) : (
           (leave.reply || leave.reviewNote) && (

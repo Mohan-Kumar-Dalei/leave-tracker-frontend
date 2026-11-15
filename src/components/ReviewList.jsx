@@ -19,7 +19,8 @@ function useDecisions(items, keepFinished) {
   const toast = useToast();
 
   const mutation = useMutation({
-    mutationFn: ({ id, decision, reply }) => api.patch(`/admin/leaves/${id}/review`, { decision, reply }),
+    mutationFn: ({ id, decision, reply, quoteOriginal }) =>
+      api.patch(`/admin/leaves/${id}/review`, { decision, reply, quoteOriginal }),
     onSuccess: ({ leave }, { decision }) => {
       setDecided((current) => ({ ...current, [leave.id]: leave }));
       toast.success(
@@ -78,8 +79,8 @@ export function ReviewList({ items, compact = false, keepFinished = true }) {
     },
   });
 
-  const decide = ({ decision, reply }) =>
-    mutation.mutate({ id: reviewing.leave.id, decision, reply }, { onSuccess: () => setReviewing(null) });
+  const decide = ({ decision, reply, quoteOriginal }) =>
+    mutation.mutate({ id: reviewing.leave.id, decision, reply, quoteOriginal }, { onSuccess: () => setReviewing(null) });
 
   const grid = compact
     ? 'grid gap-x-5 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center'

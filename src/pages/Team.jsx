@@ -1,7 +1,7 @@
 import { MapPin } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { DepartmentTree, EmployeeTree } from '../components/OrgTrees';
+import { DepartmentTree, EmployeeTree, inDepartment, roleRank } from '../components/OrgTrees';
 import { MemberProfile, MemberRow, useTeam } from '../components/TeamPeople';
 import {
   LoadError,
@@ -14,15 +14,6 @@ import {
   StickyTop,
 } from '../components/ui';
 import { useAuth } from '../lib/auth';
-
-// Senior roles first, then everyone else by name of the role.
-const ROLE_ORDER = ['admin', 'manager', 'team leader', 'lead', 'senior', 'technical', 'analyst'];
-
-function roleRank(designation) {
-  const text = designation.toLowerCase();
-  const index = ROLE_ORDER.findIndex((word) => text.includes(word));
-  return index === -1 ? ROLE_ORDER.length : index;
-}
 
 // Groups up to this size sit side by side; bigger ones get the full width.
 const SMALL_GROUP = 3;
@@ -73,11 +64,12 @@ export default function Team() {
   const [params, setParams] = useSearchParams();
   const view = VIEWS.some(([key]) => key === params.get('view')) ? params.get('view') : 'team';
 
-  const department =
-    picked ?? (data?.departments.includes(user.department) ? user.department : data?.departments[0]) ?? '';
+  // Start on your own department, as the team list names it (HR has its own).
+  const mine = data?.members.find((member) => member.id === user.id)?.department ?? user.department;
+  const department = picked ?? (data?.departments.includes(mine) ? mine : data?.departments[0]) ?? '';
 
   const groups = useMemo(() => {
-    const members = (data?.members ?? []).filter((member) => !department || member.department === department);
+    const members = (data?.members ?? []).filter((member) => !department || inDepartment(member, department));
     const byRole = new Map();
     for (const member of members) {
       if (!byRole.has(member.designation)) byRole.set(member.designation, []);

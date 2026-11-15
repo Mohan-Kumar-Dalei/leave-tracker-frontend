@@ -32,8 +32,16 @@ const initialsOf = (name) =>
 
 // Senior roles first, the way the team reads its own chart.
 const ROLE_ORDER = ['director', 'admin', 'manager', 'team lead', 'lead', 'senior', 'technical', 'associate', 'analyst'];
-const roleRank = (text = '') => {
-  const index = ROLE_ORDER.findIndex((word) => text.toLowerCase().includes(word));
+// Whether someone belongs under a department: their own, or one they manage.
+export const inDepartment = (member, department) =>
+  member.department === department || (member.manages ?? []).includes(department);
+
+// HR first, then a manager ahead of an assistant manager, then the rest.
+export const roleRank = (text = '') => {
+  const lower = text.toLowerCase().trim();
+  if (lower === 'hr' || lower.startsWith('hr ') || lower.includes('human resource')) return -1;
+  const index = ROLE_ORDER.findIndex((word) => lower.includes(word));
+  if (ROLE_ORDER[index] === 'manager' && lower.includes('assistant')) return index + 0.5;
   return index === -1 ? ROLE_ORDER.length : index;
 };
 
@@ -298,7 +306,9 @@ export function DepartmentTree({ data, department, onDepartment, onOpen }) {
 
   const counts = useMemo(() => {
     const result = {};
-    for (const member of data.members) result[member.department] = (result[member.department] ?? 0) + 1;
+    for (const member of data.members) {
+      for (const name of new Set([member.department, ...(member.manages ?? [])])) result[name] = (result[name] ?? 0) + 1;
+    }
     return result;
   }, [data.members]);
 
@@ -307,9 +317,11 @@ export function DepartmentTree({ data, department, onDepartment, onOpen }) {
   const people = useMemo(
     () =>
       data.members
-        .filter((member) => member.department === department)
+        .filter((member) => inDepartment(member, department))
         .sort(
           (a, b) =>
+            Number(b.role === 'owner') - Number(a.role === 'owner') ||
+            Number((b.manages ?? []).includes(department)) - Number((a.manages ?? []).includes(department)) ||
             Number(b.role === 'admin') - Number(a.role === 'admin') ||
             Number(leads.has(b.id)) - Number(leads.has(a.id)) ||
             roleRank(a.designation) - roleRank(b.designation) ||
@@ -349,7 +361,7 @@ export function DepartmentTree({ data, department, onDepartment, onOpen }) {
           <PersonCard
             member={member}
             on={member.id === chosen}
-            tag={member.role !== 'admin' && leads.has(member.id) ? 'Team Lead' : null}
+            tag={member.role === 'employee' && leads.has(member.id) ? 'Team Lead' : null}
             onClick={() => (member.id === chosen ? onOpen(member) : setChosen(member.id))}
           />
         ),
@@ -377,6 +389,8 @@ export function EmployeeTree({ data, onOpen }) {
       }
     }
     const order = (a, b) =>
+      Number(b.role === 'owner') - Number(a.role === 'owner') ||
+      Number((b.manages ?? []).length > 0) - Number((a.manages ?? []).length > 0) ||
       Number(b.role === 'admin') - Number(a.role === 'admin') ||
       Number(kids.has(b.id)) - Number(kids.has(a.id)) ||
       roleRank(a.designation) - roleRank(b.designation) ||
@@ -419,7 +433,7 @@ export function EmployeeTree({ data, onOpen }) {
         <PersonCard
           member={member}
           on={path[depth] === member.id}
-          tag={depth > 0 && children.has(member.id) ? 'Team Lead' : null}
+          tag={depth > 0 && member.role === 'employee' && children.has(member.id) ? 'Team Lead' : null}
           onClick={() => {
             if (path[depth] === member.id && path.length === depth + 1) onOpen(member);
             else setPath([...path.slice(0, depth), member.id]);

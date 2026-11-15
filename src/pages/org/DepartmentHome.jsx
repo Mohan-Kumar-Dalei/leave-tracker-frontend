@@ -294,7 +294,7 @@ function Team({ id, members, canChooseAssistant }) {
 
   // The list scrolls inside the panel, so a big team fits on one screen.
   return (
-    <Panel className="flex flex-col lg:max-h-[calc(100dvh-170px)]">
+    <Panel className="flex flex-col md:max-h-[calc(100dvh-290px)] lg:max-h-[calc(100dvh-170px)]">
       <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
         <h2 className="text-sm font-semibold">Team</h2>
         <span className="grid h-6 min-w-6 place-items-center rounded-md bg-sunken px-1.5 text-xs font-medium tabular-nums">
@@ -318,7 +318,7 @@ function Team({ id, members, canChooseAssistant }) {
         </p>
       )}
       {sorted.length ? (
-        <ul className="max-h-[60dvh] min-h-0 flex-1 divide-y divide-line overflow-y-auto overscroll-contain lg:max-h-none">
+        <ul className="max-h-[60dvh] min-h-0 flex-1 divide-y divide-line overflow-y-auto overscroll-contain md:max-h-none">
           {sorted.map((person) => {
             const suggested = !hasAssistant && person.place === 'member' && looksLikeAssistant(person);
             return (
@@ -386,7 +386,7 @@ export default function DepartmentHome() {
       {isError && <LoadError error={error} onRetry={refetch} />}
 
       {data && (
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        <div className="grid items-start gap-4 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
           <Reveal className="space-y-4">
             {data.you.canInviteAssistant && <InviteAssistant id={id} pending={data.assistantInvite} />}
             <InviteTeam id={id} joinLink={data.joinLink} />

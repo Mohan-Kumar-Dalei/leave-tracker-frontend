@@ -72,6 +72,12 @@ export function Login() {
           Forgot your password?
         </Link>
       </div>
+      <p className="mt-3 border-t border-line pt-4 text-center text-[13px] text-muted">
+        HR or a department manager?{' '}
+        <Link to="/register" className={authLink}>
+          Register
+        </Link>
+      </p>
     </AuthLayout>
   );
 }

@@ -41,7 +41,12 @@ function PeopleList({ title, items, empty, describe }) {
             key={leave.id}
             className="flex items-baseline justify-between gap-4 border-b border-line px-4 py-2.5 text-sm last:border-b-0 sm:px-5"
           >
-            <span className="min-w-0 truncate font-medium">{leave.user?.name}</span>
+            <span className="flex min-w-0 items-baseline gap-2">
+              <span className="truncate font-medium">{leave.user?.name}</span>
+              {leave.status === 'pending' && (
+                <span className="shrink-0 rounded bg-pending-soft px-1.5 py-px text-[10px] font-semibold text-pending">Pending</span>
+              )}
+            </span>
             <span className="shrink-0 text-[13px] tabular-nums text-muted">{describe(leave)}</span>
           </li>
         ))}
@@ -173,7 +178,7 @@ export default function Overview() {
               <PeopleList
                 title="Away in the next 14 days"
                 items={data?.nextUp ?? []}
-                empty="No approved leave coming up."
+                empty="No leave coming up."
                 describe={(leave) => shortRange(leave.from, leave.to)}
               />
               <Panel>

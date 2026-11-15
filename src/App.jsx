@@ -19,6 +19,7 @@ const Setup = lazy(() => import('./pages/admin/Setup'));
 const Schedule = lazy(() => import('./pages/admin/Schedule'));
 const Organisation = lazy(() => import('./pages/org/Organisation'));
 const DepartmentHome = lazy(() => import('./pages/org/DepartmentHome'));
+const Register = lazy(() => import('./pages/org/Register'));
 const AcceptInvite = lazy(() => import('./pages/org/JoinPages').then((module) => ({ default: module.AcceptInvite })));
 const JoinDepartment = lazy(() => import('./pages/org/JoinPages').then((module) => ({ default: module.JoinDepartment })));
 
@@ -101,6 +102,7 @@ export default function App() {
       <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
       <Route path="/forgot-password" element={<GuestOnly><ForgotPassword /></GuestOnly>} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/register" element={<GuestOnly><Public><Register /></Public></GuestOnly>} />
       <Route path="/join/invite/:token" element={<Public><AcceptInvite /></Public>} />
       <Route path="/join/:code" element={<Public><JoinDepartment /></Public>} />
 

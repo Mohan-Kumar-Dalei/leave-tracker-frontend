@@ -15,6 +15,7 @@ import {
   RowsSkeleton,
   StickyTop,
   TextArea,
+  TextInput,
 } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
@@ -26,6 +27,66 @@ import { useToast } from '../../lib/toast';
 
 const PLACE = { manager: 'Manager', assistant: 'Assistant Manager' };
 const looksLikeAssistant = (person) => /assistant\s*manager/i.test(person.designation ?? '');
+
+// The manager's first step: invite the assistant manager, who registers with
+// the mailed link and becomes the department's admin.
+function InviteAssistant({ id, pending }) {
+  const [form, setForm] = useState({ name: '', email: '' });
+  const [error, setError] = useState('');
+  const [sentLink, setSentLink] = useState('');
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const send = useMutation({
+    mutationFn: () => api.post(`/departments/${id}/assistant-invite`, form),
+    onSuccess: ({ invite }) => {
+      setSentLink(invite.link);
+      queryClient.invalidateQueries({ queryKey: ['department', id] });
+      toast.success('Invitation sent', `${invite.name} gets a mail to join as assistant manager.`);
+    },
+    onError: (issue) => setError(issue.message),
+  });
+
+  return (
+    <Panel>
+      <PanelTitle>Invite your assistant manager</PanelTitle>
+      <form
+        className="space-y-3 p-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setError('');
+          send.mutate();
+        }}
+      >
+        {pending && !sentLink && (
+          <p className="rounded-lg bg-pending-soft px-3 py-2 text-[13px] text-pending">
+            Invited {pending.name} ({pending.email}). Sending again makes a new link.
+          </p>
+        )}
+        <p className="text-[13px] text-muted">
+          They register with the link, become this department&apos;s admin and bring in the team.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+          <TextInput label="Email" type="email" required maxLength={160} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+        </div>
+        {error && <p className="text-sm text-rejected">{error}</p>}
+        {sentLink && (
+          <input
+            readOnly
+            value={sentLink}
+            aria-label="Invitation link"
+            onFocus={(event) => event.target.select()}
+            className="h-9 w-full rounded-lg border border-line bg-bg px-2.5 text-xs text-muted"
+          />
+        )}
+        <Button type="submit" loading={send.isPending}>
+          <Mail className="h-4 w-4" aria-hidden="true" />
+          Send invitation
+        </Button>
+      </form>
+    </Panel>
+  );
+}
 
 function InviteTeam({ id, joinLink }) {
   const [copied, setCopied] = useState(false);
@@ -288,6 +349,7 @@ export default function DepartmentHome() {
       {data && (
         <div className="grid items-start gap-4 lg:grid-cols-2">
           <Reveal className="space-y-4">
+            {data.you.canInviteAssistant && <InviteAssistant id={id} pending={data.assistantInvite} />}
             <InviteTeam id={id} joinLink={data.joinLink} />
             <Requests id={id} requests={data.requests} />
           </Reveal>

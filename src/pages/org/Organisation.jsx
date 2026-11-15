@@ -276,6 +276,58 @@ function AddDepartmentWizard({ company, onClose }) {
   );
 }
 
+// Managers who registered on their own with a new department, for HR to
+// approve (which sets up the department) or turn down.
+function ManagerRequests({ requests }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const decide = useMutation({
+    mutationFn: ({ request, decision }) => api.post(`/org/manager-requests/${request.id}/${decision}`),
+    onSuccess: (_data, { request, decision }) => {
+      queryClient.invalidateQueries({ queryKey: ['organisation'] });
+      toast.success(
+        decision === 'approve' ? `${request.departmentName} is set up` : 'Request turned down',
+        decision === 'approve' ? `${request.name} can sign in and invite their assistant manager.` : undefined,
+      );
+    },
+    onError: (issue) => toast.error('Could not do that', issue.message),
+  });
+  if (!requests?.length) return null;
+
+  return (
+    <Panel className="mb-4">
+      <div className="flex items-center justify-between border-b border-line px-4 py-3">
+        <h2 className="text-sm font-semibold">Managers waiting for approval</h2>
+        <span className="grid h-6 min-w-6 place-items-center rounded-md bg-pending-soft px-1.5 text-xs font-medium tabular-nums text-pending">
+          {requests.length}
+        </span>
+      </div>
+      <ul className="divide-y divide-line">
+        {requests.map((request) => (
+          <li key={request.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">
+                {request.name} <span className="font-normal text-muted">wants to set up</span> {request.departmentName}
+              </p>
+              <p className="truncate text-xs text-muted">
+                {[request.email, request.employeeId, request.location].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" disabled={decide.isPending} onClick={() => decide.mutate({ request, decision: 'reject' })}>
+                Reject
+              </Button>
+              <Button disabled={decide.isPending} onClick={() => decide.mutate({ request, decision: 'approve' })}>
+                Approve
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
 // Managers first (the usual department leads), then everyone by name.
 const isManager = (person) => /manager|head|director|lead/i.test(person.designation ?? '');
 const leadChoices = (people) =>
@@ -765,6 +817,7 @@ export default function Organisation() {
 
       {data && (
         <Reveal>
+          <ManagerRequests requests={data.managerRequests} />
           <Panel>
             {tab === 'departments' ? (
               <DepartmentsTable

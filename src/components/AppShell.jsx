@@ -18,13 +18,8 @@ const PERSONAL_NAV = [
   { to: '/profile', label: 'Profile', short: 'Profile', icon: UserRound },
 ];
 
-// The owner (HR or CEO) runs the organisation, not a department's leave.
-const OWNER_NAV = [
-  { to: '/organisation', label: 'Organisation', short: 'Organisation', icon: Building2 },
-  { to: '/team', label: 'Department', short: 'Department', icon: Network },
-  { to: '/profile', label: 'Profile', short: 'Profile', icon: UserRound },
-];
-
+// Department admins (managers and assistant managers) see their department;
+// they take leave too, so they also have My leave.
 const ADMIN_NAV = [
   { to: '/admin', label: 'Overview', short: 'Overview', icon: LayoutGrid, end: true },
   { to: '/admin/requests', label: 'Leave requests', short: 'Requests', icon: Inbox, badge: true },
@@ -33,6 +28,13 @@ const ADMIN_NAV = [
   { to: '/team', label: 'Department', short: 'Department', icon: Network },
   { to: '/admin/employees', label: 'Employees', short: 'Employees', icon: Users },
   { to: '/admin/setup', label: 'Setup', short: 'Setup', icon: Settings2 },
+  { to: '/', label: 'My leave', short: 'My leave', icon: CalendarCheck, end: true },
+];
+
+// HR (the owner) runs the organisation and sees the whole company's leave.
+const OWNER_NAV = [
+  { to: '/organisation', label: 'Organisation', short: 'Organisation', icon: Building2 },
+  ...ADMIN_NAV.filter((item) => item.to !== '/'),
 ];
 
 export function Logo() {
@@ -190,7 +192,7 @@ export function AppShell() {
   const { data: overview } = useQuery({
     queryKey: ['admin-overview'],
     queryFn: () => api.get('/admin/overview'),
-    enabled: isAdmin,
+    enabled: isAdmin || user.role === 'owner',
   });
   const badge = overview?.pendingCount ?? 0;
 

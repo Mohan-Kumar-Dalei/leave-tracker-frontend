@@ -211,16 +211,26 @@ function AddDepartmentWizard({ company, onClose }) {
           </>
         )}
         {step === 1 && (
-          <TextInput
-            key="manager"
-            label="Manager's full name"
-            hint="Shown on the department, like Rajesh Sir for Content Integration. They do not need an account."
-            required
-            minLength={2}
-            maxLength={80}
-            value={form.managerName}
-            onChange={set('managerName')}
-          />
+          <>
+            <TextInput
+              key="manager"
+              label="Manager's full name"
+              hint="The manager approves the assistant manager's leave."
+              required
+              minLength={2}
+              maxLength={80}
+              value={form.managerName}
+              onChange={set('managerName')}
+            />
+            <TextInput
+              label="Manager's email"
+              hint="Optional. With an email they get an invitation and their own admin panel; you can also invite them later."
+              type="email"
+              maxLength={160}
+              value={form.managerEmail ?? ''}
+              onChange={set('managerEmail')}
+            />
+          </>
         )}
         {step === 2 && (
           <TextInput

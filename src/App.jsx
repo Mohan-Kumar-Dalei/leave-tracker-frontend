@@ -54,9 +54,10 @@ function RequireAuth({ children }) {
   return children;
 }
 
+// Admin pages: department admins (managers and assistant managers) and HR.
 function RequireAdmin({ children }) {
   const { user } = useAuth();
-  if (user.role !== 'admin') return <Navigate to="/" replace />;
+  if (user.role !== 'admin' && user.role !== 'owner') return <Navigate to="/" replace />;
   return <Suspense fallback={<Loading />}>{children}</Suspense>;
 }
 
@@ -67,10 +68,11 @@ function RequireOwner({ children }) {
   return <Suspense fallback={<Loading />}>{children}</Suspense>;
 }
 
-// My leave and My requests are for employees. Admins and the owner go to their own pages.
+// My leave and My requests are for everyone who takes leave: employees, and
+// managers and assistant managers too. HR goes to the organisation.
 function EmployeeOnly({ children }) {
   const { user } = useAuth();
-  if (user.role !== 'employee') return <Navigate to={homeOf(user)} replace />;
+  if (user.role === 'owner') return <Navigate to={homeOf(user)} replace />;
   return children;
 }
 

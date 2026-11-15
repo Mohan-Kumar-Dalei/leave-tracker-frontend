@@ -19,7 +19,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../lib/auth';
 import { ApplyLeaveDialog } from '../../components/ApplyLeave';
-import { EntryPanel, PAST_FILTERS, UPCOMING_FILTERS } from '../../components/EntryPanel';
+import { EntryPanel, MY_PAST_FILTERS, MY_UPCOMING_FILTERS } from '../../components/EntryPanel';
 import { MonthlyBars } from '../../components/MonthlyBars';
 import { TeamCalendarView } from '../../components/TeamCalendarView';
 import { HomeSidebar } from '../../components/HomeSidebar';
@@ -241,7 +241,8 @@ function subtitle(data) {
   const left = data.balances
     .filter((balance) => balance.leaveType.tracksBalance && !balance.leaveType.restrictedHolidayOnly)
     .reduce((sum, balance) => sum + balance.available, 0);
-  const next = data.upcoming[0];
+  // Next up is your own leave or a holiday, not a colleague's leave.
+  const next = data.upcoming.find((entry) => entry.kind !== 'team');
   const lead = `${left} ${dayWord(left)} of leave left in ${data.year}.`;
   if (!next) return lead;
   if (next.from <= data.today) return `${lead} ${next.title} is on now.`;
@@ -376,7 +377,7 @@ export default function Summary() {
               <Reveal delay={0.12}>
                 <EntryPanel
                   label="Filter upcoming"
-                  filters={UPCOMING_FILTERS}
+                  filters={MY_UPCOMING_FILTERS}
                   entries={data?.upcoming ?? []}
                   loading={isPending}
                   onAvail={avail}
@@ -385,7 +386,7 @@ export default function Summary() {
               <Reveal delay={0.16}>
                 <EntryPanel
                   label="Filter past"
-                  filters={PAST_FILTERS}
+                  filters={MY_PAST_FILTERS}
                   entries={data?.past ?? []}
                   loading={isPending}
                   onAvail={avail}

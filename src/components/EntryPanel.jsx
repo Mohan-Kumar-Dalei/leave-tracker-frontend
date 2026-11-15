@@ -1,4 +1,4 @@
-import { CalendarDays, Palmtree } from 'lucide-react';
+import { CalendarDays, Palmtree, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { dayRange, dayWord, slashDate, weekday } from '../lib/dates';
 import { StatusBadge } from './StatusBadge';
@@ -16,9 +16,30 @@ export const PAST_FILTERS = [
   ['holiday', 'Past Holidays'],
 ];
 
+// The dashboard's lists also hold the department's leave ("team"): who is
+// away and when, never why.
+export const MY_UPCOMING_FILTERS = [
+  ['all', 'Upcoming Leaves & Holidays'],
+  ['leave', 'My upcoming leaves'],
+  ['team', 'Who is going on leave'],
+  ['holiday', 'Upcoming Holidays'],
+];
+
+export const MY_PAST_FILTERS = [
+  ['all', 'Past Leaves & Holidays'],
+  ['leave', 'My past leaves'],
+  ['team', 'Who has taken leave'],
+  ['holiday', 'Past Holidays'],
+];
+
 function EntryRow({ entry, onAvail }) {
-  const isLeave = entry.kind === 'leave';
-  const detail = isLeave ? (entry.detail ?? `${entry.days} ${dayWord(entry.days)}. ${entry.reason}`) : entry.note;
+  const isTeam = entry.kind === 'team';
+  const isLeave = entry.kind === 'leave' || isTeam;
+  const detail = isTeam
+    ? `Department leave, ${entry.detail}`
+    : isLeave
+      ? (entry.detail ?? `${entry.days} ${dayWord(entry.days)}. ${entry.reason}`)
+      : entry.note;
 
   return (
     // Laid out by the width of the list, not the screen: with the side column
@@ -34,7 +55,9 @@ function EntryRow({ entry, onAvail }) {
         )}
       </p>
       <p className="flex items-center gap-2 text-sm font-medium">
-        {isLeave ? (
+        {isTeam ? (
+          <Users className="h-4 w-4 shrink-0 text-pending" aria-hidden="true" />
+        ) : isLeave ? (
           <Palmtree className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
         ) : (
           <CalendarDays className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />

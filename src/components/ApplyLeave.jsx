@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { dayWord, slashDate } from '../lib/dates';
 import { useToast } from '../lib/toast';
-import { SendingFrom } from './GmailConnect';
+import { SendingFrom, useGmail } from './GmailConnect';
 import { AddressField, MailBody } from './MailParts';
 import { Button, Dialog, SelectField, TextInput } from './ui';
 
@@ -15,9 +15,32 @@ const SESSIONS = [
   ['second', 'Second half'],
 ];
 
+// What the form needs before it can show without anything moving: the leave
+// types, who the mail goes to with the signature, and the Gmail line.
+const useFormData = () => ({
+  types: useQuery({ queryKey: ['leave-types'], queryFn: () => api.get('/leave-types') }),
+  compose: useQuery({ queryKey: ['compose'], queryFn: () => api.get('/me/compose') }),
+  gmail: useGmail(),
+});
+
+// The same shape as the form, shown for the moment its data is still coming,
+// so the panel opens at its full height and nothing jumps when it fills in.
+function FormSkeleton() {
+  const bar = 'animate-pulse rounded-lg bg-sunken motion-reduce:animate-none';
+  return (
+    <div className="space-y-5" aria-hidden="true">
+      {/* Heights of the form's own parts: type, dates, duration, days, mail, message. */}
+      {[91, 66, 72, 44, 219, 455].map((height) => (
+        <div key={height} style={{ height }} className={bar} />
+      ))}
+    </div>
+  );
+}
+
 function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const ready = useFormData();
 
   const { data: typeData } = useQuery({ queryKey: ['leave-types'], queryFn: () => api.get('/leave-types') });
   const types = useMemo(() => (typeData?.items ?? []).filter((type) => type.isActive), [typeData]);
@@ -145,6 +168,8 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
     setTo(date);
   };
 
+  if (ready.types.isPending || ready.compose.isPending || ready.gmail.isPending) return <FormSkeleton />;
+
   return (
     <form id={formId} onSubmit={onSubmit} className="space-y-5">
       <SelectField
@@ -265,6 +290,9 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
 }
 
 export function ApplyLeaveDialog({ open, onClose, today, preset }) {
+  // Fetched as soon as the page shows, not when the panel opens, so the
+  // panel opens with everything in place.
+  useFormData();
   const [busy, setBusy] = useState(false);
   const [canSend, setCanSend] = useState(false);
   const formId = 'apply-leave-form';

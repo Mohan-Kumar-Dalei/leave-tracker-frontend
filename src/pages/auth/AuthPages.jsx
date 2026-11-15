@@ -4,8 +4,9 @@ import { Logo } from '../../components/AppShell';
 import { Button, PasswordInput, Reveal, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { homeOf } from '../../lib/home';
 
-function AuthLayout({ title, intro, children }) {
+export function AuthLayout({ title, intro, children }) {
   return (
     <main className="grid min-h-dvh place-items-center px-4 py-10">
       <Reveal className="w-full max-w-[400px]">
@@ -22,14 +23,14 @@ function AuthLayout({ title, intro, children }) {
   );
 }
 
-const FormError = ({ message }) =>
+export const FormError = ({ message }) =>
   message ? (
     <p role="alert" className="rounded-lg bg-rejected-soft px-3 py-2 text-[13px] text-rejected">
       {message}
     </p>
   ) : null;
 
-const authLink = 'text-[13px] font-medium text-accent hover:underline underline-offset-4';
+export const authLink = 'text-[13px] font-medium text-accent hover:underline underline-offset-4';
 
 export function Login() {
   const { signIn } = useAuth();
@@ -47,7 +48,7 @@ export function Login() {
     try {
       const user = await signIn({ email: email.trim(), password });
       const from = location.state?.from;
-      const target = from && from !== '/' ? from : user.role === 'admin' ? '/admin' : '/';
+      const target = from && from !== '/' ? from : homeOf(user);
       navigate(target, { replace: true });
     } catch (issue) {
       setError(issue.message);

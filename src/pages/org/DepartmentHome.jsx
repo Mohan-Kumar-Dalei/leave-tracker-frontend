@@ -1,0 +1,305 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, Copy, Link2, Mail, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { Avatar } from '../../components/ProfilePhoto';
+import {
+  Button,
+  ConfirmDialog,
+  Empty,
+  LoadError,
+  PageHeading,
+  Panel,
+  PanelTitle,
+  Reveal,
+  RowsSkeleton,
+  StickyTop,
+  TextArea,
+} from '../../components/ui';
+import { api } from '../../lib/api';
+import { useToast } from '../../lib/toast';
+
+// A department's own page, for its assistant manager (who runs it) and the
+// owner: share the join link and approve the people who ask to join. Everyone
+// approved reports to the assistant manager, as in Content Integration. The
+// owner can also hand the assistant manager's place to someone else here.
+
+const PLACE = { manager: 'Manager', assistant: 'Assistant Manager' };
+const looksLikeAssistant = (person) => /assistant\s*manager/i.test(person.designation ?? '');
+
+function InviteTeam({ id, joinLink }) {
+  const [copied, setCopied] = useState(false);
+  const [emails, setEmails] = useState('');
+  const [error, setError] = useState('');
+  const [confirmNew, setConfirmNew] = useState(false);
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const send = useMutation({
+    mutationFn: (list) => api.post(`/departments/${id}/join-link/mail`, { emails: list }),
+    onSuccess: ({ sent, failed }) => {
+      setEmails('');
+      toast.success('Invitations sent', `${sent} sent${failed ? `, ${failed} could not be sent` : ''}.`);
+    },
+    onError: (issue) => setError(issue.message),
+  });
+  const fresh = useMutation({
+    mutationFn: () => api.post(`/departments/${id}/join-link`),
+    onSuccess: () => {
+      setConfirmNew(false);
+      queryClient.invalidateQueries({ queryKey: ['department', id] });
+      toast.success('New link made', 'The old link no longer works.');
+    },
+  });
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(joinLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Could not copy. Select the link and copy it yourself.');
+    }
+  };
+
+  return (
+    <Panel>
+      <PanelTitle>Invite your team</PanelTitle>
+      <div className="space-y-5 p-4">
+        <div>
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <Link2 className="h-4 w-4 text-muted" aria-hidden="true" />
+            Join link
+          </p>
+          <p className="mt-0.5 text-[13px] text-muted">Share it on mail or WhatsApp. People who open it ask to join, and you approve them below.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <input
+              readOnly
+              value={joinLink}
+              aria-label="Join link"
+              onFocus={(event) => event.target.select()}
+              className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-bg px-3 text-sm text-muted"
+            />
+            <Button variant="secondary" onClick={copy}>
+              {copied ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+              {copied ? 'Copied' : 'Copy'}
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirmNew(true)}>
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              New link
+            </Button>
+          </div>
+        </div>
+
+        <form
+          className="space-y-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setError('');
+            const list = emails.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean);
+            if (!list.length) return setError('Add at least one email.');
+            return send.mutate(list);
+          }}
+        >
+          <TextArea
+            label="Or mail the link"
+            hint="One or more emails, separated by commas or new lines. The mail goes from your Gmail."
+            rows={3}
+            value={emails}
+            onChange={(event) => setEmails(event.target.value)}
+            placeholder="asha@contify.com, ravi@contify.com"
+          />
+          {error && <p className="text-sm text-rejected">{error}</p>}
+          <Button type="submit" variant="secondary" loading={send.isPending}>
+            <Mail className="h-4 w-4" aria-hidden="true" />
+            Send invitations
+          </Button>
+        </form>
+      </div>
+
+      <ConfirmDialog
+        open={confirmNew}
+        onClose={() => setConfirmNew(false)}
+        title="Make a new join link?"
+        body="The current link stops working. People who already asked to join stay in the list."
+        confirmLabel="Make new link"
+        loading={fresh.isPending}
+        onConfirm={() => fresh.mutate()}
+      />
+    </Panel>
+  );
+}
+
+function Requests({ id, requests }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const decide = useMutation({
+    mutationFn: ({ request, decision }) => api.post(`/departments/${id}/requests/${request.id}/${decision}`),
+    onSuccess: (_data, { request, decision }) => {
+      queryClient.invalidateQueries({ queryKey: ['department', id] });
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+      toast.success(
+        decision === 'approve' ? `${request.name} joined` : 'Request turned down',
+        decision === 'approve' ? 'They got a mail and can sign in now.' : undefined,
+      );
+    },
+    onError: (issue) => toast.error('Could not do that', issue.message),
+  });
+
+  return (
+    <Panel>
+      <PanelTitle
+        action={
+          requests.length ? (
+            <span className="grid h-6 min-w-6 place-items-center rounded-md bg-pending-soft px-1.5 text-xs font-medium tabular-nums text-pending">
+              {requests.length}
+            </span>
+          ) : null
+        }
+      >
+        Waiting for approval
+      </PanelTitle>
+      {requests.length ? (
+        <ul className="divide-y divide-line">
+          {requests.map((request) => (
+            <li key={request.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <Avatar user={request} size={34} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{request.name}</p>
+                <p className="truncate text-xs text-muted">
+                  {[request.designation, request.employeeId, request.email].filter(Boolean).join(' · ')}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  disabled={decide.isPending}
+                  onClick={() => decide.mutate({ request, decision: 'reject' })}
+                >
+                  Reject
+                </Button>
+                <Button disabled={decide.isPending} onClick={() => decide.mutate({ request, decision: 'approve' })}>
+                  Approve
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Empty title="Nobody is waiting">When someone opens your join link and asks to join, they show here.</Empty>
+      )}
+    </Panel>
+  );
+}
+
+function Team({ id, members, canChooseAssistant }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const choose = useMutation({
+    mutationFn: (person) => api.put(`/departments/${id}/assistant`, { user: person.id }),
+    onSuccess: (_data, person) => {
+      queryClient.invalidateQueries({ queryKey: ['department', id] });
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+      toast.success('Assistant manager chosen', `${person.name} is the assistant manager. The team now reports to them.`);
+    },
+    onError: (issue) => toast.error('Could not do that', issue.message),
+  });
+  const hasAssistant = members.some((person) => person.place === 'assistant');
+  const order = { manager: 0, assistant: 1, member: 2 };
+  const sorted = [...members].sort((a, b) => order[a.place] - order[b.place] || a.name.localeCompare(b.name));
+
+  return (
+    <Panel>
+      <PanelTitle
+        action={
+          <span className="grid h-6 min-w-6 place-items-center rounded-md bg-sunken px-1.5 text-xs font-medium tabular-nums">
+            {members.length}
+          </span>
+        }
+      >
+        Team
+      </PanelTitle>
+      {canChooseAssistant && !hasAssistant && members.length > 1 && (
+        <p className="border-b border-line bg-accent-soft px-4 py-2.5 text-[13px]">
+          Choose the assistant manager: look at the designations and press <span className="font-medium">Make assistant manager</span>.
+        </p>
+      )}
+      {sorted.length ? (
+        <ul className="divide-y divide-line">
+          {sorted.map((person) => {
+            const suggested = !hasAssistant && person.place === 'member' && looksLikeAssistant(person);
+            return (
+              <li key={person.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <Avatar user={person} size={34} />
+                <div className="min-w-0 flex-1">
+                  <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-medium">
+                    {person.name}
+                    {PLACE[person.place] && (
+                      <span className="rounded bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent">{PLACE[person.place]}</span>
+                    )}
+                    {suggested && (
+                      <span className="rounded bg-pending-soft px-1.5 py-px text-[10px] font-semibold text-pending">Suggested</span>
+                    )}
+                  </p>
+                  <p className="truncate text-xs text-muted">{[person.designation, person.employeeId].filter(Boolean).join(' · ')}</p>
+                </div>
+                {canChooseAssistant && person.place === 'member' && (
+                  <Button variant={suggested ? 'primary' : 'ghost'} disabled={choose.isPending} onClick={() => choose.mutate(person)}>
+                    Make assistant manager
+                  </Button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <Empty title="Nobody yet">Share the join link to bring your team in.</Empty>
+      )}
+    </Panel>
+  );
+}
+
+export default function DepartmentHome() {
+  const { id } = useParams();
+  const { data, isPending, isError, error, refetch } = useQuery({
+    queryKey: ['department', id],
+    queryFn: () => api.get(`/departments/${id}`),
+  });
+
+  return (
+    <div>
+      <StickyTop>
+        <PageHeading title={data?.department.name ?? 'Department'}>
+          {data
+            ? [
+                data.department.managerName && `Manager: ${data.department.managerName}`,
+                data.department.location,
+                `${data.members.length} in the team`,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : ' '}
+        </PageHeading>
+      </StickyTop>
+
+      {isPending && <RowsSkeleton rows={5} />}
+      {isError && <LoadError error={error} onRetry={refetch} />}
+
+      {data && (
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <Reveal className="space-y-4">
+            <InviteTeam id={id} joinLink={data.joinLink} />
+            <Requests id={id} requests={data.requests} />
+          </Reveal>
+          <Reveal delay={0.06}>
+            <Team
+              id={id}
+              members={data.members}
+              canChooseAssistant={data.you.canChooseAssistant}
+            />
+          </Reveal>
+        </div>
+      )}
+    </div>
+  );
+}

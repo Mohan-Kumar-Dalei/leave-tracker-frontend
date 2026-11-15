@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { CalendarCheck, CalendarDays, ChevronsUpDown, FileText, History, Inbox, LayoutGrid, LogOut, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
+import { Building2, CalendarCheck, CalendarDays, ChevronsUpDown, FileText, History, Inbox, LayoutGrid, LogOut, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { homeOf } from '../lib/home';
 import { setTheme, useTheme } from '../lib/theme';
 import { NotificationBell } from './NotificationBell';
 import { Avatar } from './ProfilePhoto';
@@ -13,6 +14,13 @@ import { IconButton } from './ui';
 const PERSONAL_NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid, end: true },
   { to: '/requests', label: 'My requests', icon: FileText },
+  { to: '/team', label: 'Department', short: 'Department', icon: Network },
+  { to: '/profile', label: 'Profile', short: 'Profile', icon: UserRound },
+];
+
+// The owner (HR or CEO) runs the organisation, not a department's leave.
+const OWNER_NAV = [
+  { to: '/organisation', label: 'Organisation', short: 'Organisation', icon: Building2 },
   { to: '/team', label: 'Department', short: 'Department', icon: Network },
   { to: '/profile', label: 'Profile', short: 'Profile', icon: UserRound },
 ];
@@ -162,7 +170,20 @@ function ThemeSwitch({ inSidebar = false }) {
 export function AppShell() {
   const { user, signOut } = useAuth();
   const isAdmin = user.role === 'admin';
-  const nav = isAdmin ? ADMIN_NAV : PERSONAL_NAV;
+  const home = homeOf(user);
+
+  // Whoever manages a department (its manager or assistant manager) gets a
+  // "My department" page to invite and approve their team.
+  const { data: mine } = useQuery({
+    queryKey: ['my-departments'],
+    queryFn: () => api.get('/departments/mine'),
+    enabled: user.role !== 'owner',
+  });
+  const myDepartment = mine?.items?.[0];
+  const baseNav = user.role === 'owner' ? OWNER_NAV : isAdmin ? ADMIN_NAV : PERSONAL_NAV;
+  const nav = myDepartment
+    ? [...baseNav, { to: `/departments/${myDepartment.id}`, label: 'My department', short: 'My dept', icon: Building2 }]
+    : baseNav;
 
   useLiveUpdates(true);
 
@@ -180,7 +201,7 @@ export function AppShell() {
       </a>
 
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
-        <Link to={isAdmin ? '/admin' : '/'} className="flex h-14 items-center px-4">
+        <Link to={home} className="flex h-14 items-center px-4">
           <Logo />
         </Link>
         <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
@@ -201,7 +222,7 @@ export function AppShell() {
 
       <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur lg:hidden">
         <div className="mx-auto flex h-14 max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6">
-          <Link to={isAdmin ? '/admin' : '/'}>
+          <Link to={home}>
             <Logo />
           </Link>
           <div className="flex items-center gap-1.5">

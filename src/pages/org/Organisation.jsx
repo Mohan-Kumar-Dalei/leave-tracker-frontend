@@ -1,0 +1,796 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Avatar } from '../../components/ProfilePhoto';
+import {
+  Button,
+  ConfirmDialog,
+  Dialog,
+  Empty,
+  LoadError,
+  PageHeading,
+  Panel,
+  Reveal,
+  RowsSkeleton,
+  SelectBox,
+  SelectField,
+  StickyTop,
+  TextInput,
+} from '../../components/ui';
+import { api } from '../../lib/api';
+import { useToast } from '../../lib/toast';
+
+// The organisation, for its owner (the company's HR or CEO), kept simple like
+// Zoho: a Departments list (name, manager, assistant manager, how many
+// employees) and an Employees list where each person's department can be
+// changed. Adding a department invites its manager by mail; the manager then
+// brings in the team from the department's own page. It stands apart from the
+// leave tracker for now.
+
+const sameName = (a = '', b = '') => a.localeCompare(b, 'en', { sensitivity: 'accent' }) === 0;
+
+const TABS = [
+  ['departments', 'Departments'],
+  ['employees', 'Employees'],
+];
+
+const cell = 'px-4 py-3 text-left align-middle';
+const head = `${cell} text-xs font-medium uppercase tracking-wide text-muted`;
+
+function Person({ person, sub }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2.5">
+      <Avatar user={person} size={30} />
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium">{person.name}</span>
+        {sub && <span className="block truncate text-xs text-muted">{sub}</span>}
+      </span>
+    </span>
+  );
+}
+
+// Someone in a department's place, or the person invited to it.
+function RoleCell({ person, invited }) {
+  if (person) return <Person person={person} sub={person.designation} />;
+  if (invited) {
+    return (
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium">{invited.name}</span>
+        <span className="mt-0.5 inline-flex rounded bg-pending-soft px-1.5 py-px text-[10px] font-semibold text-pending">
+          Invited
+        </span>
+      </span>
+    );
+  }
+  return <span className="text-muted">-</span>;
+}
+
+const STEPS = ['Department', 'Manager', 'Assistant Manager', 'Invitation'];
+
+// "Add department" in four steps: the name, the manager's name, the assistant
+// manager's name and the assistant manager's email, where the invitation goes.
+// The assistant manager registers first and then brings in the team from
+// My department. The manager is only a name on the department.
+function AddDepartmentWizard({ company, onClose }) {
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState({
+    name: '',
+    location: '',
+    managerName: '',
+    assistantName: '',
+    assistantEmail: '',
+  });
+  const [error, setError] = useState('');
+  const [result, setResult] = useState(null);
+  const [copied, setCopied] = useState('');
+  const queryClient = useQueryClient();
+  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
+
+  const create = useMutation({
+    mutationFn: () => {
+      const body = Object.fromEntries(Object.entries(form).filter(([, value]) => value.trim() !== ''));
+      return api.post('/org/departments', { location: company.location, ...body });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['organisation'] });
+      setResult(data);
+    },
+    onError: (issue) => setError(issue.message),
+  });
+
+  const copy = async (link) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(link);
+    } catch {
+      setCopied('');
+    }
+  };
+
+  if (result) {
+    return (
+      <Dialog open onClose={onClose} kind="modal" title="Department added" footer={<Button onClick={onClose}>Done</Button>}>
+        <div className="space-y-4 text-sm">
+          <p>
+            <span className="font-medium">{result.department.name}</span> is ready.{' '}
+            {result.invites.length ? 'The invitation went out:' : 'Nobody was invited yet.'}
+          </p>
+          {result.invites.map((item) => (
+            <div key={item.email} className="space-y-2 rounded-lg bg-sunken p-3">
+              <p>
+                <span className="font-medium">{item.name}</span>, {item.role === 'manager' ? 'Manager' : 'Assistant Manager'}
+                <span className="block text-[13px] text-muted">{item.email}</span>
+              </p>
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  value={item.link}
+                  aria-label={`Invitation link for ${item.name}`}
+                  onFocus={(event) => event.target.select()}
+                  className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 text-xs text-muted"
+                />
+                <Button variant="secondary" onClick={() => copy(item.link)}>
+                  {copied === item.link ? 'Copied' : 'Copy'}
+                </Button>
+              </div>
+            </div>
+          ))}
+          <p className="text-[13px] text-muted">
+            Once the assistant manager signs up, they share the department&apos;s join link with the team and approve people
+            as they join. The link above also works if the mail does not arrive.
+          </p>
+        </div>
+      </Dialog>
+    );
+  }
+
+  const last = step === STEPS.length - 1;
+  const next = (event) => {
+    event.preventDefault();
+    setError('');
+    if (last) create.mutate();
+    else setStep(step + 1);
+  };
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      kind="modal"
+      title="Add department"
+      footer={
+        <>
+          {step > 0 && (
+            <Button variant="ghost" className="mr-auto" onClick={() => setStep(step - 1)}>
+              Back
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="department-wizard" loading={create.isPending}>
+            {last ? 'Send invitation' : 'Next'}
+          </Button>
+        </>
+      }
+    >
+      <ol className="mb-5 flex items-center gap-1.5" aria-label="Steps">
+        {STEPS.map((label, index) => (
+          <li key={label} className="flex flex-1 items-center gap-1.5" aria-current={index === step ? 'step' : undefined}>
+            <span
+              className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${
+                index <= step ? 'bg-accent text-on-accent' : 'bg-sunken text-muted'
+              }`}
+            >
+              {index + 1}
+            </span>
+            {index < STEPS.length - 1 && <span className={`h-0.5 flex-1 rounded ${index < step ? 'bg-accent' : 'bg-line'}`} />}
+          </li>
+        ))}
+      </ol>
+      <p className="mb-4 text-sm font-semibold">
+        Step {step + 1} of {STEPS.length}: {STEPS[step]}
+      </p>
+
+      <form id="department-wizard" className="space-y-4" onSubmit={next}>
+        {step === 0 && (
+          <>
+            <TextInput
+              key="name"
+              label="Department name"
+              required
+              minLength={2}
+              maxLength={60}
+              placeholder="For example, 3PP"
+              value={form.name}
+              onChange={set('name')}
+              data-autofocus
+            />
+            <TextInput label="Location" maxLength={60} placeholder={company.location} value={form.location} onChange={set('location')} />
+          </>
+        )}
+        {step === 1 && (
+          <TextInput
+            key="manager"
+            label="Manager's full name"
+            hint="Shown on the department, like Rajesh Sir for Content Integration. They do not need an account."
+            required
+            minLength={2}
+            maxLength={80}
+            value={form.managerName}
+            onChange={set('managerName')}
+          />
+        )}
+        {step === 2 && (
+          <TextInput
+            key="assistant"
+            label="Assistant manager's full name"
+            hint="They register first, run the department and bring in the team."
+            required
+            minLength={2}
+            maxLength={80}
+            value={form.assistantName}
+            onChange={set('assistantName')}
+          />
+        )}
+        {step === 3 && (
+          <>
+            <TextInput
+              key="email"
+              label="Assistant manager's email"
+              hint={`The invitation for ${form.assistantName || 'the assistant manager'} goes here.`}
+              type="email"
+              required
+              maxLength={160}
+              value={form.assistantEmail}
+              onChange={set('assistantEmail')}
+            />
+            <dl className="space-y-1.5 rounded-lg bg-sunken p-3 text-[13px]">
+              {[
+                ['Department', `${form.name}${form.location ? `, ${form.location}` : ''}`],
+                ['Manager', form.managerName],
+                ['Assistant manager', form.assistantName],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-3">
+                  <dt className="text-muted">{label}</dt>
+                  <dd className="truncate text-right font-medium">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </>
+        )}
+        {error && <p className="text-sm text-rejected">{error}</p>}
+      </form>
+    </Dialog>
+  );
+}
+
+// Managers first (the usual department leads), then everyone by name.
+const isManager = (person) => /manager|head|director|lead/i.test(person.designation ?? '');
+const leadChoices = (people) =>
+  [...people].sort((a, b) => Number(isManager(b)) - Number(isManager(a)) || a.name.localeCompare(b.name));
+
+const BLANK_PERSON = { name: '', email: '', employeeId: '', designation: '', phone: '', department: '', lead: false };
+
+// Adds a new employee to a department. Their starting password is first
+// name @ year; it is shown once here so the owner can pass it on.
+function AddEmployee({ departments, defaultDepartment, onClose }) {
+  const [form, setForm] = useState({ ...BLANK_PERSON, department: defaultDepartment ?? departments[0]?.id ?? '' });
+  const [error, setError] = useState('');
+  const [created, setCreated] = useState(null);
+  const queryClient = useQueryClient();
+  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
+
+  const create = useMutation({
+    mutationFn: async () => {
+      const { lead, ...person } = form;
+      const body = Object.fromEntries(Object.entries(person).filter(([, value]) => value !== ''));
+      const result = await api.post('/org/people', body);
+      if (lead) await api.patch(`/org/departments/${form.department}`, { lead: result.person.id });
+      return result;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['organisation'] });
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+      setCreated(result);
+    },
+    onError: (issue) => setError(issue.message),
+  });
+
+  const department = departments.find((item) => item.id === form.department);
+
+  if (created) {
+    return (
+      <Dialog
+        open
+        onClose={onClose}
+        kind="modal"
+        title="Employee added"
+        footer={<Button onClick={onClose}>Done</Button>}
+      >
+        <div className="space-y-4 text-sm">
+          <p>
+            <span className="font-medium">{created.person.name}</span> is now in {department?.name}
+            {form.lead ? ' and is its department lead' : ''}.
+          </p>
+          <dl className="space-y-2 rounded-lg bg-sunken p-3">
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted">Sign in with</dt>
+              <dd className="truncate font-medium">{created.person.email}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted">Starting password</dt>
+              <dd className="font-medium">{created.startingPassword}</dd>
+            </div>
+          </dl>
+          <p className="text-[13px] text-muted">Share it with them; they can change it from their profile after signing in.</p>
+        </div>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Add employee"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="add-person" loading={create.isPending}>
+            Add employee
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="add-person"
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setError('');
+          create.mutate();
+        }}
+      >
+        <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} data-autofocus />
+        <TextInput label="Work email" type="email" required maxLength={160} value={form.email} onChange={set('email')} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextInput label="Employee ID" required maxLength={20} value={form.employeeId} onChange={set('employeeId')} />
+          <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
+        </div>
+        <TextInput
+          label="Designation"
+          maxLength={80}
+          placeholder="For example, Assistant Manager"
+          value={form.designation}
+          onChange={set('designation')}
+        />
+        <SelectField label="Department" value={form.department} onChange={set('department')}>
+          {departments.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </SelectField>
+        <label className="flex items-start gap-2.5 text-sm">
+          <input
+            type="checkbox"
+            checked={form.lead}
+            onChange={(event) => setForm({ ...form, lead: event.target.checked })}
+            className="mt-0.5 h-4 w-4 accent-accent"
+          />
+          <span>
+            Make them the department lead
+            {department?.lead ? (
+              <span className="block text-[13px] text-muted">Takes over from {department.lead.name}.</span>
+            ) : null}
+          </span>
+        </label>
+        <p className="text-[13px] text-muted">
+          Their starting password will be their first name and the year, for example Asha@{new Date().getFullYear()}.
+        </p>
+        {error && <p className="text-sm text-rejected">{error}</p>}
+      </form>
+    </Dialog>
+  );
+}
+
+function DepartmentForm({ department, people, company, onClose }) {
+  const editing = Boolean(department.id);
+  const [form, setForm] = useState({
+    name: department.name ?? '',
+    location: department.location ?? '',
+    lead: department.lead?.id ?? '',
+    managerName: department.managerName ?? '',
+  });
+  const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const done = (title) => {
+    queryClient.invalidateQueries({ queryKey: ['organisation'] });
+    queryClient.invalidateQueries({ queryKey: ['team'] });
+    toast.success(title);
+    onClose();
+  };
+  const save = useMutation({
+    mutationFn: () => {
+      const body = {
+        name: form.name,
+        location: form.location || company.location,
+        lead: form.lead || null,
+        managerName: form.managerName,
+      };
+      return editing ? api.patch(`/org/departments/${department.id}`, body) : api.post('/org/departments', body);
+    },
+    onSuccess: () => done(editing ? 'Department saved' : 'Department added'),
+    onError: (issue) => setError(issue.message),
+  });
+  const remove = useMutation({
+    mutationFn: () => api.delete(`/org/departments/${department.id}`),
+    onSuccess: () => done('Department removed'),
+    onError: (issue) => {
+      setConfirmDelete(false);
+      setError(issue.message);
+    },
+  });
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      kind="modal"
+      title={editing ? 'Edit department' : 'Add department'}
+      footer={
+        <>
+          {editing && (
+            <Button
+              variant="ghost"
+              className="mr-auto text-rejected hover:text-rejected"
+              disabled={department.people > 0}
+              title={department.people > 0 ? 'Move its employees out first' : undefined}
+              onClick={() => setConfirmDelete(true)}
+            >
+              Delete
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="department-form" loading={save.isPending}>
+            {editing ? 'Save' : 'Add'}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="department-form"
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setError('');
+          save.mutate();
+        }}
+      >
+        <TextInput
+          label="Department name"
+          required
+          minLength={2}
+          maxLength={60}
+          placeholder="For example, Sales"
+          value={form.name}
+          onChange={(event) => setForm({ ...form, name: event.target.value })}
+          data-autofocus
+        />
+        <TextInput
+          label="Manager"
+          maxLength={80}
+          placeholder="Manager's full name"
+          value={form.managerName}
+          onChange={(event) => setForm({ ...form, managerName: event.target.value })}
+        />
+        <SelectField
+          label="Assistant manager"
+          value={form.lead}
+          onChange={(event) => setForm({ ...form, lead: event.target.value })}
+        >
+          <option value="">{department.invited?.assistant ? `Invited: ${department.invited.assistant.name}` : 'No assistant manager'}</option>
+          {leadChoices(people).map((person) => (
+            <option key={person.id} value={person.id}>
+              {`${person.name} · ${person.designation}${person.employeeId ? ` (${person.employeeId})` : ''}`}
+            </option>
+          ))}
+        </SelectField>
+        <p className="-mt-2 text-[13px] text-muted">
+          Managers are at the top. The assistant manager runs the department and approves the team.
+        </p>
+        <TextInput
+          label="Location"
+          maxLength={60}
+          placeholder={company.location}
+          value={form.location}
+          onChange={(event) => setForm({ ...form, location: event.target.value })}
+        />
+        {editing && department.people > 0 && (
+          <p className="text-[13px] text-muted">
+            A department can be deleted once it has no employees. Move them from the Employees tab.
+          </p>
+        )}
+        {error && <p className="text-sm text-rejected">{error}</p>}
+      </form>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title={`Delete ${department.name}?`}
+        body="It has no employees, so nobody is affected."
+        confirmLabel="Delete"
+        danger
+        loading={remove.isPending}
+        onConfirm={() => remove.mutate()}
+      />
+    </Dialog>
+  );
+}
+
+function DepartmentsTable({ departments, onEdit, onShowPeople }) {
+  if (!departments.length) return <Empty title="No departments yet">Add the first one to start.</Empty>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[640px] text-sm">
+        <thead className="border-b border-line bg-bg/60">
+          <tr>
+            <th className={head}>Department</th>
+            <th className={head}>Manager</th>
+            <th className={head}>Assistant manager</th>
+            <th className={`${head} text-right`}>Employees</th>
+            <th className={head}>
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line">
+          {departments.map((department) => (
+            <tr key={department.id} className="hover:bg-bg/60">
+              <td className={cell}>
+                <Link to={`/departments/${department.id}`} className="font-medium hover:text-accent hover:underline underline-offset-4">
+                  {department.name}
+                </Link>
+                <span className="block text-xs text-muted">{department.location || 'No location'}</span>
+                {department.waiting > 0 && (
+                  <span className="mt-1 inline-flex rounded bg-pending-soft px-1.5 py-px text-[10px] font-semibold text-pending">
+                    {department.waiting} waiting to join
+                  </span>
+                )}
+              </td>
+              <td className={cell}>
+                {department.manager ? (
+                  <RoleCell person={department.manager} />
+                ) : department.managerName ? (
+                  <span className="text-sm font-medium">{department.managerName}</span>
+                ) : (
+                  <span className="text-muted">-</span>
+                )}
+              </td>
+              <td className={cell}>
+                <RoleCell person={department.lead} invited={department.invited.assistant} />
+              </td>
+              <td className={`${cell} text-right`}>
+                <button
+                  type="button"
+                  onClick={() => onShowPeople(department.name)}
+                  className="font-medium tabular-nums text-accent underline-offset-4 hover:underline"
+                >
+                  {department.people}
+                </button>
+              </td>
+              <td className={`${cell} w-0 whitespace-nowrap text-right`}>
+                <Link
+                  to={`/departments/${department.id}`}
+                  className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium text-accent hover:bg-accent-soft"
+                >
+                  Open
+                </Link>
+                <Button variant="ghost" onClick={() => onEdit(department)}>
+                  Edit
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EmployeesTable({ people, departments, filter, onFilter }) {
+  const [search, setSearch] = useState('');
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const move = useMutation({
+    mutationFn: ({ person, department }) => api.patch(`/org/people/${person.id}`, { department: department.id }),
+    onSuccess: (_data, { person, department }) => {
+      queryClient.invalidateQueries({ queryKey: ['organisation'] });
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+      toast.success('Department changed', `${person.name} is now in ${department.name}.`);
+    },
+    onError: (issue) => toast.error('Could not change the department', issue.message),
+  });
+
+  const query = search.trim().toLowerCase();
+  const shown = people.filter(
+    (person) =>
+      (!filter || sameName(person.department, filter)) &&
+      `${person.name} ${person.employeeId ?? ''}`.toLowerCase().includes(query),
+  );
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-3 border-b border-line p-3">
+        <label className="relative min-w-56 flex-1 sm:max-w-sm">
+          <span className="sr-only">Search employees</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
+          <input
+            type="search"
+            maxLength={80}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search name or ID"
+            className="h-10 w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-base placeholder:text-muted focus:border-accent focus:outline-none sm:text-sm"
+          />
+        </label>
+        <div className="w-full sm:w-56">
+          <SelectBox aria-label="Filter by department" className="w-full" value={filter} onChange={(event) => onFilter(event.target.value)}>
+            <option value="">All departments</option>
+            {departments.map((department) => (
+              <option key={department.id} value={department.name}>
+                {department.name}
+              </option>
+            ))}
+          </SelectBox>
+        </div>
+      </div>
+      {shown.length ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="border-b border-line bg-bg/60">
+              <tr>
+                <th className={head}>Employee</th>
+                <th className={head}>Designation</th>
+                <th className={`${head} w-64`}>Department</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {shown.map((person) => {
+                const current = departments.find((department) => sameName(department.name, person.department));
+                return (
+                  <tr key={person.id} className="hover:bg-bg/60">
+                    <td className={cell}>
+                      <Person person={person} sub={person.employeeId} />
+                    </td>
+                    <td className={`${cell} text-muted`}>{person.designation || '-'}</td>
+                    <td className={cell}>
+                      <SelectBox
+                        aria-label={`Department of ${person.name}`}
+                        className="w-full"
+                        value={current?.id ?? ''}
+                        onChange={(event) => {
+                          const department = departments.find((item) => item.id === event.target.value);
+                          if (department && department.id !== current?.id) move.mutate({ person, department });
+                        }}
+                      >
+                        {departments.map((department) => (
+                          <option key={department.id} value={department.id}>
+                            {department.name}
+                          </option>
+                        ))}
+                      </SelectBox>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <Empty title="Nobody matches">Try another name or department.</Empty>
+      )}
+    </>
+  );
+}
+
+export default function Organisation() {
+  const { data, isPending, isError, error, refetch } = useQuery({ queryKey: ['organisation'], queryFn: () => api.get('/org') });
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'employees' ? 'employees' : 'departments';
+  const filter = params.get('department') ?? '';
+  const [editing, setEditing] = useState(null);
+  const [addingPerson, setAddingPerson] = useState(false);
+  const [addingDepartment, setAddingDepartment] = useState(false);
+
+  const go = (next, department = '') =>
+    setParams(next === 'departments' ? {} : { tab: next, ...(department ? { department } : {}) }, { replace: true });
+
+  // The main button follows the tab, like Zoho: departments or employees.
+  const action =
+    tab === 'employees' ? (
+      <Button onClick={() => setAddingPerson(true)} disabled={!data?.departments.length}>
+        Add employee
+      </Button>
+    ) : (
+      <Button onClick={() => setAddingDepartment(true)}>Add department</Button>
+    );
+
+  return (
+    <div>
+      <StickyTop>
+        <PageHeading title="Organisation" actions={action}>
+          {data ? `${data.company.name} · ${data.departments.length} departments · ${data.people.length} employees` : ' '}
+        </PageHeading>
+        <div role="tablist" aria-label="Organisation view" className="inline-flex rounded-lg border border-line bg-surface p-1">
+          {TABS.map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => go(key)}
+              className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                tab === key ? 'bg-accent text-on-accent shadow-card' : 'text-muted hover:text-ink'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </StickyTop>
+
+      {isPending && <RowsSkeleton rows={5} />}
+      {isError && <LoadError error={error} onRetry={refetch} />}
+
+      {data && (
+        <Reveal>
+          <Panel>
+            {tab === 'departments' ? (
+              <DepartmentsTable
+                departments={data.departments}
+                onEdit={setEditing}
+                onShowPeople={(name) => go('employees', name)}
+              />
+            ) : (
+              <EmployeesTable
+                people={data.people}
+                departments={data.departments}
+                filter={filter}
+                onFilter={(name) => go('employees', name)}
+              />
+            )}
+          </Panel>
+        </Reveal>
+      )}
+
+      {editing && data && (
+        <DepartmentForm
+          key={editing.id ?? 'new'}
+          department={editing}
+          people={data.people}
+          company={data.company}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {addingDepartment && data && <AddDepartmentWizard company={data.company} onClose={() => setAddingDepartment(false)} />}
+      {addingPerson && data && (
+        <AddEmployee
+          departments={data.departments}
+          defaultDepartment={data.departments.find((department) => sameName(department.name, filter))?.id}
+          onClose={() => setAddingPerson(false)}
+        />
+      )}
+    </div>
+  );
+}

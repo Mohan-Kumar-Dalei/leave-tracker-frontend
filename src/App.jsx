@@ -3,6 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { Button } from './components/ui';
 import { useAuth } from './lib/auth';
+import { homeOf } from './lib/home';
 import { ForgotPassword, Login, ResetPassword } from './pages/auth/AuthPages';
 import Profile from './pages/Profile';
 import MyRequests from './pages/employee/MyRequests';
@@ -16,6 +17,14 @@ const Employees = lazy(() => import('./pages/admin/Employees'));
 const EmployeeDetail = lazy(() => import('./pages/admin/EmployeeDetail'));
 const Setup = lazy(() => import('./pages/admin/Setup'));
 const Schedule = lazy(() => import('./pages/admin/Schedule'));
+const Organisation = lazy(() => import('./pages/org/Organisation'));
+const DepartmentHome = lazy(() => import('./pages/org/DepartmentHome'));
+const AcceptInvite = lazy(() => import('./pages/org/JoinPages').then((module) => ({ default: module.AcceptInvite })));
+const JoinDepartment = lazy(() => import('./pages/org/JoinPages').then((module) => ({ default: module.JoinDepartment })));
+
+function Public({ children }) {
+  return <Suspense fallback={null}>{children}</Suspense>;
+}
 
 function Loading() {
   return <div className="h-40 animate-pulse rounded-xl bg-sunken motion-reduce:animate-none" aria-label="Loading" />;
@@ -51,10 +60,17 @@ function RequireAdmin({ children }) {
   return <Suspense fallback={<Loading />}>{children}</Suspense>;
 }
 
-// My leave and My requests are for employees. Admins go to their own pages.
+// The organisation is for its owner, the company's HR or CEO.
+function RequireOwner({ children }) {
+  const { user } = useAuth();
+  if (user.role !== 'owner') return <Navigate to="/" replace />;
+  return <Suspense fallback={<Loading />}>{children}</Suspense>;
+}
+
+// My leave and My requests are for employees. Admins and the owner go to their own pages.
 function EmployeeOnly({ children }) {
   const { user } = useAuth();
-  if (user.role === 'admin') return <Navigate to="/admin" replace />;
+  if (user.role !== 'employee') return <Navigate to={homeOf(user)} replace />;
   return children;
 }
 
@@ -62,7 +78,7 @@ function GuestOnly({ children }) {
   const { user, ready, unreachable } = useAuth();
   if (unreachable) return <ServerDown />;
   if (!ready) return null;
-  if (user) return <Navigate to={user.role === 'admin' ? '/admin' : '/'} replace />;
+  if (user) return <Navigate to={homeOf(user)} replace />;
   return children;
 }
 
@@ -83,6 +99,8 @@ export default function App() {
       <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
       <Route path="/forgot-password" element={<GuestOnly><ForgotPassword /></GuestOnly>} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/join/invite/:token" element={<Public><AcceptInvite /></Public>} />
+      <Route path="/join/:code" element={<Public><JoinDepartment /></Public>} />
 
       <Route element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route index element={<EmployeeOnly><Summary /></EmployeeOnly>} />
@@ -96,6 +114,8 @@ export default function App() {
         <Route path="admin/employees" element={<RequireAdmin><Employees /></RequireAdmin>} />
         <Route path="admin/employees/:id" element={<RequireAdmin><EmployeeDetail /></RequireAdmin>} />
         <Route path="admin/setup" element={<RequireAdmin><Setup /></RequireAdmin>} />
+        <Route path="organisation" element={<RequireOwner><Organisation /></RequireOwner>} />
+        <Route path="departments/:id" element={<Suspense fallback={<Loading />}><DepartmentHome /></Suspense>} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

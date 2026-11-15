@@ -88,11 +88,11 @@ function DepartmentCard({ name, on, onClick }) {
 // and the lines from the chosen card to the cards on its right. It can be
 // drawn in two parts: `left` (counts and the line out of the chosen card) and
 // `right` (the line down the next column), so the right part can scroll with
-// that column while the left part stays put. `shift` is how far that column
-// has scrolled: the blue line still starts level with the chosen card on the
-// left, so it stays joined to it and runs to the chosen person wherever they
-// have scrolled to.
-function Gap({ left, right, part = 'all', shift = 0 }) {
+// that column while the left part stays put. In the right part the blue line
+// runs from the top of the column to the chosen person; the line from the
+// chosen card on the left up to that top is drawn separately and stays still
+// (see Columns), so nothing has to follow the scroll and the two always meet.
+function Gap({ left, right, part = 'all' }) {
   const rows =
     part === 'left'
       ? left.items.length
@@ -106,8 +106,9 @@ function Gap({ left, right, part = 'all', shift = 0 }) {
   const to = right ? right.items.findIndex((item) => item.id === right.chosen) : -1;
   const lines = right && from >= 0 && right.items.length > 0;
   const fromY = centre(from);
-  // Where the line from the left meets this part, in its own scrolled space.
-  const joinY = part === 'right' ? Math.min(fromY + shift, height) : fromY;
+  // Where the blue line enters: level with the chosen card, or for a column
+  // that scrolls on its own, at its top.
+  const joinY = part === 'right' ? 0 : fromY;
   const ys = lines ? right.items.map((_, row) => centre(row)) : [];
   const top = lines ? Math.min(joinY, ys[0]) : 0;
   const bottom = lines ? Math.max(joinY, ys[ys.length - 1]) : 0;
@@ -116,6 +117,16 @@ function Gap({ left, right, part = 'all', shift = 0 }) {
 
   return (
     <div className="relative shrink-0" style={{ width, height }} aria-hidden="true">
+      {/* A short grey tie from each other card to its count. */}
+      {part !== 'right' && (
+        <svg width={BADGE_LEFT} height={height} className="absolute left-0 top-0">
+          {left.items.map((item, row) =>
+            item.count > 0 && !(lines && item.id === left.chosen) ? (
+              <path key={item.id} d={`M0 ${centre(row)} H${BADGE_LEFT}`} stroke={grey} strokeWidth="1.5" fill="none" />
+            ) : null,
+          )}
+        </svg>
+      )}
       {lines && (
         <svg width={width} height={height} className="absolute inset-0">
           <g transform={`translate(${-offset} 0)`}>
@@ -123,7 +134,9 @@ function Gap({ left, right, part = 'all', shift = 0 }) {
             {ys.map((y) => (
               <path key={y} d={`M${SPINE} ${y} H${GAP}`} stroke={grey} strokeWidth="1.5" fill="none" />
             ))}
-            <path d={`M${BADGE_LEFT + BADGE_W} ${fromY} H${SPINE}`} stroke={blue} strokeWidth="2" fill="none" />
+            {/* Card to its count, and count on to the spine, so the chosen
+                card is joined all the way. */}
+            <path d={`M0 ${fromY} H${SPINE}`} stroke={blue} strokeWidth="2" fill="none" />
             {to >= 0 && (
               <path
                 d={`M${SPINE} ${joinY} V${ys[to]} H${GAP}`}
@@ -198,33 +211,62 @@ function Columns({ columns, scrollLast = false }) {
   const split = scrollLast && columns.length > 1;
   const trailing = !split && columns[columns.length - 1]?.items.some((item) => item.count > 0) ? 1 : 0;
   const [box, width] = useColumnWidth(columns.length, columns.length - 1 + trailing, split ? 14 : 0);
-  const [shift, setShift] = useState(0);
-
   if (split) {
     const before = columns.slice(0, -1);
     const last = columns[columns.length - 1];
     const parent = before[before.length - 1];
+    const fromRow = parent.items.findIndex((item) => item.id === parent.chosen);
+    const toRow = last.items.findIndex((item) => item.id === last.chosen);
+    const fromY = centre(fromRow);
+    // The blue line in the scrolling column runs from its top down to the
+    // chosen person. A thin cover sticks to the top of the column above the
+    // department's row and hides the part of that line which would show above
+    // the department. Once the chosen person scrolls up past the department
+    // row, the cover is pushed up with them, so the line runs from the
+    // department up to them. CSS alone does this, so nothing lags the scroll.
+    const covered = fromRow >= 0 && toRow >= 0;
     return (
       <div ref={box} className="overflow-x-auto rounded-xl border border-line bg-surface p-4 shadow-card">
         <div className="flex w-max items-start">
           {before.map((column, index) => (
             <Fragment key={column.key}>
               <ColumnList column={column} width={width} />
-              {index < before.length - 1 ? (
-                <Gap left={column} right={before[index + 1]} />
-              ) : (
-                <Gap left={parent} right={last} part="left" />
-              )}
+              {index < before.length - 1 && <Gap left={column} right={before[index + 1]} />}
             </Fragment>
           ))}
-          <div
-            onScroll={(event) => setShift(event.currentTarget.scrollTop)}
-            className="max-h-[calc(100dvh-380px)] min-h-72 overflow-y-auto overscroll-contain pr-1 lg:max-h-[calc(100dvh-250px)]"
-          >
-            <div className="flex items-start">
-              <Gap left={parent} right={last} part="right" shift={shift} />
-              <ColumnList column={last} width={width} />
+          <div className="relative flex items-start">
+            <Gap left={parent} right={last} part="left" />
+            <div className="max-h-[calc(100dvh-380px)] min-h-72 overflow-y-auto overscroll-contain pr-1 lg:max-h-[calc(100dvh-250px)]">
+              <div className="relative flex items-start">
+                <Gap left={parent} right={last} part="right" />
+                <ColumnList column={last} width={width} />
+                {covered && (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-0 top-0 w-[3px]"
+                    style={{ height: Math.max(centre(toRow) - 2, 0) }}
+                  >
+                    <div className="sticky top-0 z-20 bg-surface" style={{ height: fromY - 1 }}>
+                      <span className="absolute left-[0.25px] top-0 h-full w-[1.5px] bg-line" />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
+            {/* The still part: from the department up to the top of the
+                column, for when the chosen person has scrolled up past it.
+                It sits over the column's lines but under the cover, which
+                hides it while the chosen person is lower down. */}
+            {covered && (
+              <svg
+                aria-hidden="true"
+                width={SPINE + 2}
+                height={fromY + 2}
+                className="pointer-events-none absolute left-0 top-0 z-10"
+              >
+                <path d={`M${SPINE} ${fromY} V0`} stroke="var(--color-accent)" strokeWidth="2" fill="none" />
+              </svg>
+            )}
           </div>
         </div>
       </div>

@@ -3,7 +3,16 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DepartmentTree, EmployeeTree } from '../components/OrgTrees';
 import { MemberProfile, MemberRow, useTeam } from '../components/TeamPeople';
-import { LoadError, PageHeading, Panel, PanelTitle, Reveal, RowsSkeleton, SelectBox } from '../components/ui';
+import {
+  LoadError,
+  PageHeading,
+  Panel,
+  PanelTitle,
+  Reveal,
+  RowsSkeleton,
+  SelectBox,
+  StickyTop,
+} from '../components/ui';
 import { useAuth } from '../lib/auth';
 
 // Senior roles first, then everyone else by name of the role.
@@ -86,49 +95,37 @@ export default function Team() {
 
   return (
     <div>
-      <PageHeading title="Department">
-        Everyone in the department, who reports to whom, and who is on leave today.
-      </PageHeading>
+      {/* The heading, the tabs and the department bar stay in place; only
+          what is under them scrolls. */}
+      <StickyTop>
+        <PageHeading title="Department">
+          Everyone in the department, who reports to whom, and who is on leave today.
+        </PageHeading>
 
-      <div
-        role="tablist"
-        aria-label="Department view"
-        className="mb-4 inline-flex rounded-lg border border-line bg-surface p-1"
-      >
-        {VIEWS.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={view === key}
-            onClick={() => setParams(key === 'team' ? {} : { view: key }, { replace: true })}
-            className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
-              view === key ? 'bg-accent text-on-accent shadow-card' : 'text-muted hover:text-ink'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+        <div
+          role="tablist"
+          aria-label="Department view"
+          className="inline-flex rounded-lg border border-line bg-surface p-1"
+        >
+          {VIEWS.map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={view === key}
+              onClick={() => setParams(key === 'team' ? {} : { view: key }, { replace: true })}
+              className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                view === key ? 'bg-accent text-on-accent shadow-card' : 'text-muted hover:text-ink'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-      {view !== 'team' && isPending && <RowsSkeleton rows={6} />}
-      {view !== 'team' && isError && <LoadError error={error} onRetry={refetch} />}
-      {view === 'department' && data && (
-        <Reveal delay={0.04}>
-          <DepartmentTree data={data} department={department} onDepartment={setPicked} onOpen={setOpen} />
-        </Reveal>
-      )}
-
-      {view === 'employees' && data && (
-        <Reveal delay={0.04}>
-          <EmployeeTree data={data} onOpen={setOpen} />
-        </Reveal>
-      )}
-
-      {view === 'team' && (
-        <>
+        {view === 'team' && (
           <Reveal delay={0.04}>
-            <Panel className="mb-4 flex flex-wrap items-center gap-3 p-3">
+            <Panel className="mt-4 flex flex-wrap items-center gap-3 p-3">
               <div className="w-full sm:w-64">
                 <SelectBox
                   aria-label="Department"
@@ -154,7 +151,25 @@ export default function Team() {
               </p>
             </Panel>
           </Reveal>
+        )}
+      </StickyTop>
 
+      {view !== 'team' && isPending && <RowsSkeleton rows={6} />}
+      {view !== 'team' && isError && <LoadError error={error} onRetry={refetch} />}
+      {view === 'department' && data && (
+        <Reveal delay={0.04}>
+          <DepartmentTree data={data} department={department} onDepartment={setPicked} onOpen={setOpen} />
+        </Reveal>
+      )}
+
+      {view === 'employees' && data && (
+        <Reveal delay={0.04}>
+          <EmployeeTree data={data} onOpen={setOpen} />
+        </Reveal>
+      )}
+
+      {view === 'team' && (
+        <>
           {isPending && <RowsSkeleton rows={6} />}
           {isError && <LoadError error={error} onRetry={refetch} />}
 

@@ -267,6 +267,26 @@ export function ConfirmDialog({ open, onClose, title, body, confirmLabel, danger
   );
 }
 
+// The top of a page that stays in place while the rest scrolls under it. It
+// takes over the page's own top and side padding (so nothing moves) and paints
+// the page colour behind itself. Its bottom padding fades from the page colour
+// to clear, so cards scrolling under it melt away instead of being cut off by
+// a hard edge; at rest that strip is only the page colour, so nothing changes.
+// On phones it sits below the app's top bar. `roomy` leaves a wider strip, so
+// the content under it starts lower and fades out over a longer stretch.
+export function StickyTop({ children, className = '', roomy = false }) {
+  const strip = roomy
+    ? 'pb-8 bg-[linear-gradient(to_bottom,var(--color-bg)_calc(100%-1.5rem),transparent)]'
+    : 'pb-4 bg-[linear-gradient(to_bottom,var(--color-bg)_calc(100%-1rem),transparent)]';
+  return (
+    <div
+      className={`sticky top-14 z-10 -mx-4 -mt-3 ${strip} px-4 pt-3 sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function PageHeading({ title, children, actions }) {
   return (
     <Reveal className="mb-6 flex flex-wrap items-center justify-between gap-3">

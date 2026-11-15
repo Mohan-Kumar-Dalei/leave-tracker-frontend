@@ -24,16 +24,36 @@ import { MonthlyBars } from '../../components/MonthlyBars';
 import { TeamCalendarView } from '../../components/TeamCalendarView';
 import { HomeSidebar } from '../../components/HomeSidebar';
 import { MandalaBackdrop } from '../../components/MandalaCorner';
-import { Button, IconButton, LoadError, Panel, PanelTitle, Reveal } from '../../components/ui';
+import { Button, IconButton, LoadError, Panel, PanelTitle, Reveal, StickyTop } from '../../components/ui';
 import { api } from '../../lib/api';
 import { dayWord, longDate, slashDate, weekday, greeting } from '../../lib/dates';
 
 const TYPE_LOOK = {
-  CLSL: { icon: Sun, tile: 'bg-[#edf2ff] text-[#2f5bea] dark:bg-[#2f5bea]/20 dark:text-[#8aa4ff]', ink: 'text-[#2f5bea] dark:text-[#8aa4ff]' },
-  CO: { icon: RefreshCw, tile: 'bg-[#f1f6e4] text-[#5f8a12] dark:bg-[#5f8a12]/20 dark:text-[#a6d35a]', ink: 'text-[#5f8a12] dark:text-[#a6d35a]' },
-  EL: { icon: Award, tile: 'bg-[#e6f6ef] text-[#0e7f56] dark:bg-[#0e7f56]/25 dark:text-[#4fd6a0]', ink: 'text-[#0e7f56] dark:text-[#4fd6a0]' },
-  LWP: { icon: Wallet, tile: 'bg-[#fdeceb] text-[#c4362f] dark:bg-[#c4362f]/20 dark:text-[#f88a84]', ink: 'text-[#c4362f] dark:text-[#f88a84]' },
-  RH: { icon: Sparkles, tile: 'bg-[#e6f5fb] text-[#0b7ea4] dark:bg-[#0b7ea4]/25 dark:text-[#5cc8ec]', ink: 'text-[#0b7ea4] dark:text-[#5cc8ec]' },
+  CLSL: {
+    icon: Sun,
+    tile: 'bg-[#edf2ff] text-[#2f5bea] dark:bg-[#2f5bea]/20 dark:text-[#8aa4ff]',
+    ink: 'text-[#2f5bea] dark:text-[#8aa4ff]',
+  },
+  CO: {
+    icon: RefreshCw,
+    tile: 'bg-[#f1f6e4] text-[#5f8a12] dark:bg-[#5f8a12]/20 dark:text-[#a6d35a]',
+    ink: 'text-[#5f8a12] dark:text-[#a6d35a]',
+  },
+  EL: {
+    icon: Award,
+    tile: 'bg-[#e6f6ef] text-[#0e7f56] dark:bg-[#0e7f56]/25 dark:text-[#4fd6a0]',
+    ink: 'text-[#0e7f56] dark:text-[#4fd6a0]',
+  },
+  LWP: {
+    icon: Wallet,
+    tile: 'bg-[#fdeceb] text-[#c4362f] dark:bg-[#c4362f]/20 dark:text-[#f88a84]',
+    ink: 'text-[#c4362f] dark:text-[#f88a84]',
+  },
+  RH: {
+    icon: Sparkles,
+    tile: 'bg-[#e6f5fb] text-[#0b7ea4] dark:bg-[#0b7ea4]/25 dark:text-[#5cc8ec]',
+    ink: 'text-[#0b7ea4] dark:text-[#5cc8ec]',
+  },
 };
 
 const fallbackLook = { icon: CalendarDays, tile: 'bg-sunken text-muted', ink: 'text-muted' };
@@ -88,12 +108,7 @@ const sideFor = (place) => (place % 2 === 0 ? 'right' : 'left');
 function mandalaPlace(index, count) {
   const leftover = count % 3;
   const mdPlace = leftover && index >= count - leftover ? index - (count - leftover) : index % 3;
-  return [
-    '-top-28',
-    SIDE[sideFor(index % 2)].base,
-    SIDE[sideFor(mdPlace)].md,
-    SIDE[sideFor(index % 5)].xl,
-  ].join(' ');
+  return ['-top-28', SIDE[sideFor(index % 2)].base, SIDE[sideFor(mdPlace)].md, SIDE[sideFor(index % 5)].xl].join(' ');
 }
 
 function BalanceCard({ balance, index = 0, count = 1, className = '' }) {
@@ -102,7 +117,9 @@ function BalanceCard({ balance, index = 0, count = 1, className = '' }) {
   const low = leaveType.tracksBalance && available <= 0;
 
   return (
-    <div className={`relative isolate overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card ${className}`}>
+    <div
+      className={`relative isolate overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card ${className}`}
+    >
       {/* A mandala in the spirit of Odisha's jhoti chita, shared with the card
           beside it, with a faint layer of the card colour over it so the text
           stays easy to read. */}
@@ -261,65 +278,68 @@ export default function Summary() {
 
   return (
     <div className="space-y-4">
-      <Reveal className="flex flex-wrap items-center justify-between gap-3 pb-2">
-        <div className="min-w-0">
-          <h1 className="text-[22px] sm:text-2xl">
-            {greeting()}, {user.name.split(' ')[0]}
-          </h1>
-          <p className="mt-1 text-sm text-muted">{data ? subtitle(data) : ' '}</p>
-        </div>
-        <Button className="max-sm:w-full" onClick={() => setDialog({ open: true, preset: null })}>
-          Apply Leave
-        </Button>
-      </Reveal>
+      {/* The greeting and the year bar stay in place; the cards scroll under them. */}
+      <StickyTop roomy className="mb-0 space-y-4">
+        <Reveal className="flex flex-wrap items-center justify-between gap-3 pb-2">
+          <div className="min-w-0">
+            <h1 className="text-[22px] sm:text-2xl">
+              {greeting()}, {user.name.split(' ')[0]}
+            </h1>
+            <p className="mt-1 text-sm text-muted">{data ? subtitle(data) : ' '}</p>
+          </div>
+          <Button className="max-sm:w-full" onClick={() => setDialog({ open: true, preset: null })}>
+            Apply Leave
+          </Button>
+        </Reveal>
+
+        <Reveal delay={0.04} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+          <p className="text-[13px] text-muted">
+            Leave applied this year:{' '}
+            <span className="font-medium tabular-nums text-ink">{data?.bookedThisYear ?? 0}</span>
+            <span className="mx-2 text-line">|</span>
+            Absent: <span className="font-medium tabular-nums text-ink">{data?.absent ?? 0}</span>
+          </p>
+
+          <div className="flex items-center rounded-lg border border-line bg-surface shadow-card">
+            <IconButton label="Previous year" onClick={() => changeYear(-1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </IconButton>
+            <p className="flex items-center gap-2 px-1 text-[13px] font-medium tabular-nums">
+              <CalendarRange className="h-4 w-4 text-muted" aria-hidden="true" />
+              01/01/{shownYear} - 31/12/{shownYear}
+            </p>
+            <IconButton label="Next year" onClick={() => changeYear(1)}>
+              <ChevronRight className="h-4 w-4" />
+            </IconButton>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div role="group" aria-label="View" className="flex gap-0.5 rounded-lg bg-sunken p-0.5">
+              {[
+                ['list', 'List view', List],
+                ['calendar', 'Calendar view', CalendarDays],
+              ].map(([value, label, Icon]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-label={label}
+                  aria-pressed={view === value}
+                  title={label}
+                  onClick={() => setView(value)}
+                  className={`grid h-8 w-9 place-items-center rounded-md transition-colors max-sm:h-10 max-sm:w-11 ${
+                    view === value ? 'bg-surface text-accent shadow-card' : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                </button>
+              ))}
+            </div>
+            <MoreMenu year={shownYear} />
+          </div>
+        </Reveal>
+      </StickyTop>
 
       {data && <BalanceChanges items={data.adjustments} />}
-
-      <Reveal delay={0.04} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <p className="text-[13px] text-muted">
-          Leave applied this year:{' '}
-          <span className="font-medium tabular-nums text-ink">{data?.bookedThisYear ?? 0}</span>
-          <span className="mx-2 text-line">|</span>
-          Absent: <span className="font-medium tabular-nums text-ink">{data?.absent ?? 0}</span>
-        </p>
-
-        <div className="flex items-center rounded-lg border border-line bg-surface shadow-card">
-          <IconButton label="Previous year" onClick={() => changeYear(-1)}>
-            <ChevronLeft className="h-4 w-4" />
-          </IconButton>
-          <p className="flex items-center gap-2 px-1 text-[13px] font-medium tabular-nums">
-            <CalendarRange className="h-4 w-4 text-muted" aria-hidden="true" />
-            01/01/{shownYear} - 31/12/{shownYear}
-          </p>
-          <IconButton label="Next year" onClick={() => changeYear(1)}>
-            <ChevronRight className="h-4 w-4" />
-          </IconButton>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div role="group" aria-label="View" className="flex gap-0.5 rounded-lg bg-sunken p-0.5">
-            {[
-              ['list', 'List view', List],
-              ['calendar', 'Calendar view', CalendarDays],
-            ].map(([value, label, Icon]) => (
-              <button
-                key={value}
-                type="button"
-                aria-label={label}
-                aria-pressed={view === value}
-                title={label}
-                onClick={() => setView(value)}
-                className={`grid h-8 w-9 place-items-center rounded-md transition-colors max-sm:h-10 max-sm:w-11 ${
-                  view === value ? 'bg-surface text-accent shadow-card' : 'text-muted hover:text-ink'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            ))}
-          </div>
-          <MoreMenu year={shownYear} />
-        </div>
-      </Reveal>
 
       <div className="grid items-start gap-4 lg:grid-cols-[264px_minmax(0,1fr)]">
         <aside className="order-last lg:order-first">

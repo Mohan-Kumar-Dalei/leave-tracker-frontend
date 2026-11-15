@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { CalendarCheck, CalendarDays, FileText, History, Inbox, LayoutGrid, LogOut, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
+import { CalendarCheck, CalendarDays, ChevronsUpDown, FileText, History, Inbox, LayoutGrid, LogOut, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
@@ -11,9 +11,9 @@ import { Avatar } from './ProfilePhoto';
 import { IconButton } from './ui';
 
 const PERSONAL_NAV = [
-  { to: '/', label: 'My leave', icon: CalendarCheck, end: true },
+  { to: '/', label: 'Dashboard', icon: LayoutGrid, end: true },
   { to: '/requests', label: 'My requests', icon: FileText },
-  { to: '/team', label: 'Team', short: 'Team', icon: Network },
+  { to: '/team', label: 'Department', short: 'Department', icon: Network },
   { to: '/profile', label: 'Profile', short: 'Profile', icon: UserRound },
 ];
 
@@ -22,7 +22,7 @@ const ADMIN_NAV = [
   { to: '/admin/requests', label: 'Leave requests', short: 'Requests', icon: Inbox, badge: true },
   { to: '/team-calendar', label: 'Team calendar', short: 'Calendar', icon: CalendarDays },
   { to: '/admin/schedule', label: 'Upcoming & past', short: 'Upcoming', icon: History },
-  { to: '/team', label: 'Team', short: 'Team', icon: Network },
+  { to: '/team', label: 'Department', short: 'Department', icon: Network },
   { to: '/admin/employees', label: 'Employees', short: 'Employees', icon: Users },
   { to: '/admin/setup', label: 'Setup', short: 'Setup', icon: Settings2 },
 ];
@@ -58,7 +58,9 @@ function SideLink({ item, badge }) {
   );
 }
 
-function UserMenu({ user, onSignOut }) {
+// The account menu: an avatar in the top bar on phones; in the desktop
+// sidebar (`inSidebar`) a card with the name, whose menu opens upwards.
+function UserMenu({ user, onSignOut, inSidebar = false }) {
   const [open, setOpen] = useState(false);
   const root = useRef(null);
   const location = useLocation();
@@ -83,17 +85,40 @@ function UserMenu({ user, onSignOut }) {
 
   return (
     <div ref={root} className="relative">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-label="Account menu"
-        onClick={() => setOpen((value) => !value)}
-        className="rounded-full"
-      >
-        <Avatar user={user} size={36} />
-      </button>
+      {inSidebar ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label="Account menu"
+          onClick={() => setOpen((value) => !value)}
+          className={`flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors ${
+            open ? 'bg-sunken' : 'hover:bg-sunken'
+          }`}
+        >
+          <Avatar user={user} size={34} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">{user.name}</span>
+            <span className="block truncate text-xs text-muted">{user.email}</span>
+          </span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label="Account menu"
+          onClick={() => setOpen((value) => !value)}
+          className="rounded-full"
+        >
+          <Avatar user={user} size={36} />
+        </button>
+      )}
       {open && (
-        <div className="absolute right-0 top-11 z-40 w-64 overflow-hidden rounded-xl border border-line bg-surface shadow-float">
+        <div
+          className={`absolute z-40 overflow-hidden rounded-xl border border-line bg-surface shadow-float ${
+            inSidebar ? 'inset-x-0 bottom-full mb-2' : 'right-0 top-11 w-64'
+          }`}
+        >
           <div className="border-b border-line px-3 py-2.5">
             <p className="truncate text-sm font-medium">{user.name}</p>
             <p className="truncate text-[13px] text-muted">{user.email}</p>
@@ -112,9 +137,21 @@ function UserMenu({ user, onSignOut }) {
   );
 }
 
-function ThemeSwitch() {
+function ThemeSwitch({ inSidebar = false }) {
   const dark = useTheme() === 'dark';
   const Icon = dark ? Sun : Moon;
+  if (inSidebar) {
+    return (
+      <button
+        type="button"
+        onClick={() => setTheme(dark ? 'light' : 'dark')}
+        className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-muted transition-colors hover:bg-sunken hover:text-ink"
+      >
+        <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+        {dark ? 'Light mode' : 'Dark mode'}
+      </button>
+    );
+  }
   return (
     <IconButton label={dark ? 'Switch to light mode' : 'Switch to dark mode'} onClick={() => setTheme(dark ? 'light' : 'dark')}>
       <Icon className="h-[18px] w-[18px]" />
@@ -151,11 +188,20 @@ export function AppShell() {
             <SideLink key={item.to} item={item} badge={badge} />
           ))}
         </nav>
+        {/* Notifications, the theme and the account sit at the foot of the
+            sidebar on desktop, so the page has the whole width and height. */}
+        <div className="space-y-0.5 border-t border-line px-3 py-3">
+          <NotificationBell inSidebar />
+          <ThemeSwitch inSidebar />
+          <div className="pt-2">
+            <UserMenu user={user} onSignOut={signOut} inSidebar />
+          </div>
+        </div>
       </aside>
 
-      <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur lg:static lg:border-b-0 lg:bg-transparent lg:backdrop-blur-none">
-        <div className="mx-auto flex h-14 max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6 lg:justify-end lg:px-8">
-          <Link to={isAdmin ? '/admin' : '/'} className="lg:hidden">
+      <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur lg:hidden">
+        <div className="mx-auto flex h-14 max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6">
+          <Link to={isAdmin ? '/admin' : '/'}>
             <Logo />
           </Link>
           <div className="flex items-center gap-1.5">
@@ -166,7 +212,7 @@ export function AppShell() {
         </div>
       </header>
 
-      <main id="main" className="mx-auto max-w-[1240px] px-4 pb-10 pt-3 sm:px-6 lg:px-8 lg:pt-0">
+      <main id="main" className="mx-auto max-w-[1240px] px-4 pb-10 pt-3 sm:px-6 lg:px-8 lg:pt-8">
         <Outlet />
       </main>
 

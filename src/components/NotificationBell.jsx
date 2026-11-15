@@ -14,7 +14,9 @@ const timeAgo = (value) => {
   return `${Math.round(hours / 24)} d ago`;
 };
 
-export function NotificationBell() {
+// In the top bar on phones it is an icon. In the desktop sidebar (`inSidebar`)
+// it is a row like the menu items, and the list opens beside the sidebar.
+export function NotificationBell({ inSidebar = false }) {
   const [open, setOpen] = useState(false);
   const root = useRef(null);
   const navigate = useNavigate();
@@ -48,23 +50,49 @@ export function NotificationBell() {
   };
 
   return (
-    <div ref={root} className="sm:relative">
-      <IconButton
-        label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="relative"
-      >
-        <Bell className="h-5 w-5" />
-        {unread > 0 && (
-          <span className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-md bg-rejected px-1 text-[10px] font-medium tabular-nums text-surface">
-            {unread > 9 ? '9+' : unread}
-          </span>
-        )}
-      </IconButton>
+    <div ref={root} className={inSidebar ? '' : 'sm:relative'}>
+      {inSidebar ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
+          onClick={() => setOpen((value) => !value)}
+          className={`flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors ${
+            open ? 'bg-sunken text-ink' : 'text-muted hover:bg-sunken hover:text-ink'
+          }`}
+        >
+          <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
+          Notifications
+          {unread > 0 && (
+            <span className="ml-auto grid h-[18px] min-w-[18px] place-items-center rounded-full bg-rejected px-1.5 text-[11px] font-medium tabular-nums text-white">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </button>
+      ) : (
+        <IconButton
+          label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+          className="relative"
+        >
+          <Bell className="h-5 w-5" />
+          {unread > 0 && (
+            <span className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-md bg-rejected px-1 text-[10px] font-medium tabular-nums text-surface">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </IconButton>
+      )}
 
       {open && (
-        <div className="absolute inset-x-4 top-[52px] z-40 overflow-hidden rounded-xl border border-line bg-surface shadow-float sm:inset-x-auto sm:right-0 sm:top-11 sm:w-96">
+        <div
+          className={`z-40 overflow-hidden rounded-xl border border-line bg-surface shadow-float ${
+            inSidebar
+              ? 'fixed bottom-4 left-[252px] w-96'
+              : 'absolute inset-x-4 top-[52px] sm:inset-x-auto sm:right-0 sm:top-11 sm:w-96'
+          }`}
+        >
           <div className="flex items-center justify-between border-b border-line px-4 py-2">
             <h2 className="text-sm font-semibold">Notifications</h2>
             {unread > 0 && (

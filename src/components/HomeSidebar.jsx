@@ -74,7 +74,10 @@ export function HomeSidebar({ show = 3 }) {
     designation: user.designation || (user.role === 'admin' ? 'Admin' : 'Analyst'),
     leave: null,
   };
-  const manager = user.role === 'admin' ? null : data.members.find((member) => member.role === 'admin' && member.id !== user.id);
+  // The person they report to; without one set, an employee reports to the admin.
+  const manager =
+    data.members.find((member) => member.id === me.reportsTo) ??
+    (user.role === 'admin' ? null : data.members.find((member) => member.role === 'admin' && member.id !== user.id));
   const others = leaveFirst(data.members.filter((member) => member.id !== user.id));
   const away = others.filter((member) => member.leave).length;
   const rest = others.length - show;

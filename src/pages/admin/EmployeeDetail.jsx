@@ -3,6 +3,7 @@ import { ChevronLeft, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { StatusBadge } from '../../components/StatusBadge';
+import { useTeam } from '../../components/TeamPeople';
 import { MonthlyBars } from '../../components/MonthlyBars';
 import {
   Button,
@@ -288,7 +289,12 @@ function EditDetails({ user, onClose }) {
     department: user.department ?? '',
     designation: user.designation ?? '',
     phone: user.phone ?? '',
+    reportsTo: user.reportsTo ?? null,
+    workFromHome: Boolean(user.workFromHome),
   });
+  // Everyone they could report to: active, visible people other than them.
+  const { data: team } = useTeam();
+  const managers = (team?.members ?? []).filter((member) => member.id !== user.id);
   const [error, setError] = useState('');
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -300,6 +306,7 @@ function EditDetails({ user, onClose }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', user.id] });
       queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['team'] });
       toast.success('Details saved');
       onClose();
     },
@@ -348,6 +355,29 @@ function EditDetails({ user, onClose }) {
           onChange={set('phone')}
           hint="Shown in their mail signature."
         />
+        <SelectField
+          label="Reports to"
+          value={form.reportsTo ?? ''}
+          onChange={(event) => setForm({ ...form, reportsTo: event.target.value || null })}
+          hint="Places them under this person in the department tree."
+        >
+          <option value="">Nobody (top of the department)</option>
+          {managers.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.name}, {member.designation}
+            </option>
+          ))}
+        </SelectField>
+        <label className="flex items-center gap-2.5 text-sm">
+          <input
+            id="details-wfh"
+            type="checkbox"
+            checked={form.workFromHome}
+            onChange={(event) => setForm({ ...form, workFromHome: event.target.checked })}
+            className="h-4 w-4 accent-accent"
+          />
+          Works from home
+        </label>
         {error && (
           <p role="alert" className="text-sm text-rejected">
             {error}

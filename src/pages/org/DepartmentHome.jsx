@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, Link2, Mail, RefreshCw, Search } from 'lucide-react';
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Avatar } from '../../components/ProfilePhoto';
 import {
   Button,
@@ -19,6 +19,8 @@ import {
   TextInput,
 } from '../../components/ui';
 import { api } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
+import { homeOf } from '../../lib/home';
 import { useToast } from '../../lib/toast';
 
 // A department's own page, for its assistant manager (who runs it) and the
@@ -423,15 +425,39 @@ function Team({ id, members, canChooseAssistant }) {
 
 export default function DepartmentHome() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['department', id],
     queryFn: () => api.get(`/departments/${id}`),
   });
+  // A manager sees every department here and switches between them; an
+  // assistant manager has only their own.
+  const { data: mine } = useQuery({ queryKey: ['my-departments'], queryFn: () => api.get('/departments/mine') });
+  const choices = mine?.items ?? [];
 
   return (
     <div>
       <StickyTop>
-        <PageHeading title={data?.department.name ?? 'Department'}>
+        <PageHeading
+          title={data?.department.name ?? 'Department'}
+          actions={
+            choices.length > 1 && (
+              <SelectBox
+                aria-label="Department"
+                className="w-56"
+                value={id}
+                onChange={(event) => navigate(`${homeOf(user)}/my-department/${event.target.value}`)}
+              >
+                {choices.map((choice) => (
+                  <option key={choice.id} value={choice.id}>
+                    {choice.name}
+                  </option>
+                ))}
+              </SelectBox>
+            )
+          }
+        >
           {data
             ? [
                 data.department.managerName && `Manager: ${data.department.managerName}`,

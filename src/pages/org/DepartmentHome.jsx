@@ -361,6 +361,14 @@ function Team({ id, members, canChooseAssistant }) {
                 </div>
                 {person.place === 'member' && (
                   <div className="-mt-1 flex w-full flex-wrap items-center gap-x-1 gap-y-2 pl-[42px]">
+                    {/* Only the manager changes who someone reports to; until
+                        then they stay where they are in the tree. */}
+                    {!canChooseAssistant && (
+                      <span className="mr-2 text-xs text-muted">
+                        Reports to {members.find((lead) => lead.id === person.reportsTo)?.name ?? 'the assistant manager'}
+                      </span>
+                    )}
+                    {canChooseAssistant && (
                     <SelectBox
                       aria-label={`Who ${person.name} reports to`}
                       className="w-44"
@@ -377,13 +385,16 @@ function Team({ id, members, canChooseAssistant }) {
                           </option>
                         ))}
                     </SelectBox>
+                    )}
+                    {/* Someone who already leads a team stays a team lead. */}
                     <Button
                       variant="ghost"
                       className="h-8!"
-                      disabled={arrange.isPending}
-                      onClick={() => arrange.mutate({ person, change: { teamLead: !person.teamLead } })}
+                      disabled={arrange.isPending || person.teamLead}
+                      title={person.teamLead ? 'Already a team lead' : undefined}
+                      onClick={() => arrange.mutate({ person, change: { teamLead: true } })}
                     >
-                      {person.teamLead ? 'Remove team lead' : 'Make team lead'}
+                      {person.teamLead ? 'Team lead' : 'Make team lead'}
                     </Button>
                     {canChooseAssistant && (
                       <Button

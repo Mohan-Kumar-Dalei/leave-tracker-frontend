@@ -13,6 +13,7 @@ import {
   PanelTitle,
   Reveal,
   RowsSkeleton,
+  SelectBox,
   StickyTop,
   TextArea,
   TextInput,
@@ -284,8 +285,27 @@ function Team({ id, members, canChooseAssistant }) {
     },
     onError: (issue) => toast.error('Could not do that', issue.message),
   });
+  // The manager and the assistant manager both arrange the team: who is a
+  // team lead, and who reports to whom.
+  const arrange = useMutation({
+    mutationFn: ({ person, change }) => api.patch(`/departments/${id}/members/${person.id}`, change),
+    onSuccess: (_data, { person, change }) => {
+      queryClient.invalidateQueries({ queryKey: ['department', id] });
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+      if (change.teamLead !== undefined) {
+        toast.success(change.teamLead ? 'Team lead added' : 'Team lead removed', `${person.name} ${change.teamLead ? 'is now a team lead' : 'is no longer a team lead; their team reports to the assistant manager'}.`);
+      } else toast.success('Saved', `${person.name}'s reporting line is updated.`);
+    },
+    onError: (issue) => toast.error('Could not do that', issue.message),
+  });
   const [search, setSearch] = useState('');
   const hasAssistant = members.some((person) => person.place === 'assistant');
+  // Who someone can report to: the assistant manager, the manager, a team lead.
+  const above = [
+    ...members.filter((person) => person.place === 'assistant'),
+    ...members.filter((person) => person.place === 'manager'),
+    ...members.filter((person) => person.place === 'member' && person.teamLead).sort((a, b) => a.name.localeCompare(b.name)),
+  ];
   const order = { manager: 0, assistant: 1, member: 2 };
   const query = search.trim().toLowerCase();
   const sorted = [...members]
@@ -330,21 +350,52 @@ function Team({ id, members, canChooseAssistant }) {
                     {PLACE[person.place] && (
                       <span className="rounded bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent">{PLACE[person.place]}</span>
                     )}
+                    {person.place === 'member' && person.teamLead && (
+                      <span className="rounded bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent">Team Lead</span>
+                    )}
                     {suggested && (
                       <span className="rounded bg-pending-soft px-1.5 py-px text-[10px] font-semibold text-pending">Suggested</span>
                     )}
                   </p>
                   <p className="truncate text-xs text-muted">{[person.designation, person.employeeId].filter(Boolean).join(' · ')}</p>
                 </div>
-                {canChooseAssistant && person.place === 'member' && (
-                  <Button
-                    variant={suggested ? 'primary' : 'ghost'}
-                    className="h-8!"
-                    disabled={choose.isPending}
-                    onClick={() => choose.mutate(person)}
-                  >
-                    Make assistant manager
-                  </Button>
+                {person.place === 'member' && (
+                  <div className="-mt-1 flex w-full flex-wrap items-center gap-x-1 gap-y-2 pl-[42px]">
+                    <SelectBox
+                      aria-label={`Who ${person.name} reports to`}
+                      className="w-44"
+                      value={person.reportsTo ?? ''}
+                      disabled={arrange.isPending}
+                      onChange={(event) => arrange.mutate({ person, change: { reportsTo: event.target.value || null } })}
+                    >
+                      {!above.some((lead) => lead.id === person.reportsTo) && <option value={person.reportsTo ?? ''}>Reports to nobody</option>}
+                      {above
+                        .filter((lead) => lead.id !== person.id)
+                        .map((lead) => (
+                          <option key={lead.id} value={lead.id}>
+                            {`Reports to ${lead.name}`}
+                          </option>
+                        ))}
+                    </SelectBox>
+                    <Button
+                      variant="ghost"
+                      className="h-8!"
+                      disabled={arrange.isPending}
+                      onClick={() => arrange.mutate({ person, change: { teamLead: !person.teamLead } })}
+                    >
+                      {person.teamLead ? 'Remove team lead' : 'Make team lead'}
+                    </Button>
+                    {canChooseAssistant && (
+                      <Button
+                        variant={suggested ? 'primary' : 'ghost'}
+                        className="h-8!"
+                        disabled={choose.isPending}
+                        onClick={() => choose.mutate(person)}
+                      >
+                        Make assistant manager
+                      </Button>
+                    )}
+                  </div>
                 )}
               </li>
             );

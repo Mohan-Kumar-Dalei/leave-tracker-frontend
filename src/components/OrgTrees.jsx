@@ -361,7 +361,7 @@ export function DepartmentTree({ data, department, onDepartment, onOpen }) {
           <PersonCard
             member={member}
             on={member.id === chosen}
-            tag={member.role === 'employee' && leads.has(member.id) ? 'Team Lead' : null}
+            tag={member.role === 'employee' && (leads.has(member.id) || member.teamLead) ? 'Team Lead' : null}
             onClick={() => (member.id === chosen ? onOpen(member) : setChosen(member.id))}
           />
         ),
@@ -433,7 +433,7 @@ export function EmployeeTree({ data, onOpen }) {
         <PersonCard
           member={member}
           on={path[depth] === member.id}
-          tag={depth > 0 && member.role === 'employee' && children.has(member.id) ? 'Team Lead' : null}
+          tag={depth > 0 && member.role === 'employee' && (children.has(member.id) || member.teamLead) ? 'Team Lead' : null}
           onClick={() => {
             if (path[depth] === member.id && path.length === depth + 1) onOpen(member);
             else setPath([...path.slice(0, depth), member.id]);

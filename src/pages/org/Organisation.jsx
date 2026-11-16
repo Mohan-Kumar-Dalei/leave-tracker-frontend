@@ -22,7 +22,7 @@ import {
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 
-// The organisation, for its owner (the company's HR or CEO), kept simple like
+// The organisation, run by the managers (HR is turned off for now), kept simple like
 // Zoho: a Departments list (name, manager, assistant manager, how many
 // employees) and an Employees list where each person's department can be
 // changed. Adding a department invites its manager by mail; the manager then
@@ -287,7 +287,7 @@ function AddDepartmentWizard({ company, you, onClose }) {
   );
 }
 
-// Managers who registered on their own with a new department, for HR to
+// Managers who registered on their own, for an existing manager to
 // approve (which sets up the department) or turn down.
 function ManagerRequests({ requests }) {
   const queryClient = useQueryClient();
@@ -475,13 +475,21 @@ function AddEmployee({ departments, defaultDepartment, onClose }) {
   );
 }
 
-function DepartmentForm({ department, people, company, owner = true, onClose }) {
+// Managers first, then everyone else by name.
+const managerChoices = (people) =>
+  [...people].sort(
+    (a, b) =>
+      Number(/manager/i.test(b.designation) && !/assistant/i.test(b.designation)) -
+        Number(/manager/i.test(a.designation) && !/assistant/i.test(a.designation)) || a.name.localeCompare(b.name),
+  );
+
+function DepartmentForm({ department, people, company, onClose }) {
   const editing = Boolean(department.id);
   const [form, setForm] = useState({
     name: department.name ?? '',
     location: department.location ?? '',
     lead: department.lead?.id ?? '',
-    managerName: department.managerName ?? '',
+    manager: department.manager?.id ?? '',
   });
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -500,8 +508,9 @@ function DepartmentForm({ department, people, company, owner = true, onClose }) 
         name: form.name,
         location: form.location || company.location,
         lead: form.lead || null,
-        // Only HR changes a department's manager.
-        ...(owner ? { managerName: form.managerName } : {}),
+        // The manager is one of the people, like Rajesh Sir for Content
+        // Integration; sent only when it changes.
+        ...((department.manager?.id ?? '') !== form.manager ? { manager: form.manager || null } : {}),
       };
       return editing ? api.patch(`/org/departments/${department.id}`, body) : api.post('/org/departments', body);
     },
@@ -564,14 +573,19 @@ function DepartmentForm({ department, people, company, owner = true, onClose }) 
           onChange={(event) => setForm({ ...form, name: event.target.value })}
           data-autofocus
         />
-        <TextInput
+        <SelectField
           label="Manager"
-          maxLength={80}
-          placeholder="Manager's full name"
-          disabled={!owner}
-          value={form.managerName}
-          onChange={(event) => setForm({ ...form, managerName: event.target.value })}
-        />
+          hint="Shown above the assistant manager in the tree, and approves their leave."
+          value={form.manager}
+          onChange={(event) => setForm({ ...form, manager: event.target.value })}
+        >
+          <option value="">{department.managerName ? `No account yet (${department.managerName})` : 'No manager'}</option>
+          {managerChoices(people).map((person) => (
+            <option key={person.id} value={person.id}>
+              {`${person.name} · ${person.designation}${person.employeeId ? ` (${person.employeeId})` : ''}`}
+            </option>
+          ))}
+        </SelectField>
         <SelectField
           label="Assistant manager"
           value={form.lead}
@@ -860,7 +874,6 @@ export default function Organisation() {
           department={editing}
           people={data.people}
           company={data.company}
-          owner={data.you?.owner !== false}
           onClose={() => setEditing(null)}
         />
       )}

@@ -69,6 +69,13 @@ export default function Register() {
   const mismatch = passwords.confirm && passwords.password !== passwords.confirm ? 'The two passwords are not the same.' : '';
   const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
 
+  if (done?.pending) {
+    return (
+      <Done title="Request sent">
+        A manager will approve you for {done.department}. Once they do, you can sign in with this email and password.
+      </Done>
+    );
+  }
   if (done) {
     return (
       <Done title="Your account is ready">
@@ -96,7 +103,7 @@ export default function Register() {
   return (
     <AuthLayout
       title="Register as a manager"
-      intro="Register with the department you run. You can sign in straight away and invite your assistant manager."
+      intro="Register with the department you run. Once a manager approves you, sign in and invite your assistant manager."
     >
       <form onSubmit={submit} className="space-y-4">
         <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} />

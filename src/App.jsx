@@ -52,8 +52,10 @@ const PAGES = {
     ['my-requests', MyRequests],
     ['my-department/:id', DepartmentHome],
   ],
+  // A manager also organises: adds departments and invites their AMs.
   manager: [
     ['', Overview],
+    ['organisation', Organisation],
     ...STAFF_PAGES,
     ['my-leave', Summary],
     ['my-requests', MyRequests],

@@ -73,12 +73,15 @@ const STEPS = ['Department', 'Manager', 'Assistant Manager', 'Invitation'];
 // manager's name and the assistant manager's email, where the invitation goes.
 // The assistant manager registers first and then brings in the team from
 // My department. The manager is only a name on the department.
-function AddDepartmentWizard({ company, onClose }) {
+// A manager adding a department runs it themselves, so their own name is the
+// manager and nobody else is invited for that step.
+function AddDepartmentWizard({ company, you, onClose }) {
+  const owner = you?.owner !== false;
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     name: '',
     location: '',
-    managerName: '',
+    managerName: owner ? '' : you.name,
     assistantName: '',
     assistantEmail: '',
   });
@@ -91,6 +94,10 @@ function AddDepartmentWizard({ company, onClose }) {
   const create = useMutation({
     mutationFn: () => {
       const body = Object.fromEntries(Object.entries(form).filter(([, value]) => value.trim() !== ''));
+      if (!owner) {
+        delete body.managerName;
+        delete body.managerEmail;
+      }
       return api.post('/org/departments', { location: company.location, ...body });
     },
     onSuccess: (data) => {
@@ -211,7 +218,10 @@ function AddDepartmentWizard({ company, onClose }) {
             <TextInput label="Location" maxLength={60} placeholder={company.location} value={form.location} onChange={set('location')} />
           </>
         )}
-        {step === 1 && (
+        {step === 1 && !owner && (
+          <TextInput key="manager" label="Manager" hint="You manage the departments you add." disabled value={you.name} />
+        )}
+        {step === 1 && owner && (
           <>
             <TextInput
               key="manager"
@@ -465,7 +475,7 @@ function AddEmployee({ departments, defaultDepartment, onClose }) {
   );
 }
 
-function DepartmentForm({ department, people, company, onClose }) {
+function DepartmentForm({ department, people, company, owner = true, onClose }) {
   const editing = Boolean(department.id);
   const [form, setForm] = useState({
     name: department.name ?? '',
@@ -490,7 +500,8 @@ function DepartmentForm({ department, people, company, onClose }) {
         name: form.name,
         location: form.location || company.location,
         lead: form.lead || null,
-        managerName: form.managerName,
+        // Only HR changes a department's manager.
+        ...(owner ? { managerName: form.managerName } : {}),
       };
       return editing ? api.patch(`/org/departments/${department.id}`, body) : api.post('/org/departments', body);
     },
@@ -557,6 +568,7 @@ function DepartmentForm({ department, people, company, onClose }) {
           label="Manager"
           maxLength={80}
           placeholder="Manager's full name"
+          disabled={!owner}
           value={form.managerName}
           onChange={(event) => setForm({ ...form, managerName: event.target.value })}
         />
@@ -848,10 +860,11 @@ export default function Organisation() {
           department={editing}
           people={data.people}
           company={data.company}
+          owner={data.you?.owner !== false}
           onClose={() => setEditing(null)}
         />
       )}
-      {addingDepartment && data && <AddDepartmentWizard company={data.company} onClose={() => setAddingDepartment(false)} />}
+      {addingDepartment && data && <AddDepartmentWizard company={data.company} you={data.you} onClose={() => setAddingDepartment(false)} />}
       {addingPerson && data && (
         <AddEmployee
           departments={data.departments}

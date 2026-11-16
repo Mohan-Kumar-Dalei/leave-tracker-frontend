@@ -42,7 +42,7 @@ const FEATURES = [
   {
     icon: Network,
     title: 'Departments and teams',
-    text: 'Department and employee trees, Zoho style, show who reports to whom. Each department sees its own people and leave, HR sees the whole company.',
+    text: 'Department and employee trees, Zoho style, show who reports to whom. Each department sees its own people and leave.',
   },
   {
     icon: BellRing,
@@ -52,13 +52,13 @@ const FEATURES = [
   {
     icon: ShieldCheck,
     title: 'Safe by design',
-    text: 'Encrypted passwords, signed-in pages only, nobody approves their own leave, and only HR decides who runs a department.',
+    text: 'Encrypted passwords, signed-in pages only, nobody approves their own leave, and nobody joins a department without approval.',
   },
 ];
 
 const STEPS = [
-  { icon: Building2, who: 'HR', title: 'Sets up the company', text: 'Registers once, adds departments, and invites each department’s assistant manager.' },
-  { icon: UserRound, who: 'Manager', title: 'Joins with a department', text: 'Registers on their own or by invitation. HR approves, and the department is ready.' },
+  { icon: UserRound, who: 'Manager', title: 'Registers with a department', text: 'Signs up with the department they run, and it is ready at once.' },
+  { icon: Building2, who: 'Manager', title: 'Organises the company', text: 'Adds more departments in four steps and invites each one’s assistant manager.' },
   { icon: Inbox, who: 'Assistant manager', title: 'Runs the department', text: 'Shares the join link, approves people as they arrive, and decides the team’s leave.' },
   { icon: Link2, who: 'Team', title: 'Joins with one link', text: 'Fills in their details, gets the next employee ID, and starts applying for leave.' },
 ];
@@ -77,12 +77,7 @@ const ROLES = [
   {
     title: 'Manager',
     path: '/employee/manager/CON-031',
-    points: ['Approve the assistant manager', 'See the whole department', 'Invite the assistant manager'],
-  },
-  {
-    title: 'HR',
-    path: '/employee/hr/CON-032',
-    points: ['Departments and their admins', 'Company-wide requests', 'Approve new managers'],
+    points: ['Add departments and their AMs', 'Approve the assistant manager', 'See every department they run'],
   },
 ];
 
@@ -217,7 +212,7 @@ export default function Landing() {
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
               Apply in seconds, approve in one click and always know who is away. Every department runs its own team,
-              and HR sees the whole company.
+              and each manager organises the departments they run.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               {home ? (
@@ -230,7 +225,7 @@ export default function Landing() {
                     Sign in <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </ButtonLink>
                   <ButtonLink to="/register" variant="secondary">
-                    Register as HR or manager
+                    Register as a manager
                   </ButtonLink>
                 </>
               )}
@@ -308,7 +303,7 @@ export default function Landing() {
             <h2 className="mt-2 text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">The right view for everyone</h2>
             <p className="mt-3 text-muted">After you sign in, your own address opens with your employee ID.</p>
           </Reveal>
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {ROLES.map((role, index) => (
               <Reveal key={role.title} delay={0.05 * index}>
                 <article className="flex h-full flex-col rounded-2xl border border-line bg-surface p-6 shadow-card">
@@ -338,7 +333,7 @@ export default function Landing() {
               <div aria-hidden="true" className="absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-white/10 blur-2xl" />
               <h2 className="relative text-3xl font-semibold tracking-[-0.02em] text-on-accent sm:text-4xl">Ready when your team is</h2>
               <p className="relative mx-auto mt-3 max-w-xl text-on-accent/85">
-                Sign in with your work email, or register as HR or a department manager to set up your team.
+                Sign in with your work email, or register as a department manager to set up your team.
               </p>
               <div className="relative mt-8 flex flex-wrap justify-center gap-3">
                 <Link

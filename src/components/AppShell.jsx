@@ -5,7 +5,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { homeOf } from '../lib/home';
+import { homeOf, positionOf } from '../lib/home';
 import { setTheme, useTheme } from '../lib/theme';
 import { NotificationBell } from './NotificationBell';
 import { Avatar } from './ProfilePhoto';
@@ -189,7 +189,14 @@ export function AppShell() {
     enabled: user.role !== 'owner',
   });
   const myDepartment = mine?.items?.[0];
-  const baseNav = user.role === 'owner' ? OWNER_NAV : isAdmin ? ADMIN_NAV : PERSONAL_NAV;
+  const baseNav =
+    user.role === 'owner'
+      ? OWNER_NAV
+      : positionOf(user) === 'manager'
+        ? [ADMIN_NAV[0], { to: 'organisation', label: 'Organisation', short: 'Organisation', icon: Building2 }, ...ADMIN_NAV.slice(1)]
+        : isAdmin
+          ? ADMIN_NAV
+          : PERSONAL_NAV;
   const pages = myDepartment
     ? [...baseNav, { to: `my-department/${myDepartment.id}`, label: 'My department', short: 'My dept', icon: Building2 }]
     : baseNav;

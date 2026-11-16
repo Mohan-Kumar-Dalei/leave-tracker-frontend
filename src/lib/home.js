@@ -39,7 +39,7 @@ export function pathFor(user, address) {
   if (path === '/requests') return at(staff ? (hr ? 'requests' : 'my-requests') : 'requests');
   if (path === '/team') return at('department');
   if (path === '/profile') return at('profile');
-  if (path === '/organisation') return at('');
+  if (path === '/organisation') return at(hr ? '' : position === 'manager' ? 'organisation' : '');
   if (path === '/admin') return at(hr ? 'overview' : staff ? '' : '');
   if (path === '/admin/requests') return at(staff ? 'requests' : 'requests');
   if (path === '/admin/schedule') return at(staff ? 'upcoming' : '');

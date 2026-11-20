@@ -392,3 +392,59 @@
     animation-duration: 2.4s;
   }
 }
+
+/* The dashboard sky's weather (SkyBanner): rain and snow falling, fog
+   drifting, and lightning flashing now and then during a thunderstorm. */
+@keyframes sky-rain {
+  from {
+    transform: translate(0, -24px);
+  }
+  to {
+    transform: translate(-10px, 96px);
+  }
+}
+.sky-rain {
+  animation: sky-rain 0.8s linear infinite;
+}
+@keyframes sky-snow {
+  from {
+    transform: translate(0, -10px);
+  }
+  to {
+    transform: translate(-8px, 92px);
+  }
+}
+.sky-snow {
+  animation: sky-snow 6s linear infinite;
+}
+@keyframes sky-flash {
+  0%,
+  9%,
+  15%,
+  100% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.85;
+  }
+  11% {
+    opacity: 0.15;
+  }
+  13% {
+    opacity: 0.6;
+  }
+}
+.sky-flash {
+  animation: sky-flash 7s linear infinite;
+}
+@keyframes sky-fog {
+  from {
+    transform: translateX(-30px);
+  }
+  to {
+    transform: translateX(30px);
+  }
+}
+.sky-fog {
+  animation: sky-fog 9s ease-in-out infinite alternate;
+}

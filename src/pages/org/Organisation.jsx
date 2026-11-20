@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { EmployeeIdField } from '../../components/EmployeeIdField';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -19,6 +18,7 @@ import {
   StickyTop,
   TextInput,
 } from '../../components/ui';
+import { AddEmployeeDialog } from '../../components/AddEmployeeDialog';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 
@@ -343,137 +343,6 @@ function ManagerRequests({ requests }) {
 const isManager = (person) => /manager|head|director|lead/i.test(person.designation ?? '');
 const leadChoices = (people) =>
   [...people].sort((a, b) => Number(isManager(b)) - Number(isManager(a)) || a.name.localeCompare(b.name));
-
-const BLANK_PERSON = { name: '', email: '', employeeId: '', designation: '', phone: '', department: '', lead: false };
-
-// Adds a new employee to a department. Their starting password is first
-// name @ year; it is shown once here so the owner can pass it on.
-function AddEmployee({ departments, defaultDepartment, onClose }) {
-  const [form, setForm] = useState({ ...BLANK_PERSON, department: defaultDepartment ?? departments[0]?.id ?? '' });
-  const [error, setError] = useState('');
-  const [created, setCreated] = useState(null);
-  const queryClient = useQueryClient();
-  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
-
-  const create = useMutation({
-    mutationFn: async () => {
-      const { lead, ...person } = form;
-      const body = Object.fromEntries(Object.entries(person).filter(([, value]) => value !== ''));
-      const result = await api.post('/org/people', body);
-      if (lead) await api.patch(`/org/departments/${form.department}`, { lead: result.person.id });
-      return result;
-    },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['organisation'] });
-      queryClient.invalidateQueries({ queryKey: ['team'] });
-      setCreated(result);
-    },
-    onError: (issue) => setError(issue.message),
-  });
-
-  const department = departments.find((item) => item.id === form.department);
-
-  if (created) {
-    return (
-      <Dialog
-        open
-        onClose={onClose}
-        kind="modal"
-        title="Employee added"
-        footer={<Button onClick={onClose}>Done</Button>}
-      >
-        <div className="space-y-4 text-sm">
-          <p>
-            <span className="font-medium">{created.person.name}</span> is now in {department?.name}
-            {form.lead ? ' and is its department lead' : ''}.
-          </p>
-          <dl className="space-y-2 rounded-lg bg-sunken p-3">
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted">Employee ID</dt>
-              <dd className="font-medium">{created.person.employeeId}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted">Sign in with</dt>
-              <dd className="truncate font-medium">{created.person.email}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted">Starting password</dt>
-              <dd className="font-medium">{created.startingPassword}</dd>
-            </div>
-          </dl>
-          <p className="text-[13px] text-muted">Share it with them; they can change it from their profile after signing in.</p>
-        </div>
-      </Dialog>
-    );
-  }
-
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      title="Add employee"
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" form="add-person" loading={create.isPending}>
-            Add employee
-          </Button>
-        </>
-      }
-    >
-      <form
-        id="add-person"
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError('');
-          create.mutate();
-        }}
-      >
-        <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} data-autofocus />
-        <TextInput label="Work email" type="email" required maxLength={160} value={form.email} onChange={set('email')} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <EmployeeIdField />
-          <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
-        </div>
-        <TextInput
-          label="Designation"
-          maxLength={80}
-          placeholder="For example, Assistant Manager"
-          value={form.designation}
-          onChange={set('designation')}
-        />
-        <SelectField label="Department" value={form.department} onChange={set('department')}>
-          {departments.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </SelectField>
-        <label className="flex items-start gap-2.5 text-sm">
-          <input
-            type="checkbox"
-            checked={form.lead}
-            onChange={(event) => setForm({ ...form, lead: event.target.checked })}
-            className="mt-0.5 h-4 w-4 accent-accent"
-          />
-          <span>
-            Make them the department lead
-            {department?.lead ? (
-              <span className="block text-[13px] text-muted">Takes over from {department.lead.name}.</span>
-            ) : null}
-          </span>
-        </label>
-        <p className="text-[13px] text-muted">
-          Their starting password will be their first name and the year, for example Asha@{new Date().getFullYear()}.
-        </p>
-        {error && <p className="text-sm text-rejected">{error}</p>}
-      </form>
-    </Dialog>
-  );
-}
 
 // Managers first, then everyone else by name.
 const managerChoices = (people) =>
@@ -879,9 +748,10 @@ export default function Organisation() {
       )}
       {addingDepartment && data && <AddDepartmentWizard company={data.company} you={data.you} onClose={() => setAddingDepartment(false)} />}
       {addingPerson && data && (
-        <AddEmployee
+        <AddEmployeeDialog
           departments={data.departments}
           defaultDepartment={data.departments.find((department) => sameName(department.name, filter))?.id}
+          canMakeAssistant
           onClose={() => setAddingPerson(false)}
         />
       )}

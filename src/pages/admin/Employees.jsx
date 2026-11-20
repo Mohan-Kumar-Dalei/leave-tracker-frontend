@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -10,113 +10,36 @@ import {
   PageHeading,
   Pagination,
   Panel,
-  PasswordInput,
   Reveal,
   RowsSkeleton,
   SelectBox,
-  TextInput,
 } from '../../components/ui';
+import { AddEmployeeDialog } from '../../components/AddEmployeeDialog';
 import { api, toQuery } from '../../lib/api';
-import { useToast } from '../../lib/toast';
+import { useAuth } from '../../lib/auth';
+import { positionOf } from '../../lib/home';
 
-const BLANK = {
-  name: '',
-  email: '',
-  employeeId: '',
-  department: '',
-  designation: 'Analyst',
-  phone: '',
-  joinedOn: '',
-  password: '',
-};
-
-function AddEmployee({ open, onClose }) {
-  const [form, setForm] = useState(BLANK);
-  const [error, setError] = useState('');
-  const queryClient = useQueryClient();
-  const toast = useToast();
-
-  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
-
-  const create = useMutation({
-    mutationFn: () => {
-      const body = Object.fromEntries(Object.entries(form).filter(([, value]) => value !== ''));
-      return api.post('/admin/employees', body);
-    },
-    onSuccess: ({ user }) => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Employee added', `${user.name} can sign in with the password you set.`);
-      setForm(BLANK);
-      onClose();
-    },
-    onError: (issue) => setError(issue.message),
-  });
-
+// Adding someone works as on Organisation: their department (a manager has
+// every department, an assistant manager their own), the next CON number and
+// a first name @ year starting password shown at the end.
+function AddFromEmployees({ onClose }) {
+  const { user } = useAuth();
+  const { data } = useQuery({ queryKey: ['my-departments'], queryFn: () => api.get('/departments/mine') });
+  if (!data) return null;
+  if (!data.items.length) {
+    return (
+      <Dialog open onClose={onClose} kind="modal" title="Add employee" footer={<Button onClick={onClose}>Close</Button>}>
+        <p className="text-sm text-muted">You do not run a department yet, so there is nowhere to add someone.</p>
+      </Dialog>
+    );
+  }
   return (
-    <Dialog
-      open={open}
+    <AddEmployeeDialog
+      departments={data.items}
+      defaultDepartment={data.items[0].id}
+      canMakeAssistant={positionOf(user) === 'manager' || user.role === 'owner'}
       onClose={onClose}
-      title="Add an employee"
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" form="add-employee" loading={create.isPending}>
-            Add employee
-          </Button>
-        </>
-      }
-    >
-      <form
-        id="add-employee"
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError('');
-          create.mutate();
-        }}
-      >
-        <TextInput label="Full name" required maxLength={80} value={form.name} onChange={set('name')} />
-        <TextInput
-          label="Work email"
-          type="email"
-          required
-          maxLength={160}
-          value={form.email}
-          onChange={set('email')}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput label="Employee ID" maxLength={20} placeholder="Leave empty for the next CON number" value={form.employeeId} onChange={set('employeeId')} />
-          <TextInput label="Joining date" type="date" value={form.joinedOn} onChange={set('joinedOn')} />
-          <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
-          <TextInput label="Designation" maxLength={80} value={form.designation} onChange={set('designation')} />
-          <TextInput
-            label="Phone"
-            type="tel"
-            maxLength={20}
-            value={form.phone}
-            onChange={set('phone')}
-            hint="Shown in their mail signature."
-          />
-        </div>
-        <PasswordInput
-          label="Password"
-          required
-          autoComplete="new-password"
-          minLength={10}
-          maxLength={72}
-          value={form.password}
-          onChange={set('password')}
-          hint="At least 10 characters, with a letter and a number. Share it with the employee yourself, they can change it after signing in."
-        />
-        {error && (
-          <p role="alert" className="text-sm text-rejected">
-            {error}
-          </p>
-        )}
-      </form>
-    </Dialog>
+    />
   );
 }
 
@@ -212,7 +135,7 @@ export default function Employees() {
         </Panel>
       </Reveal>
 
-      <AddEmployee open={adding} onClose={() => setAdding(false)} />
+      {adding && <AddFromEmployees onClose={() => setAdding(false)} />}
     </div>
   );
 }

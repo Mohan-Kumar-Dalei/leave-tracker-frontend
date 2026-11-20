@@ -20,7 +20,7 @@ function Stat({ label, value, accent = false }) {
 }
 
 // The team's tracker sheet, kept by the app: one line per person (or per
-// department), their Leave Balance and Leave Availed for the year, the leave
+// department), their Leave Balance and Leave Applied for the year, the leave
 // taken in each month, and a Total line. Casual/Sick leave by default, like
 // the sheet; any other type, or all of them, can be chosen.
 function SheetTable({ data, month, onDepartment }) {
@@ -40,7 +40,7 @@ function SheetTable({ data, month, onDepartment }) {
             </th>
             {!people && <th className={`${head} border-b border-line`}>People</th>}
             <th className={`${head} border-b border-line`}>Leave Balance</th>
-            <th className={`${head} border-b border-line`}>Leave Availed</th>
+            <th className={`${head} border-b border-line`}>Leave Applied</th>
             {SHORT.map((name, index) => (
               <th key={name} className={`${monthHead(index)} border-b border-line`}>
                 {name}
@@ -179,7 +179,7 @@ export function LeaveTotalsPage() {
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-line lg:grid-cols-4">
                 <Stat label="People" value={data.summary.people} />
                 <Stat label="Leave Balance" value={data.summary.balance} accent />
-                <Stat label={`Leave Availed in ${data.year}`} value={data.summary.availed} />
+                <Stat label={`Leave Applied in ${data.year}`} value={data.summary.availed} />
                 <Stat label={`Taken in ${data.monthName}`} value={data.summary.takenInMonth} />
               </dl>
             </Panel>

@@ -100,7 +100,7 @@ function DepartmentCard({ name, on, onClick }) {
 // runs from the top of the column to the chosen person; the line from the
 // chosen card on the left up to that top is drawn separately and stays still
 // (see Columns), so nothing has to follow the scroll and the two always meet.
-function Gap({ left, right, part = 'all' }) {
+function Gap({ left, right, part = 'all', joinFrom = 0 }) {
   const rows =
     part === 'left'
       ? left.items.length
@@ -116,7 +116,9 @@ function Gap({ left, right, part = 'all' }) {
   const fromY = centre(from);
   // Where the blue line enters: level with the chosen card, or for a column
   // that scrolls on its own, at its top.
-  const joinY = part === 'right' ? 0 : fromY;
+  // When the chosen person sits higher than the chosen card, the line starts
+  // at the card's level instead (`joinFrom`), so it never runs past them.
+  const joinY = part === 'right' ? joinFrom : fromY;
   const ys = lines ? right.items.map((_, row) => centre(row)) : [];
   const top = lines ? Math.min(joinY, ys[0]) : 0;
   const bottom = lines ? Math.max(joinY, ys[ys.length - 1]) : 0;
@@ -232,7 +234,11 @@ function Columns({ columns, scrollLast = false }) {
     // the department. Once the chosen person scrolls up past the department
     // row, the cover is pushed up with them, so the line runs from the
     // department up to them. CSS alone does this, so nothing lags the scroll.
-    const covered = fromRow >= 0 && toRow >= 0;
+    // The chosen person higher than the department (e.g. the manager at the
+    // top of a department lower in the list): the line goes from the
+    // department's level straight up to them, with no cover or still part.
+    const above = fromRow >= 0 && toRow >= 0 && centre(toRow) < fromY;
+    const covered = fromRow >= 0 && toRow >= 0 && !above;
     return (
       <div ref={box} className="overflow-x-auto rounded-xl border border-line bg-surface p-4 shadow-card">
         <div className="flex w-max items-start">
@@ -246,7 +252,7 @@ function Columns({ columns, scrollLast = false }) {
             <Gap left={parent} right={last} part="left" />
             <div className="max-h-[calc(100dvh-380px)] min-h-72 overflow-y-auto overscroll-contain pr-1 lg:max-h-[calc(100dvh-250px)]">
               <div className="relative flex items-start">
-                <Gap left={parent} right={last} part="right" />
+                <Gap left={parent} right={last} part="right" joinFrom={above ? fromY : 0} />
                 <ColumnList column={last} width={width} />
                 {covered && (
                   <div

@@ -43,6 +43,9 @@ function PeopleList({ title, items, empty, describe }) {
           >
             <span className="flex min-w-0 items-baseline gap-2">
               <span className="truncate font-medium">{leave.user?.name}</span>
+              {leave.department && (
+                <span className="shrink-0 rounded bg-sunken px-1.5 py-px text-[11px] font-medium text-muted">{leave.department}</span>
+              )}
               {leave.status === 'pending' && (
                 <span className="shrink-0 rounded bg-pending-soft px-1.5 py-px text-[10px] font-semibold text-pending">Pending</span>
               )}

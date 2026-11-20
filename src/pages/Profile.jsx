@@ -9,13 +9,13 @@ import { useAuth } from '../lib/auth';
 import { isoFromCreatedAt, slashDate } from '../lib/dates';
 import { useToast } from '../lib/toast';
 
-const EDITABLE = ['name', 'email', 'phone', 'designation', 'department'];
+const EDITABLE = ['name', 'email', 'phone', 'designation'];
 
 const pick = (user) => Object.fromEntries(EDITABLE.map((key) => [key, user[key] ?? '']));
 
-// The person's own details. Name, email, phone, designation and department are
+// The person's own details. Name, email, phone and designation are
 // theirs to change (a new email asks for the current password); the employee
-// ID stays with the admin. Joined is the day the
+// ID and department stay with their manager. Joined is the day the
 // account was made in the Leave Tracker.
 function ProfileDetails() {
   const { user, setUser } = useAuth();
@@ -118,9 +118,8 @@ function ProfileDetails() {
               value={form.designation}
               onChange={set('designation')}
             />
-            <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
           </div>
-          <p className="text-[13px] text-muted">Your employee ID is set by your admin.</p>
+          <p className="text-[13px] text-muted">Your employee ID and department are set by your manager.</p>
           {error && (
             <p role="alert" className="text-sm text-rejected">
               {error}

@@ -106,28 +106,36 @@ export default function Team() {
           <Reveal delay={0.04}>
             <Panel className="mt-4 flex flex-wrap items-center gap-3 p-3">
               <div className="w-full sm:w-64">
-                <SelectBox
-                  aria-label="Department"
-                  className="w-full"
-                  value={department}
-                  onChange={(event) => setPicked(event.target.value)}
-                >
-                  {(data?.departments ?? []).map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </SelectBox>
+                {data ? (
+                  <SelectBox
+                    aria-label="Department"
+                    className="w-full"
+                    value={department}
+                    onChange={(event) => setPicked(event.target.value)}
+                  >
+                    {data.departments.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </SelectBox>
+                ) : (
+                  <div className="h-10 w-full animate-pulse rounded-lg bg-sunken motion-reduce:animate-none" role="status" aria-label="Loading" />
+                )}
               </div>
               <span className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-line px-3 text-sm">
                 <MapPin className="h-4 w-4 text-muted" aria-hidden="true" />
                 {data?.location ?? 'Bhubaneswar'}
               </span>
-              <p className="ml-auto text-right text-sm">
-                <span className="block text-lg font-semibold tabular-nums leading-tight">{count}</span>
-                <span className="text-muted">{count === 1 ? 'Member' : 'Members'}</span>
-                {away > 0 && <span className="text-muted">, {away} on leave today</span>}
-              </p>
+              {data ? (
+                <p className="ml-auto text-right text-sm">
+                  <span className="block text-lg font-semibold tabular-nums leading-tight">{count}</span>
+                  <span className="text-muted">{count === 1 ? 'Member' : 'Members'}</span>
+                  {away > 0 && <span className="text-muted">, {away} on leave today</span>}
+                </p>
+              ) : (
+                <div className="ml-auto h-10 w-20 animate-pulse rounded-lg bg-sunken motion-reduce:animate-none" aria-hidden="true" />
+              )}
             </Panel>
           </Reveal>
         )}

@@ -22,6 +22,7 @@ import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { dayRange, dayWord, slashDate, isoFromCreatedAt } from '../../lib/dates';
 import { useToast } from '../../lib/toast';
+import { useAppPath } from '../../hooks/useAppPath';
 
 const SESSIONS = [
   ['full', 'Full day'],
@@ -439,6 +440,7 @@ const HALF = { first: 'first half', second: 'second half' };
 // A leave recorded from "Adjust balance": it shows with the balance changes
 // and, as approved, with the year's leave.
 function RecordedLeave({ leave, onRemove }) {
+  const canRemove = Boolean(onRemove);
   const note = leave.reason && leave.reason !== 'Recorded by admin' ? leave.reason : '';
   return (
     <li className="flex items-start justify-between gap-2 border-b border-line py-2 pl-5 pr-3 text-sm last:border-b-0">
@@ -455,16 +457,19 @@ function RecordedLeave({ leave, onRemove }) {
           {leave.recordedBy?.name}, {slashDate(isoFromCreatedAt(leave.createdAt))}
         </p>
       </div>
-      <div className="flex shrink-0">
-        <IconButton label={`Remove recorded ${leave.leaveType?.name}`} onClick={onRemove}>
-          <Trash2 className="h-4 w-4" />
-        </IconButton>
-      </div>
+      {canRemove && (
+        <div className="flex shrink-0">
+          <IconButton label={`Remove recorded ${leave.leaveType?.name}`} onClick={onRemove}>
+            <Trash2 className="h-4 w-4" />
+          </IconButton>
+        </div>
+      )}
     </li>
   );
 }
 
 export default function EmployeeDetail() {
+  const appPath = useAppPath();
   const { id } = useParams();
   const { user: me } = useAuth();
   const [adjusting, setAdjusting] = useState(null);
@@ -511,6 +516,8 @@ export default function EmployeeDetail() {
   if (isError) return <LoadError error={error} onRetry={refetch} />;
 
   const { user, balances, monthly, adjustments, recent, recorded = [], year } = data;
+  // Someone above you (your manager, say) can be looked at but not changed.
+  const canChange = data.canChange !== false;
   // Balance changes and the leave recorded from "Adjust balance", newest first.
   const changes = [
     ...adjustments.map((item) => ({ ...item, kind: 'change' })),
@@ -521,7 +528,7 @@ export default function EmployeeDetail() {
     <div className="space-y-4">
       <Reveal>
         <Link
-          to="/admin/employees"
+          to={appPath('/admin/employees')}
           className="mb-3 inline-flex min-h-9 items-center gap-1 text-sm text-muted hover:text-ink"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -538,17 +545,23 @@ export default function EmployeeDetail() {
             </p>
             <p className="break-words text-base text-muted">{[user.email, user.phone].filter(Boolean).join(', ')}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setAdjusting({ item: null })}>Adjust balance</Button>
-            <Button variant="secondary" onClick={() => setEditing(true)}>
-              Edit details
-            </Button>
-            {user.id !== me.id && (
-              <Button variant={user.isActive ? 'danger' : 'secondary'} onClick={() => setToggling(true)}>
-                {user.isActive ? 'Turn off access' : 'Restore access'}
+          {canChange ? (
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => setAdjusting({ item: null })}>Adjust balance</Button>
+              <Button variant="secondary" onClick={() => setEditing(true)}>
+                Edit details
               </Button>
-            )}
-          </div>
+              {user.id !== me.id && (
+                <Button variant={user.isActive ? 'danger' : 'secondary'} onClick={() => setToggling(true)}>
+                  {user.isActive ? 'Turn off access' : 'Restore access'}
+                </Button>
+              )}
+            </div>
+          ) : (
+            <p className="rounded-lg bg-sunken px-3 py-2 text-[13px] text-muted">
+              View only: {user.name.split(' ')[0]} is above you, so only someone above them can change their details.
+            </p>
+          )}
         </div>
       </Reveal>
 
@@ -642,7 +655,7 @@ export default function EmployeeDetail() {
           <ul>
             {changes.map((item) =>
               item.kind === 'leave' ? (
-                <RecordedLeave key={item.id} leave={item} onRemove={() => setRemoving(item)} />
+                <RecordedLeave key={item.id} leave={item} onRemove={canChange ? () => setRemoving(item) : null} />
               ) : (
                 <li
                   key={item.id}
@@ -658,14 +671,16 @@ export default function EmployeeDetail() {
                       {item.createdBy?.name}, {slashDate(isoFromCreatedAt(item.createdAt))}
                     </p>
                   </div>
-                  <div className="flex shrink-0">
-                    <IconButton label={`Edit ${item.leaveType?.name} change`} onClick={() => setAdjusting({ item })}>
-                      <Pencil className="h-4 w-4" />
-                    </IconButton>
-                    <IconButton label={`Remove ${item.leaveType?.name} change`} onClick={() => setRemoving(item)}>
-                      <Trash2 className="h-4 w-4" />
-                    </IconButton>
-                  </div>
+                  {canChange && (
+                    <div className="flex shrink-0">
+                      <IconButton label={`Edit ${item.leaveType?.name} change`} onClick={() => setAdjusting({ item })}>
+                        <Pencil className="h-4 w-4" />
+                      </IconButton>
+                      <IconButton label={`Remove ${item.leaveType?.name} change`} onClick={() => setRemoving(item)}>
+                        <Trash2 className="h-4 w-4" />
+                      </IconButton>
+                    </div>
+                  )}
                 </li>
               ),
             )}

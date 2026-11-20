@@ -6,6 +6,7 @@ import { PhotoAvatar } from './ProfilePhoto';
 import { AllMembers, LeaveTag, MemberProfile, MemberRow, leaveFirst, useTeam } from './TeamPeople';
 import { SkyBanner } from './SkyBanner';
 import { Panel } from './ui';
+import { useAppPath } from '../hooks/useAppPath';
 
 // The column at the side of the home page: who you are, who you report to,
 // and the people in your department with who is on leave today.
@@ -31,6 +32,7 @@ function firstLookThisSignIn(userId) {
 }
 
 function ProfileCard({ me, onOpen }) {
+  const appPath = useAppPath();
   const [wave] = useState(() => firstLookThisSignIn(me.id));
   return (
     <Panel className="overflow-hidden text-center">
@@ -43,7 +45,7 @@ function ProfileCard({ me, onOpen }) {
         </p>
         <p className="mt-0.5 text-[13px] text-muted">{me.designation}</p>
         <LeaveTag leave={me.leave} short className="mt-2" />
-        <Link to="/profile" className="mt-3 inline-block text-[13px] font-medium text-accent hover:underline">
+        <Link to={appPath('/profile')} className="mt-3 inline-block text-[13px] font-medium text-accent hover:underline">
           Edit profile
         </Link>
       </div>

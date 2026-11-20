@@ -1,8 +1,11 @@
 // A line art mandala in the spirit of Odisha's jhoti chita: a flower at the
 // heart, rings of teardrops with dots, scallops, and lotus petals on the
-// outside. It is drawn whole and placed so that only part of it shows in the
-// card's corner. Everything is in the current text colour, so each card
-// tints it to match.
+// outside. It is placed so that only part of it shows in the card's corner,
+// in the current text colour, so each card tints it to match.
+//
+// The drawing has several hundred shapes. It is built once, as an SVG image,
+// and shown as a mask over the text colour: one element on the page that the
+// browser draws once and reuses, instead of hundreds of elements per card.
 
 const C = 100; // centre of the 200 by 200 drawing
 
@@ -30,23 +33,13 @@ const lotus = (from, to, width) => {
   );
 };
 
-function Turned({ deg, children }) {
-  return <g transform={`translate(${C} ${C}) rotate(${deg})`}>{children}</g>;
-}
+const line = (d) => `<path d="${d}" fill="none"/>`;
+const dot = (cy, r, cx = 0) => `<circle cx="${cx}" cy="${cy}" r="${r}"/>`;
+const turned = (deg, inner) => `<g transform="translate(${C} ${C}) rotate(${deg})">${inner}</g>`;
+const ring = (radius, dash) => `<circle cx="${C}" cy="${C}" r="${radius}" fill="none"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+const dots = (count, radius, size) => around(count).map((deg) => turned(deg, dot(-radius, size))).join('');
 
-function Dots({ count, radius, size, offset = 0 }) {
-  return around(count, offset).map((deg) => (
-    <Turned key={`${radius}-${deg}`} deg={deg}>
-      <circle cy={-radius} r={size} />
-    </Turned>
-  ));
-}
-
-function Ring({ radius, dash }) {
-  return <circle cx={C} cy={C} r={radius} fill="none" strokeDasharray={dash} />;
-}
-
-function Scallops({ count, radius }) {
+function scallops(count, radius) {
   const step = (2 * Math.PI) / count;
   const bump = radius * Math.sin(step / 2);
   const d = around(count)
@@ -58,81 +51,38 @@ function Scallops({ count, radius }) {
       return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${bump.toFixed(2)} ${bump.toFixed(2)} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
     })
     .join(' ');
-  return <path d={d} fill="none" />;
+  return line(d);
 }
 
+const DRAWING = [
+  // The flower at the heart
+  around(8).map((deg) => turned(deg, line(petal(3, 22, 6)) + '<path d="M0 -5 L0 -17"/>')).join(''),
+  around(8, 22.5).map((deg) => turned(deg, line(petal(4, 14, 3.5)))).join(''),
+  `<circle cx="${C}" cy="${C}" r="3"/>`,
+  ring(26),
+  dots(32, 29.5, 0.9),
+  // Teardrops with a dot inside, and small petals between them
+  around(12).map((deg) => turned(deg, line(teardrop(33, 54, 7.5)) + line(teardrop(37, 50, 4)) + dot(-41, 1.4))).join(''),
+  around(12, 15).map((deg) => turned(deg, line(petal(36, 50, 2.6)))).join(''),
+  ring(57),
+  dots(48, 60.5, 1),
+  // Paisley drops with three dots, the middle ring
+  around(12, 15).map((deg) => turned(deg, line(teardrop(64, 84, 9)) + dot(-70, 1.3) + dot(-75, 1.1, -2.6) + dot(-75, 1.1, 2.6))).join(''),
+  around(12).map((deg) => turned(deg, line(petal(64, 80, 3.4)) + dot(-83, 1.1))).join(''),
+  scallops(24, 87),
+  ring(86, '0.1 3'),
+  // Lotus petals on the outside
+  around(16).map((deg) => turned(deg, line(lotus(88, 100, 9)) + line(petal(90, 97, 2.6)) + dot(-93.5, 0.9))).join(''),
+].join('');
+
+const SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="#000" stroke="#000" stroke-width="0.9" ' +
+  `stroke-linejoin="round" stroke-linecap="round">${DRAWING}</svg>`;
+const MASK = `url("data:image/svg+xml,${encodeURIComponent(SVG)}") center / contain no-repeat`;
+const STYLE = { backgroundColor: 'currentColor', mask: MASK, WebkitMask: MASK };
+
 export function MandalaCorner({ className = '' }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 200 200"
-      className={`pointer-events-none ${className}`}
-      fill="currentColor"
-      stroke="currentColor"
-      strokeWidth="0.9"
-      strokeLinejoin="round"
-      strokeLinecap="round"
-    >
-      {/* The flower at the heart */}
-      {around(8).map((deg) => (
-        <Turned key={`h${deg}`} deg={deg}>
-          <path d={petal(3, 22, 6)} fill="none" />
-          <path d={`M0 -5 L0 -17`} />
-        </Turned>
-      ))}
-      {around(8, 22.5).map((deg) => (
-        <Turned key={`hs${deg}`} deg={deg}>
-          <path d={petal(4, 14, 3.5)} fill="none" />
-        </Turned>
-      ))}
-      <circle cx={C} cy={C} r="3" />
-      <Ring radius={26} />
-      <Dots count={32} radius={29.5} size={0.9} />
-
-      {/* Teardrops with a dot inside, and small petals between them */}
-      {around(12).map((deg) => (
-        <Turned key={`t${deg}`} deg={deg}>
-          <path d={teardrop(33, 54, 7.5)} fill="none" />
-          <path d={teardrop(37, 50, 4)} fill="none" />
-          <circle cy={-41} r="1.4" />
-        </Turned>
-      ))}
-      {around(12, 15).map((deg) => (
-        <Turned key={`ts${deg}`} deg={deg}>
-          <path d={petal(36, 50, 2.6)} fill="none" />
-        </Turned>
-      ))}
-      <Ring radius={57} />
-      <Dots count={48} radius={60.5} size={1} />
-
-      {/* Paisley drops with three dots, the middle ring */}
-      {around(12, 15).map((deg) => (
-        <Turned key={`p${deg}`} deg={deg}>
-          <path d={teardrop(64, 84, 9)} fill="none" />
-          <circle cy={-70} r="1.3" />
-          <circle cx={-2.6} cy={-75} r="1.1" />
-          <circle cx={2.6} cy={-75} r="1.1" />
-        </Turned>
-      ))}
-      {around(12).map((deg) => (
-        <Turned key={`ps${deg}`} deg={deg}>
-          <path d={petal(64, 80, 3.4)} fill="none" />
-          <circle cy={-83} r="1.1" />
-        </Turned>
-      ))}
-      <Scallops count={24} radius={87} />
-      <Ring radius={86} dash="0.1 3" />
-
-      {/* Lotus petals on the outside */}
-      {around(16).map((deg) => (
-        <Turned key={`l${deg}`} deg={deg}>
-          <path d={lotus(88, 100, 9)} fill="none" />
-          <path d={petal(90, 97, 2.6)} fill="none" />
-          <circle cy={-93.5} r="0.9" />
-        </Turned>
-      ))}
-    </svg>
-  );
+  return <span aria-hidden="true" className={`pointer-events-none block ${className}`} style={STYLE} />;
 }
 
 // The mandala as a card background: drawn behind everything, with a faint

@@ -1,21 +1,16 @@
-import { motion, useReducedMotion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
 import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Select } from './Select';
 
-const EASE = [0.16, 1, 0.3, 1];
-
+// Content eases in as a page opens. A CSS animation, so the browser runs it
+// off the main thread; it leaves nothing behind once done (no transform that
+// could throw off a dropdown inside).
 export function Reveal({ delay = 0, className = '', children }) {
-  const reduce = useReducedMotion();
   return (
-    <motion.div
-      className={className}
-      initial={reduce ? false : { opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: EASE, delay }}
-    >
+    <div className={`reveal ${className}`} style={delay ? { animationDelay: `${delay}s` } : undefined}>
       {children}
-    </motion.div>
+    </div>
   );
 }
 
@@ -36,6 +31,21 @@ export function Button({ variant = 'primary', className = '', loading, disabled,
     >
       {loading ? 'Please wait' : children}
     </button>
+  );
+}
+
+// A link that looks like a Button, for actions that open another page. (A
+// Button inside a Link is two controls in one, which keyboards and screen
+// readers stumble over.)
+export function ButtonLink({ to, variant = 'primary', className = '', children, ...props }) {
+  return (
+    <Link
+      to={to}
+      className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium transition-colors duration-150 max-sm:h-11 ${BUTTON_STYLES[variant]} ${className}`}
+      {...props}
+    >
+      {children}
+    </Link>
   );
 }
 
@@ -132,7 +142,19 @@ export function SelectField({ label, hint, error, children, ...props }) {
 }
 
 export function Panel({ className = '', children }) {
-  return <section className={`overflow-hidden rounded-xl border border-line bg-surface shadow-card ${className}`}>{children}</section>;
+  return <section className={`relative overflow-hidden rounded-xl border border-line bg-surface shadow-card ${className}`}>{children}</section>;
+}
+
+// A thin moving bar along the top of a panel while its data is being fetched,
+// for when the panel already shows something (last month's calendar, the
+// previous filter's rows) and the new answer is on its way.
+export function LoadingBar({ show }) {
+  if (!show) return null;
+  return (
+    <div role="progressbar" aria-label="Loading" className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden">
+      <div className="loading-bar h-full w-1/3 rounded-full bg-accent" />
+    </div>
+  );
 }
 
 export function PanelTitle({ children, action }) {
@@ -155,7 +177,7 @@ export function Empty({ title, children }) {
 
 export function RowsSkeleton({ rows = 4 }) {
   return (
-    <div className="space-y-3 p-5" aria-hidden="true">
+    <div className="space-y-3 p-5" role="status" aria-label="Loading">
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className="h-9 animate-pulse rounded-lg bg-sunken motion-reduce:animate-none" />
       ))}

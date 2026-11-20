@@ -103,7 +103,7 @@ export function LeaveTotalsPage() {
   const [department, setDepartment] = useState('all');
   const [month, setMonth] = useState(null);
   const [type, setType] = useState(null);
-  const { data, isPending, isError, error, refetch } = useQuery({
+  const { data, isPending, isError, error, refetch, isPlaceholderData, isFetching } = useQuery({
     queryKey: ['team-totals', department, month, type],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -165,15 +165,40 @@ export function LeaveTotalsPage() {
             )
           }
         >
-          {data ? `${scope} · ${typeName} · ${data.year}` : ' '}
+          {data ? (
+            `${scope} · ${typeName} · ${data.year}`
+          ) : (
+            <span className="mt-1 block h-4 w-56 max-w-full animate-pulse rounded bg-sunken motion-reduce:animate-none" aria-hidden="true" />
+          )}
         </PageHeading>
       </StickyTop>
 
-      {isPending && <RowsSkeleton rows={5} />}
+      {isPending && (
+        <div className="space-y-4">
+          <Panel>
+            <div className="grid grid-cols-2 gap-px bg-line lg:grid-cols-4" aria-hidden="true">
+              {[0, 1, 2, 3].map((cell) => (
+                <div key={cell} className="space-y-2 bg-surface px-4 py-4 sm:px-5">
+                  <div className="h-3 w-20 animate-pulse rounded bg-sunken motion-reduce:animate-none" />
+                  <div className="h-8 w-14 animate-pulse rounded-lg bg-sunken motion-reduce:animate-none" />
+                </div>
+              ))}
+            </div>
+          </Panel>
+          <Panel>
+            <RowsSkeleton rows={5} />
+          </Panel>
+        </div>
+      )}
       {isError && <LoadError error={error} onRetry={refetch} />}
 
       {data && (
-        <div className="space-y-4">
+        <div className={`relative space-y-4 transition-opacity duration-200 ${isPlaceholderData ? 'opacity-60' : ''}`}>
+          {isFetching && isPlaceholderData && (
+            <div className="fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden" role="progressbar" aria-label="Loading">
+              <div className="loading-bar h-full w-1/3 rounded-full bg-accent" />
+            </div>
+          )}
           <Reveal>
             <Panel>
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-line lg:grid-cols-4">

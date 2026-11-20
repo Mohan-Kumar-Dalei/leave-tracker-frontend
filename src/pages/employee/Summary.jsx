@@ -17,7 +17,6 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { homeOf, isStaff } from '../../lib/home';
 import { ApplyLeaveDialog } from '../../components/ApplyLeave';
@@ -26,7 +25,7 @@ import { MonthlyBars } from '../../components/MonthlyBars';
 import { TeamCalendarView } from '../../components/TeamCalendarView';
 import { HomeSidebar } from '../../components/HomeSidebar';
 import { MandalaBackdrop } from '../../components/MandalaCorner';
-import { Button, IconButton, LoadError, Panel, PanelTitle, Reveal, StickyTop } from '../../components/ui';
+import { Button, ButtonLink, IconButton, LoadError, Panel, PanelTitle, Reveal, StickyTop } from '../../components/ui';
 import { api } from '../../lib/api';
 import { dayWord, longDate, slashDate, weekday, greeting } from '../../lib/dates';
 
@@ -253,6 +252,14 @@ function subtitle(data) {
   return `${lead} Next up: ${next.title}, ${weekday(next.from)} ${longDate(next.from)}.`;
 }
 
+// A number in the year line, or a small loading block until it is known.
+function Figure({ value }) {
+  if (value === undefined) {
+    return <span className="inline-block h-3 w-5 animate-pulse rounded bg-sunken align-middle motion-reduce:animate-none" aria-label="Loading" />;
+  }
+  return <span className="font-medium tabular-nums text-ink">{value}</span>;
+}
+
 export default function Summary() {
   const { user } = useAuth();
   const [year, setYear] = useState(null);
@@ -294,16 +301,18 @@ export default function Summary() {
             <h1 className="text-[22px] sm:text-2xl">
               {greeting()}, {user.name.split(' ')[0]}
             </h1>
-            <p className="mt-1 text-sm text-muted">{data ? subtitle(data) : ' '}</p>
+            {data ? (
+              <p className="mt-1 text-sm text-muted">{subtitle(data)}</p>
+            ) : (
+              <p className="mt-2 h-4 w-56 max-w-full animate-pulse rounded bg-sunken motion-reduce:animate-none" aria-hidden="true" />
+            )}
           </div>
           <div className="flex flex-wrap gap-2 max-sm:w-full">
             {/* Managers and assistant managers can correct their own balance. */}
             {isStaff(user) && (
-              <Link to={`${homeOf(user)}/employees/${user.id}`} className="max-sm:flex-1">
-                <Button variant="secondary" className="w-full">
-                  Edit my balance
-                </Button>
-              </Link>
+              <ButtonLink to={`${homeOf(user)}/employees/${user.id}`} variant="secondary" className="max-sm:flex-1">
+                Edit my balance
+              </ButtonLink>
             )}
             <Button className="max-sm:flex-1" onClick={() => setDialog({ open: true, preset: null })}>
               Apply Leave
@@ -313,10 +322,9 @@ export default function Summary() {
 
         <Reveal delay={0.04} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
           <p className="text-[13px] text-muted">
-            Leave applied this year:{' '}
-            <span className="font-medium tabular-nums text-ink">{data?.bookedThisYear ?? 0}</span>
+            Leave applied this year: <Figure value={data?.bookedThisYear} />
             <span className="mx-2 text-line">|</span>
-            Absent: <span className="font-medium tabular-nums text-ink">{data?.absent ?? 0}</span>
+            Absent: <Figure value={data?.absent} />
           </p>
 
           <div className="flex items-center rounded-lg border border-line bg-surface shadow-card">

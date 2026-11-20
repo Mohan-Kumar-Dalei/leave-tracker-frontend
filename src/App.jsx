@@ -4,26 +4,27 @@ import { AppShell } from './components/AppShell';
 import { Button } from './components/ui';
 import { useAuth } from './lib/auth';
 import { baseOf, homeOf, pathFor, positionOf } from './lib/home';
+import { pageLoaders } from './lib/pageLoaders';
 import { ForgotPassword, Login, ResetPassword } from './pages/auth/AuthPages';
 import Profile from './pages/Profile';
 import MyRequests from './pages/employee/MyRequests';
 import Summary from './pages/employee/Summary';
 import TeamCalendar from './pages/TeamCalendar';
 
-const Landing = lazy(() => import('./pages/Landing'));
-const Overview = lazy(() => import('./pages/admin/Overview'));
-const Team = lazy(() => import('./pages/Team'));
-const AdminRequests = lazy(() => import('./pages/admin/AdminRequests'));
-const Employees = lazy(() => import('./pages/admin/Employees'));
-const EmployeeDetail = lazy(() => import('./pages/admin/EmployeeDetail'));
-const Setup = lazy(() => import('./pages/admin/Setup'));
-const Schedule = lazy(() => import('./pages/admin/Schedule'));
-const Organisation = lazy(() => import('./pages/org/Organisation'));
-const LeaveTotalsPage = lazy(() => import('./components/LeaveTotals').then((module) => ({ default: module.LeaveTotalsPage })));
-const DepartmentHome = lazy(() => import('./pages/org/DepartmentHome'));
-const Register = lazy(() => import('./pages/org/Register'));
-const AcceptInvite = lazy(() => import('./pages/org/JoinPages').then((module) => ({ default: module.AcceptInvite })));
-const JoinDepartment = lazy(() => import('./pages/org/JoinPages').then((module) => ({ default: module.JoinDepartment })));
+const Landing = lazy(pageLoaders.Landing);
+const Overview = lazy(pageLoaders.Overview);
+const Team = lazy(pageLoaders.Team);
+const AdminRequests = lazy(pageLoaders.AdminRequests);
+const Employees = lazy(pageLoaders.Employees);
+const EmployeeDetail = lazy(pageLoaders.EmployeeDetail);
+const Setup = lazy(pageLoaders.Setup);
+const Schedule = lazy(pageLoaders.Schedule);
+const Organisation = lazy(pageLoaders.Organisation);
+const LeaveTotalsPage = lazy(() => pageLoaders.LeaveTotals().then((module) => ({ default: module.LeaveTotalsPage })));
+const DepartmentHome = lazy(pageLoaders.DepartmentHome);
+const Register = lazy(pageLoaders.Register);
+const AcceptInvite = lazy(() => pageLoaders.JoinPages().then((module) => ({ default: module.AcceptInvite })));
+const JoinDepartment = lazy(() => pageLoaders.JoinPages().then((module) => ({ default: module.JoinDepartment })));
 
 // The pages under each person's address (see lib/home.js), by position.
 // '' is the page their address opens on.
@@ -72,8 +73,23 @@ function Public({ children }) {
   return <Suspense fallback={null}>{children}</Suspense>;
 }
 
+// While a page's code is on its way: the shape of a page (a heading, a line
+// under it, and a panel of rows), so nothing jumps when it arrives.
 function Loading() {
-  return <div className="h-40 animate-pulse rounded-xl bg-sunken motion-reduce:animate-none" aria-label="Loading" />;
+  const block = 'animate-pulse rounded-lg bg-sunken motion-reduce:animate-none';
+  return (
+    <div role="status" aria-label="Loading" className="space-y-4">
+      <div className="space-y-2 pb-2">
+        <div className={`h-7 w-48 ${block}`} />
+        <div className={`h-4 w-72 max-w-full ${block}`} />
+      </div>
+      <div className="space-y-3 rounded-xl border border-line bg-surface p-5 shadow-card">
+        {[0, 1, 2, 3, 4].map((row) => (
+          <div key={row} className={`h-9 ${block}`} />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function ServerDown() {

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { EmployeeIdField } from '../../components/EmployeeIdField';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, PasswordInput, TextInput } from '../../components/ui';
+import { Button, ButtonLink, PasswordInput, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
 import { AuthLayout, authLink, FormError } from '../auth/AuthPages';
 
@@ -44,9 +44,9 @@ function Done({ title, children }) {
     <AuthLayout title={title}>
       <div className="space-y-4">
         <p className="rounded-lg bg-accent-soft px-3 py-2.5 text-sm">{children}</p>
-        <Link to="/login" className="block">
-          <Button className="h-10! w-full">Go to sign in</Button>
-        </Link>
+        <ButtonLink to="/login" className="h-10! w-full">
+          Go to sign in
+        </ButtonLink>
       </div>
     </AuthLayout>
   );

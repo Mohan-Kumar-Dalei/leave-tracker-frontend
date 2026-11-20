@@ -1,12 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
-import { LayoutGroup, motion } from 'framer-motion';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck, ChevronsUpDown, House, LogOut, Menu, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
+import { useSlider } from '../hooks/useSlider';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { homeOf, positionOf } from '../lib/home';
+import { preloadPages } from '../lib/pageLoaders';
+import { prefetchPage } from '../lib/prefetch';
 import { setTheme, useTheme } from '../lib/theme';
 import { NotificationBell } from './NotificationBell';
 import { Avatar } from './ProfilePhoto';
@@ -235,64 +237,45 @@ function Badge({ count, className = '' }) {
   );
 }
 
-// The tabs of the open section, along the top.
-const TAB_SPRING = { type: 'spring', stiffness: 520, damping: 42, mass: 0.8 };
-
-// The section's pages along the top. The blue underline slides across to the
-// tab you open, and a soft pill follows the pointer over the others.
-function SectionTabs({ section, home, badge }) {
-  const [hovered, setHovered] = useState(null);
+// The tabs of the open section, along the top. The blue line slides to the
+// tab you press at once (a CSS transform, so it glides even while the next
+// page is drawn), and pointing at a tab starts fetching that page's data.
+function SectionTabs({ section, home, badge, onWarm }) {
+  const { pathname } = useLocation();
+  const active = section.items.findIndex((item) => isOpen(item, home, pathname));
+  const { track, marker, itemRef, slideTo } = useSlider(active, { kind: 'line', inset: 12 });
   return (
-    <LayoutGroup id={`tabs-${section.label}`}>
-      <nav
-        aria-label={section.label}
-        onMouseLeave={() => setHovered(null)}
-        className="flex min-w-0 items-stretch gap-1 overflow-x-auto [scrollbar-width:none]"
-      >
-        {section.items.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to ? `${home}/${item.to}` : home}
-            end={item.end}
-            onMouseEnter={() => setHovered(item.to)}
-            onFocus={() => setHovered(item.to)}
-            onBlur={() => setHovered(null)}
-            className={({ isActive }) =>
-              `relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-200 ${
-                isActive ? 'text-ink' : 'text-muted hover:text-ink'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                {hovered === item.to && (
-                  <motion.span
-                    layoutId="tab-hover"
-                    aria-hidden="true"
-                    className="absolute inset-x-0.5 inset-y-2 rounded-lg bg-sunken"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={TAB_SPRING}
-                  />
-                )}
-                <span className="relative flex items-center gap-1.5">
-                  {item.label}
-                  {item.badge && <Badge count={badge} />}
-                </span>
-                {isActive && (
-                  <motion.span
-                    layoutId="tab-line"
-                    aria-hidden="true"
-                    className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-accent"
-                    transition={TAB_SPRING}
-                  />
-                )}
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
-    </LayoutGroup>
+    <nav
+      ref={track}
+      aria-label={section.label}
+      className="relative flex min-w-0 items-stretch gap-1 overflow-x-auto [scrollbar-width:none]"
+    >
+      {section.items.map((item, index) => (
+        <NavLink
+          key={item.to}
+          ref={itemRef(index)}
+          to={item.to ? `${home}/${item.to}` : home}
+          end={item.end}
+          onPointerEnter={() => onWarm(item.to)}
+          onFocus={() => onWarm(item.to)}
+          onPointerDown={() => slideTo(index)}
+          onClick={() => slideTo(index)}
+          className={({ isActive }) =>
+            `relative my-2 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors duration-200 ${
+              isActive ? 'text-ink' : 'text-muted hover:bg-sunken hover:text-ink'
+            }`
+          }
+        >
+          {item.label}
+          {item.badge && <Badge count={badge} />}
+        </NavLink>
+      ))}
+      <span
+        ref={marker}
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-0 left-0 h-[2.5px] w-[100px] origin-left rounded-full bg-accent opacity-0 transition-[transform,opacity] duration-[380ms] ease-[var(--ease-calm)] motion-reduce:transition-none"
+      />
+    </nav>
   );
 }
 
@@ -348,6 +331,24 @@ export function AppShell() {
   const sectionBadge = (section) => (section.items.some((item) => item.badge) ? badge : 0);
   const firstPage = (section) => (section.items[0].to ? `${home}/${section.items[0].to}` : home);
 
+  // Every request to the live server takes about a third of a second, so the
+  // app fetches ahead: a page's data as soon as its tab or section is pointed
+  // at, and, once the open page has settled, the code for every page and the
+  // data for the open section's other tabs.
+  const queryClient = useQueryClient();
+  const warm = (path) => prefetchPage(queryClient, position, path);
+  useEffect(() => {
+    const later = window.requestIdleCallback ?? ((run) => setTimeout(run, 1200));
+    const cancel = window.cancelIdleCallback ?? clearTimeout;
+    const handle = later(() => {
+      preloadPages();
+      for (const item of current.items) prefetchPage(queryClient, position, item.to);
+    });
+    return () => cancel(handle);
+    // The section's items are rebuilt each render; its key says when it changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current.key, position, queryClient]);
+
   return (
     <div className={`min-h-dvh pb-20 transition-[padding] duration-300 ease-[var(--ease-calm)] lg:pb-0 ${open ? 'lg:pl-60' : 'lg:pl-[76px]'}`}>
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2">
@@ -361,7 +362,6 @@ export function AppShell() {
           open ? 'w-60' : 'w-[76px]'
         }`}
       >
-        <div aria-hidden="true" className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full bg-accent/30 blur-3xl" />
         <div className={`relative flex h-16 shrink-0 items-center gap-2 ${open ? 'px-4' : 'justify-center px-2'}`}>
           <button
             type="button"
@@ -392,6 +392,8 @@ export function AppShell() {
               <Link
                 key={section.key}
                 to={firstPage(section)}
+                onPointerEnter={() => warm(section.items[0].to)}
+                onFocus={() => warm(section.items[0].to)}
                 aria-current={active ? 'page' : undefined}
                 aria-label={open ? undefined : section.label}
                 title={open ? undefined : section.label}
@@ -439,7 +441,7 @@ export function AppShell() {
 
       {/* The top: the open section's pages as tabs, and the account on the
           right. On phones the logo row sits above the tabs. */}
-      <header className="sticky top-0 z-20 border-b border-line bg-surface/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-line bg-surface">
         <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6 lg:hidden">
           <Link to={home}>
             <Logo />
@@ -451,7 +453,7 @@ export function AppShell() {
           </div>
         </div>
         <div className="flex h-11 items-stretch justify-between gap-3 px-2 sm:px-4 lg:h-14 lg:px-6">
-          <SectionTabs key={current.label} section={current} home={home} badge={badge} />
+          <SectionTabs key={current.label} section={current} home={home} badge={badge} onWarm={warm} />
           <div className="hidden items-center gap-1.5 lg:flex">
             <ThemeSwitch />
             <NotificationBell />
@@ -472,6 +474,7 @@ export function AppShell() {
             <Link
               key={section.key}
               to={firstPage(section)}
+              onPointerDown={() => warm(section.items[0].to)}
               aria-current={active ? 'page' : undefined}
               className={`relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium ${
                 active ? 'text-accent' : 'text-muted'

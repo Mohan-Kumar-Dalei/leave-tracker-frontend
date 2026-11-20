@@ -22,6 +22,7 @@ import { AddEmployeeDialog } from '../../components/AddEmployeeDialog';
 import { SegmentedTabs } from '../../components/Tabs';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
+import { useAppPath } from '../../hooks/useAppPath';
 
 // The organisation, run by the managers (HR is turned off for now), kept simple like
 // Zoho: a Departments list (name, manager, assistant manager, how many
@@ -529,13 +530,14 @@ function ManagerCell({ department }) {
 // On a phone each department is a small card: name, manager, every assistant
 // manager, and the people count, with Open and Edit.
 function DepartmentCards({ departments, onEdit, onShowPeople }) {
+  const appPath = useAppPath();
   return (
     <ul className="divide-y divide-line sm:hidden">
       {departments.map((department) => (
         <li key={department.id} className="space-y-3 px-4 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <Link to={`/departments/${department.id}`} className="font-medium hover:text-accent">
+              <Link to={appPath(`/departments/${department.id}`)} className="font-medium hover:text-accent">
                 {department.name}
               </Link>
               <span className="block text-xs text-muted">{department.location || 'No location'}</span>
@@ -560,14 +562,16 @@ function DepartmentCards({ departments, onEdit, onShowPeople }) {
           </dl>
           <div className="flex gap-2">
             <Link
-              to={`/departments/${department.id}`}
+              to={appPath(`/departments/${department.id}`)}
               className="inline-flex h-9 flex-1 items-center justify-center rounded-lg bg-accent-soft text-sm font-medium text-accent"
             >
               Open
             </Link>
-            <Button variant="ghost" className="flex-1" onClick={() => onEdit(department)}>
-              Edit
-            </Button>
+            {department.canEdit !== false && (
+              <Button variant="ghost" className="flex-1" onClick={() => onEdit(department)}>
+                Edit
+              </Button>
+            )}
           </div>
         </li>
       ))}
@@ -576,6 +580,7 @@ function DepartmentCards({ departments, onEdit, onShowPeople }) {
 }
 
 function DepartmentsTable({ departments, onEdit, onShowPeople }) {
+  const appPath = useAppPath();
   if (!departments.length) return <Empty title="No departments yet">Add the first one to start.</Empty>;
   return (
     <>
@@ -597,7 +602,7 @@ function DepartmentsTable({ departments, onEdit, onShowPeople }) {
             {departments.map((department) => (
               <tr key={department.id} className="hover:bg-bg/60">
                 <td className={cell}>
-                  <Link to={`/departments/${department.id}`} className="font-medium hover:text-accent hover:underline underline-offset-4">
+                  <Link to={appPath(`/departments/${department.id}`)} className="font-medium hover:text-accent hover:underline underline-offset-4">
                     {department.name}
                   </Link>
                   <span className="block text-xs text-muted">{department.location || 'No location'}</span>
@@ -624,14 +629,16 @@ function DepartmentsTable({ departments, onEdit, onShowPeople }) {
                 </td>
                 <td className={`${cell} w-0 whitespace-nowrap text-right`}>
                   <Link
-                    to={`/departments/${department.id}`}
+                    to={appPath(`/departments/${department.id}`)}
                     className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium text-accent hover:bg-accent-soft"
                   >
                     Open
                   </Link>
-                  <Button variant="ghost" onClick={() => onEdit(department)}>
-                    Edit
-                  </Button>
+                  {department.canEdit !== false && (
+                    <Button variant="ghost" onClick={() => onEdit(department)}>
+                      Edit
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -765,7 +772,11 @@ export default function Organisation() {
     <div>
       <StickyTop>
         <PageHeading title="Organisation" actions={action}>
-          {data ? `${data.company.name} · ${data.departments.length} departments · ${data.people.length} employees` : ' '}
+          {data ? (
+            `${data.company.name} · ${data.departments.length} departments · ${data.people.length} employees`
+          ) : (
+            <span className="mt-1 block h-4 w-64 max-w-full animate-pulse rounded bg-sunken motion-reduce:animate-none" aria-hidden="true" />
+          )}
         </PageHeading>
         <SegmentedTabs label="Organisation view" tabs={TABS} value={tab} onChange={go} />
       </StickyTop>

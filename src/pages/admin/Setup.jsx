@@ -6,6 +6,8 @@ import { Button, ConfirmDialog, Dialog, Empty, IconButton, LoadError, PageHeadin
 import { api } from '../../lib/api';
 import { slashDate, weekday } from '../../lib/dates';
 import { useToast } from '../../lib/toast';
+import { useAuth } from '../../lib/auth';
+import { positionOf } from '../../lib/home';
 
 const DATE_NOTE = 'Subject to change depending on the actual holiday date (as per past experience)';
 
@@ -76,7 +78,7 @@ function LeaveTypeDialog({ item, onClose }) {
   );
 }
 
-function LeaveTypes() {
+function LeaveTypes({ canEdit }) {
   const [editing, setEditing] = useState(null);
   const { data, isPending, isError, error, refetch } = useQuery({ queryKey: ['leave-types'], queryFn: () => api.get('/leave-types') });
 
@@ -95,9 +97,11 @@ function LeaveTypes() {
               <p className="text-right text-sm tabular-nums text-muted">
                 {type.tracksBalance ? `${type.annualQuota} days a year` : 'No limit'}
               </p>
-              <IconButton label={`Edit ${type.name}`} onClick={() => setEditing(type)}>
-                <Pencil className="h-4 w-4" />
-              </IconButton>
+              {canEdit && (
+                <IconButton label={`Edit ${type.name}`} onClick={() => setEditing(type)}>
+                  <Pencil className="h-4 w-4" />
+                </IconButton>
+              )}
             </div>
           </li>
         ))}
@@ -176,7 +180,7 @@ function HolidayDialog({ open, item, year, onClose }) {
   );
 }
 
-function Holidays() {
+function Holidays({ canEdit }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [dialog, setDialog] = useState(null);
   const [removing, setRemoving] = useState(null);
@@ -213,9 +217,11 @@ function Holidays() {
             <ChevronRight className="h-4 w-4" />
           </IconButton>
         </div>
-        <Button variant="secondary" onClick={() => setDialog({ item: null })}>
-          Add holiday
-        </Button>
+        {canEdit && (
+          <Button variant="secondary" onClick={() => setDialog({ item: null })}>
+            Add holiday
+          </Button>
+        )}
       </div>
 
       {isPending && <RowsSkeleton />}
@@ -233,14 +239,16 @@ function Holidays() {
                 {slashDate(holiday.date)}, {weekday(holiday.date)}
               </p>
             </div>
-            <div className="flex shrink-0">
-              <IconButton label={`Edit ${holiday.name}`} onClick={() => setDialog({ item: holiday })}>
-                <Pencil className="h-4 w-4" />
-              </IconButton>
-              <IconButton label={`Remove ${holiday.name}`} onClick={() => setRemoving(holiday)}>
-                <Trash2 className="h-4 w-4" />
-              </IconButton>
-            </div>
+            {canEdit && (
+              <div className="flex shrink-0">
+                <IconButton label={`Edit ${holiday.name}`} onClick={() => setDialog({ item: holiday })}>
+                  <Pencil className="h-4 w-4" />
+                </IconButton>
+                <IconButton label={`Remove ${holiday.name}`} onClick={() => setRemoving(holiday)}>
+                  <Trash2 className="h-4 w-4" />
+                </IconButton>
+              </div>
+            )}
           </li>
         ))}
       </ul>
@@ -262,11 +270,19 @@ function Holidays() {
 }
 
 export default function Setup() {
+  const { user } = useAuth();
   const [tab, setTab] = useState('holidays');
+  // The lists are the same for the whole company: managers change them,
+  // assistant managers see them.
+  const canEdit = positionOf(user) === 'manager' || positionOf(user) === 'hr';
 
   return (
     <div>
-      <PageHeading title="Setup">The holiday list and the leave rules everyone works from.</PageHeading>
+      <PageHeading title="Setup">
+        {canEdit
+          ? 'The holiday list and the leave rules everyone works from.'
+          : 'The holiday list and the leave rules everyone works from. Your manager changes them.'}
+      </PageHeading>
       <Reveal delay={0.08}>
         <Tabs
           label="Setup sections"
@@ -278,7 +294,7 @@ export default function Setup() {
           onChange={setTab}
           className="mb-4"
         />
-        {tab === 'holidays' ? <Holidays /> : <LeaveTypes />}
+        {tab === 'holidays' ? <Holidays canEdit={canEdit} /> : <LeaveTypes canEdit={canEdit} />}
       </Reveal>
     </div>
   );

@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { dayWord, monthKey, monthLabel, shortRange } from '../lib/dates';
 import { CalendarGrid } from './CalendarGrid';
 import { StatusBadge } from './StatusBadge';
-import { LoadError, Panel, PanelTitle } from './ui';
+import { LoadError, LoadingBar, Panel, PanelTitle, RowsSkeleton } from './ui';
 
 const shortName = (name = '') => {
   const [first, last] = name.split(' ');
@@ -57,13 +57,14 @@ function toEvents(data) {
   return byDay;
 }
 
-function MonthLeaves({ leaves, title }) {
+function MonthLeaves({ leaves, title, loading }) {
   return (
     <Panel>
       <PanelTitle>{title}</PanelTitle>
-      {leaves.length === 0 && <p className="px-4 py-4 text-sm text-muted">Nobody has applied for leave this month.</p>}
+      {loading && <RowsSkeleton rows={3} />}
+      {!loading && leaves.length === 0 && <p className="px-4 py-4 text-sm text-muted">Nobody has applied for leave this month.</p>}
       <ul className="max-h-[32rem] overflow-y-auto">
-        {leaves.map((leave) => (
+        {!loading && leaves.map((leave) => (
           <li key={leave.id} className="border-b border-line px-4 py-2.5 last:border-b-0">
             <div className="flex items-center justify-between gap-3">
               <p className="min-w-0 truncate text-sm font-medium">{leave.name}</p>
@@ -83,7 +84,7 @@ function MonthLeaves({ leaves, title }) {
 // The whole team's leave for a month. Admins see it on the Team calendar page and
 // employees in the calendar view of My leave.
 export function TeamCalendarView({ year, month, onMonthChange, minMonth, maxMonth }) {
-  const { data, isError, error, refetch } = useQuery({
+  const { data, isError, error, refetch, isPlaceholderData, isFetching } = useQuery({
     queryKey: ['team-calendar', year, month],
     queryFn: () => api.get(`/team-calendar?month=${monthKey(year, month)}`),
     placeholderData: keepPreviousData,
@@ -95,6 +96,7 @@ export function TeamCalendarView({ year, month, onMonthChange, minMonth, maxMont
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[1fr_320px]">
       <Panel>
+        <LoadingBar show={isFetching && (!data || isPlaceholderData)} />
         {isError ? (
           <LoadError error={error} onRetry={refetch} />
         ) : (
@@ -110,7 +112,11 @@ export function TeamCalendarView({ year, month, onMonthChange, minMonth, maxMont
           />
         )}
       </Panel>
-      <MonthLeaves leaves={data?.leaves ?? []} title={`Leave in ${monthLabel(year, month)}`} />
+      <MonthLeaves
+        leaves={data?.leaves ?? []}
+        loading={!data || isPlaceholderData}
+        title={`Leave in ${monthLabel(year, month)}`}
+      />
     </div>
   );
 }

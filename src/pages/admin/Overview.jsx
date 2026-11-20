@@ -8,6 +8,7 @@ import { Empty, LoadError, Panel, PanelTitle, Reveal, RowsSkeleton } from '../..
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { dayWord, greeting, longDate, shortRange, weekday } from '../../lib/dates';
+import { useAppPath } from '../../hooks/useAppPath';
 
 // The stat cards sit 2 or 4 to a row, so cards pair up the same way at every
 // size: each pair shares one mandala, centred on the top edge in the gap
@@ -30,11 +31,14 @@ function Stat({ label, value, icon: Icon, index, ink }) {
   );
 }
 
-function PeopleList({ title, items, empty, describe }) {
+// While the data is on its way the list shows loading rows, never its
+// "nobody" line, which would be wrong until the answer is in.
+function PeopleList({ title, items, empty, describe, loading }) {
   return (
     <Panel>
       <PanelTitle>{title}</PanelTitle>
-      {items.length === 0 && <p className="px-5 py-4 text-sm text-muted">{empty}</p>}
+      {loading && <RowsSkeleton rows={2} />}
+      {!loading && items.length === 0 && <p className="px-5 py-4 text-sm text-muted">{empty}</p>}
       <ul>
         {items.map((leave) => (
           <li
@@ -107,6 +111,7 @@ function subtitle(data) {
 }
 
 export default function Overview() {
+  const appPath = useAppPath();
   const { user } = useAuth();
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['admin-overview'],
@@ -121,7 +126,11 @@ export default function Overview() {
         <h1 className="text-[22px] sm:text-2xl">
           {greeting()}, {user.name.split(' ')[0]}
         </h1>
-        <p className="mt-1 text-sm text-muted">{data ? subtitle(data) : ' '}</p>
+        {data ? (
+          <p className="mt-1 text-sm text-muted">{subtitle(data)}</p>
+        ) : (
+          <p className="mt-2 h-4 w-64 max-w-full animate-pulse rounded bg-sunken motion-reduce:animate-none" aria-hidden="true" />
+        )}
       </Reveal>
       <div className="grid items-start gap-4 lg:grid-cols-[264px_minmax(0,1fr)]">
         <aside className="order-last lg:order-first">
@@ -154,7 +163,7 @@ export default function Overview() {
                 <PanelTitle
                   action={
                     <Link
-                      to="/admin/requests"
+                      to={appPath('/admin/requests')}
                       className="text-[13px] font-medium text-accent hover:underline underline-offset-4"
                     >
                       View all
@@ -175,18 +184,21 @@ export default function Overview() {
               <PeopleList
                 title="Away today"
                 items={data?.awayToday ?? []}
+                loading={isPending}
                 empty="Everyone is in."
                 describe={(leave) => `until ${shortRange(leave.to, leave.to)}`}
               />
               <PeopleList
                 title="Away in the next 14 days"
                 items={data?.nextUp ?? []}
+                loading={isPending}
                 empty="No leave coming up."
                 describe={(leave) => shortRange(leave.from, leave.to)}
               />
               <Panel>
                 <PanelTitle>Coming holidays</PanelTitle>
-                {(data?.holidays ?? []).length === 0 && (
+                {isPending && <RowsSkeleton rows={2} />}
+                {data && data.holidays.length === 0 && (
                   <p className="px-5 py-4 text-sm text-muted">No holidays are listed.</p>
                 )}
                 <ul>
@@ -205,11 +217,16 @@ export default function Overview() {
               </Panel>
             </Reveal>
 
-            {data && (
-              <Reveal delay={0.1} className="2xl:col-start-1 2xl:row-start-2">
+            <Reveal delay={0.1} className="2xl:col-start-1 2xl:row-start-2">
+              {data ? (
                 <UsageByType rows={data.byType} />
-              </Reveal>
-            )}
+              ) : (
+                <Panel>
+                  <PanelTitle>Days used this year, by leave type</PanelTitle>
+                  <RowsSkeleton rows={3} />
+                </Panel>
+              )}
+            </Reveal>
           </div>
         </div>
       </div>

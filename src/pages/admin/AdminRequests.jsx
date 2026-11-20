@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs } from '../../components/Tabs';
 import { ReviewList } from '../../components/ReviewList';
-import { Empty, LoadError, PageHeading, Pagination, Panel, Reveal, RowsSkeleton, SelectBox } from '../../components/ui';
+import { Empty, LoadError, LoadingBar, PageHeading, Pagination, Panel, Reveal, RowsSkeleton, SelectBox } from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
 
 const TABS = [
@@ -34,7 +34,7 @@ export default function AdminRequests() {
 
   const query = { status: status === 'all' ? '' : status, leaveType, q, department };
 
-  const { data, isPending, isError, error, refetch } = useQuery({
+  const { data, isPending, isError, error, refetch, isPlaceholderData, isFetching } = useQuery({
     queryKey: ['admin-leaves', query, page],
     queryFn: () => api.get(`/admin/leaves${toQuery({ ...query, page, limit: 15 })}`),
     placeholderData: keepPreviousData,
@@ -122,15 +122,19 @@ export default function AdminRequests() {
         </div>
 
         <Panel>
+          <LoadingBar show={isFetching && isPlaceholderData} />
           {isPending && <RowsSkeleton />}
           {isError && <LoadError error={error} onRetry={refetch} />}
-          {data?.items.length === 0 && (
-            <Empty title={status === 'pending' ? 'All caught up' : 'No requests match'}>
-              {status === 'pending' ? 'New requests appear here as soon as they are sent.' : 'Try another filter.'}
-            </Empty>
-          )}
-          {data && <ReviewList key={status} items={data.items} keepFinished={status !== 'pending'} />}
-          {data && <Pagination page={data.page} pages={data.pages} total={data.total} onChange={setPage} />}
+          {/* Another filter's rows stay, dimmed, until this one's arrive. */}
+          <div className={`transition-opacity duration-200 ${isPlaceholderData ? 'opacity-50' : ''}`}>
+            {data?.items.length === 0 && !isPlaceholderData && (
+              <Empty title={status === 'pending' ? 'All caught up' : 'No requests match'}>
+                {status === 'pending' ? 'New requests appear here as soon as they are sent.' : 'Try another filter.'}
+              </Empty>
+            )}
+            {data && <ReviewList key={status} items={data.items} keepFinished={status !== 'pending'} />}
+            {data && <Pagination page={data.page} pages={data.pages} total={data.total} onChange={setPage} />}
+          </div>
         </Panel>
       </Reveal>
     </div>

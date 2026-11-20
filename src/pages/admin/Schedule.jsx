@@ -8,7 +8,7 @@ import { api, toQuery } from '../../lib/api';
 export default function Schedule() {
   const [year, setYear] = useState(null);
 
-  const { data, isPending, isError, error, refetch } = useQuery({
+  const { data, isPending, isError, error, refetch, isPlaceholderData } = useQuery({
     queryKey: ['admin-schedule', year],
     queryFn: () => api.get(`/admin/schedule${toQuery({ year })}`),
     placeholderData: keepPreviousData,
@@ -38,10 +38,10 @@ export default function Schedule() {
       </PageHeading>
 
       <Reveal delay={0.04}>
-        <EntryPanel label="Filter upcoming" filters={UPCOMING_FILTERS} entries={data?.upcoming ?? []} loading={isPending} />
+        <EntryPanel label="Filter upcoming" filters={UPCOMING_FILTERS} entries={data?.upcoming ?? []} loading={isPending || isPlaceholderData} />
       </Reveal>
       <Reveal delay={0.08}>
-        <EntryPanel label="Filter past" filters={PAST_FILTERS} entries={data?.past ?? []} loading={isPending} scroll />
+        <EntryPanel label="Filter past" filters={PAST_FILTERS} entries={data?.past ?? []} loading={isPending || isPlaceholderData} scroll />
       </Reveal>
     </div>
   );

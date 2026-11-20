@@ -76,13 +76,22 @@ export function CalendarGrid({ year, month, today, eventsByDay, onMonthChange, m
           // Sundays and office holidays are days off, shown in red.
           const off = weekend || holiday;
           const isToday = cell === today;
+          // Days outside the month are empty boxes, not buttons.
+          if (!cell) {
+            return (
+              <div
+                key={`blank-${index}`}
+                aria-hidden="true"
+                className={`min-h-14 border-b border-r border-line sm:min-h-[104px] ${weekend ? 'bg-bg/60' : ''} ${index % 7 === 6 ? 'border-r-0' : ''}`}
+              />
+            );
+          }
           return (
             <button
-              key={cell ?? `blank-${index}`}
+              key={cell}
               type="button"
-              disabled={!cell}
               onClick={() => setPicked(cell)}
-              aria-label={cell ? `${slashDate(cell)}, ${events.length} entries` : undefined}
+              aria-label={`${slashDate(cell)}, ${events.length} ${events.length === 1 ? 'entry' : 'entries'}`}
               aria-pressed={cell === selected}
               className={`flex min-h-14 min-w-0 flex-col items-stretch justify-start border-b border-r border-line p-1 text-left sm:min-h-[104px] sm:p-1.5 ${
                 holiday ? 'bg-rejected-soft/40' : weekend ? 'bg-bg/60' : ''

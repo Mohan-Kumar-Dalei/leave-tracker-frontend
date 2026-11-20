@@ -7,6 +7,7 @@ import {
   Dialog,
   Empty,
   LoadError,
+  LoadingBar,
   PageHeading,
   Pagination,
   Panel,
@@ -18,6 +19,7 @@ import { AddEmployeeDialog } from '../../components/AddEmployeeDialog';
 import { api, toQuery } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { positionOf } from '../../lib/home';
+import { useAppPath } from '../../hooks/useAppPath';
 
 // Adding someone works as on Organisation: their department (a manager has
 // every department, an assistant manager their own), the next CON number and
@@ -44,6 +46,7 @@ function AddFromEmployees({ onClose }) {
 }
 
 export default function Employees() {
+  const appPath = useAppPath();
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('active');
@@ -58,7 +61,7 @@ export default function Employees() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const { data, isPending, isError, error, refetch } = useQuery({
+  const { data, isPending, isError, error, refetch, isPlaceholderData, isFetching } = useQuery({
     queryKey: ['employees', q, status, page],
     queryFn: () => api.get(`/admin/employees${toQuery({ q, status, page, limit: 200 })}`),
     placeholderData: keepPreviousData,
@@ -108,6 +111,7 @@ export default function Employees() {
 
       <Reveal delay={0.08}>
         <Panel>
+          <LoadingBar show={isFetching && isPlaceholderData} />
           {isPending && <RowsSkeleton />}
           {isError && <LoadError error={error} onRetry={refetch} />}
           {data?.items.length === 0 && <Empty title="Nobody matches that">Try a different search.</Empty>}
@@ -115,7 +119,7 @@ export default function Employees() {
             {data?.items.map((person) => (
               <li key={person.id} className="border-b border-line last:border-b-0">
                 <Link
-                  to={`/admin/employees/${person.id}`}
+                  to={appPath(`/admin/employees/${person.id}`)}
                   className="grid gap-x-6 gap-y-0.5 px-4 py-3 text-sm transition-colors hover:bg-bg sm:px-5 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_100px] md:items-center"
                 >
                   <span className="min-w-0">

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useToast } from '../lib/toast';
 import { Button, Panel, PasswordInput } from './ui';
+import { useAppPath } from '../hooks/useAppPath';
 
 // Leave mails go from a person's own Gmail once they save a Gmail App
 // Password: 16 letters made in their Google account. Without one, mail goes
@@ -128,6 +129,7 @@ export function GmailPanel() {
 
 // One line above a mail being written: where it will be sent from.
 export function SendingFrom() {
+  const appPath = useAppPath();
   const { data } = useGmail();
   if (!data?.available) return null;
 
@@ -141,7 +143,7 @@ export function SendingFrom() {
   return (
     <p className="text-[13px] text-muted">
       {data.needsReconnect ? 'Your Gmail App Password needs adding again. ' : 'Goes from the app under your name. '}
-      <Link to="/profile" className="font-medium text-accent hover:underline">
+      <Link to={appPath('/profile')} className="font-medium text-accent hover:underline">
         Add your Gmail App Password
       </Link>{' '}
       to send from your own address.

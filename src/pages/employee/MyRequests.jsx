@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Tabs } from '../../components/Tabs';
 import { ApplyLeaveDialog } from '../../components/ApplyLeave';
 import { StatusBadge } from '../../components/StatusBadge';
-import { Button, ConfirmDialog, Empty, LoadError, PageHeading, Pagination, Panel, Reveal, RowsSkeleton } from '../../components/ui';
+import { Button, ConfirmDialog, Empty, LoadError, LoadingBar, PageHeading, Pagination, Panel, Reveal, RowsSkeleton } from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
 import { dayRange, dayWord, isoFromCreatedAt, slashDate } from '../../lib/dates';
 import { useToast } from '../../lib/toast';
@@ -24,7 +24,7 @@ export default function MyRequests() {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const { data, isPending, isError, error, refetch } = useQuery({
+  const { data, isPending, isError, error, refetch, isPlaceholderData, isFetching } = useQuery({
     queryKey: ['my-leaves', status, page],
     queryFn: () => api.get(`/me/leaves${toQuery({ status: status === 'all' ? '' : status, page, limit: 10 })}`),
     placeholderData: keepPreviousData,
@@ -68,12 +68,13 @@ export default function MyRequests() {
         />
 
         <Panel>
+          <LoadingBar show={isFetching && isPlaceholderData} />
           {isPending && <RowsSkeleton />}
           {isError && <LoadError error={error} onRetry={refetch} />}
-          {data?.items.length === 0 && (
+          {data?.items.length === 0 && !isPlaceholderData && (
             <Empty title="No requests here">When you apply for leave it will show up in this list.</Empty>
           )}
-          <ul>
+          <ul className={`transition-opacity duration-200 ${isPlaceholderData ? 'opacity-50' : ''}`}>
             {data?.items.map((leave) => (
               <li
                 key={leave.id}

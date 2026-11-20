@@ -37,7 +37,8 @@
   --animate-modal-in: modal-in 0.24s var(--ease-calm);
   --animate-pop-in: pop-in 0.14s var(--ease-calm);
   /* The sign-in page's marquee: two copies side by side slide one width. */
-  --animate-marquee: marquee 38s linear infinite;
+  --animate-marquee: marquee 50s linear infinite;
+  --animate-float: float 8s ease-in-out infinite;
   --animate-marquee-back: marquee-back 44s linear infinite;
 
   @keyframes marquee {
@@ -46,6 +47,15 @@
     }
     to {
       transform: translateX(-50%);
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
     }
   }
   @keyframes marquee-back {

@@ -12,6 +12,8 @@ import { AuthLayout, authLink, FormError } from '../auth/AuthPages';
 // Organisation. HR registration is closed for now. Everyone else joins with an
 // invitation or a department's join link.
 
+const STEPS = ['About you', 'Your department', 'Password'];
+
 const PASSWORD_HINT = 'At least 10 characters, with a letter and a number.';
 
 function Passwords({ value, onChange, mismatch }) {
@@ -57,6 +59,7 @@ export default function Register() {
   const [problem, setProblem] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
+  const [step, setStep] = useState(0);
 
   if (isPending) {
     return (
@@ -85,6 +88,12 @@ export default function Register() {
     );
   }
 
+  const next = (event) => {
+    event.preventDefault();
+    setProblem('');
+    setStep(step + 1);
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     if (mismatch) return;
@@ -95,6 +104,9 @@ export default function Register() {
       setDone(await api.post('/join/manager', { ...fields, password: passwords.password }));
     } catch (issue) {
       setProblem(issue.message);
+      // Send them back to the step the problem is about.
+      if (/email|account/i.test(issue.message)) setStep(0);
+      else if (/department|manager/i.test(issue.message)) setStep(1);
     } finally {
       setBusy(false);
     }
@@ -105,29 +117,55 @@ export default function Register() {
       title="Register as a manager"
       intro="Register with the department you run. Once a manager approves you, sign in and invite your assistant manager."
     >
-      <form onSubmit={submit} className="space-y-4">
-        <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} />
-        <TextInput label="Work email" type="email" autoComplete="username" required maxLength={160} value={form.email} onChange={set('email')} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <EmployeeIdField hint="Yours once you register" />
-          <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
+      {/* Three short steps, so the page never needs to scroll. */}
+      <div className="mb-6">
+        <div className="flex gap-1.5" aria-hidden="true">
+          {STEPS.map((label, index) => (
+            <span key={label} className={`h-1 flex-1 rounded-full transition-colors ${index <= step ? 'bg-accent' : 'bg-line'}`} />
+          ))}
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput
-            label="Your department"
-            required
-            minLength={2}
-            maxLength={60}
-            placeholder="For example, 3PP"
-            value={form.department}
-            onChange={set('department')}
-          />
-          <TextInput label="Location" maxLength={60} placeholder={data?.location} value={form.location} onChange={set('location')} />
-        </div>
-        <Passwords value={passwords} onChange={setPasswords} mismatch={mismatch} />
+        <p className="mt-2 flex items-center justify-between text-[13px] text-muted">
+          <span>
+            Step {step + 1} of {STEPS.length}: <span className="font-medium text-ink">{STEPS[step]}</span>
+          </span>
+          {step > 0 && (
+            <button type="button" onClick={() => setStep(step - 1)} className={authLink}>
+              Back
+            </button>
+          )}
+        </p>
+      </div>
+      <form onSubmit={step === STEPS.length - 1 ? submit : next} className="space-y-4">
+        {step === 0 && (
+          <>
+            <TextInput key="name" label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} data-autofocus />
+            <TextInput label="Work email" type="email" autoComplete="username" required maxLength={160} value={form.email} onChange={set('email')} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <EmployeeIdField hint="Yours once you register" />
+              <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
+            </div>
+          </>
+        )}
+        {step === 1 && (
+          <>
+            <TextInput
+              key="department"
+              label="Your department"
+              required
+              minLength={2}
+              maxLength={60}
+              placeholder="For example, 3PP"
+              value={form.department}
+              onChange={set('department')}
+              hint="A new department, or one that has no manager yet."
+            />
+            <TextInput label="Location" maxLength={60} placeholder={data?.location} value={form.location} onChange={set('location')} />
+          </>
+        )}
+        {step === 2 && <Passwords value={passwords} onChange={setPasswords} mismatch={mismatch} />}
         <FormError message={problem} />
-        <Button type="submit" loading={busy} className="h-10! w-full">
-          Register
+        <Button type="submit" loading={busy} className="h-12! w-full rounded-xl! text-[15px]!">
+          {step === STEPS.length - 1 ? 'Register' : 'Next'}
         </Button>
       </form>
       <p className="mt-4 text-center text-[13px] text-muted">

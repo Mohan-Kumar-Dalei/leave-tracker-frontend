@@ -146,15 +146,40 @@ function Gap({ left, right, part = 'all', joinFrom = 0 }) {
             ))}
             {/* Card to its count, and count on to the spine, so the chosen
                 card is joined all the way. */}
-            <path d={`M0 ${fromY} H${SPINE}`} stroke={blue} strokeWidth="2" fill="none" />
+            <path
+              key={`out-${fromY}`}
+              d={`M0 ${fromY} H${SPINE}`}
+              stroke={blue}
+              strokeWidth="2"
+              fill="none"
+              pathLength="1"
+              className="tree-draw"
+            />
             {to >= 0 && (
-              <path
-                d={`M${SPINE} ${joinY} V${ys[to]} H${GAP}`}
-                stroke={blue}
-                strokeWidth="2"
-                fill="none"
-                strokeLinejoin="round"
-              />
+              <>
+                <path
+                  key={`in-${joinY}-${ys[to]}`}
+                  d={`M${SPINE} ${joinY} V${ys[to]} H${GAP}`}
+                  stroke={blue}
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinejoin="round"
+                  pathLength="1"
+                  className="tree-draw tree-draw-late"
+                />
+                {/* A small light travelling along the chosen line. */}
+                <path
+                  key={`flow-${joinY}-${ys[to]}`}
+                  d={`M${SPINE} ${joinY} V${ys[to]} H${GAP}`}
+                  stroke="white"
+                  strokeOpacity="0.85"
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinecap="round"
+                  pathLength="1"
+                  className="tree-flow"
+                />
+              </>
             )}
           </g>
         </svg>

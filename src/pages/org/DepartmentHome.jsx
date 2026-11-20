@@ -366,14 +366,8 @@ function Team({ id, members, canChooseAssistant, assistants = [] }) {
                 </div>
                 {person.place === 'member' && (
                   <div className="-mt-1 flex w-full flex-wrap items-center gap-x-1 gap-y-2 pl-[42px]">
-                    {/* Only the manager changes who someone reports to; until
-                        then they stay where they are in the tree. */}
-                    {!canChooseAssistant && (
-                      <span className="mr-2 text-xs text-muted">
-                        Reports to {members.find((lead) => lead.id === person.reportsTo)?.name ?? 'the assistant manager'}
-                      </span>
-                    )}
-                    {canChooseAssistant && (
+                    {/* The manager and each assistant manager set who their
+                        people report to; the tree follows. */}
                     <SelectBox
                       aria-label={`Who ${person.name} reports to`}
                       className="w-44"
@@ -390,7 +384,6 @@ function Team({ id, members, canChooseAssistant, assistants = [] }) {
                           </option>
                         ))}
                     </SelectBox>
-                    )}
                     {/* The manager picks which assistant manager gets this
                         person's leave; it shows as "Reporting to" on their dashboard. */}
                     {canChooseAssistant && assistants.length > 0 && (

@@ -25,6 +25,8 @@ const DepartmentHome = lazy(pageLoaders.DepartmentHome);
 const Register = lazy(pageLoaders.Register);
 const AcceptInvite = lazy(() => pageLoaders.JoinPages().then((module) => ({ default: module.AcceptInvite })));
 const JoinDepartment = lazy(() => pageLoaders.JoinPages().then((module) => ({ default: module.JoinDepartment })));
+// Development only: every sky of the dashboard's weather band, at /dev/sky.
+const SkyGallery = import.meta.env.DEV ? lazy(() => import('./pages/dev/SkyGallery')) : null;
 
 // The pages under each person's address (see lib/home.js), by position.
 // '' is the page their address opens on.
@@ -183,6 +185,7 @@ export default function App() {
       <Route path="/register" element={<GuestOnly><Public><Register /></Public></GuestOnly>} />
       <Route path="/join/invite/:token" element={<Public><AcceptInvite /></Public>} />
       <Route path="/join/:code" element={<Public><JoinDepartment /></Public>} />
+      {SkyGallery && <Route path="/dev/sky" element={<Public><SkyGallery /></Public>} />}
       <Route path="/employee/*" element={<RequireAuth><PersonArea /></RequireAuth>} />
       <Route path="*" element={<RequireAuth><OldAddress /></RequireAuth>} />
     </Routes>

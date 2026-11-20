@@ -125,8 +125,9 @@ function previewWeather() {
   return { available: true, sky, label: SKY_LABELS[sky], isDay: !night, temperature: night ? 24 : 31, location: 'Preview', observedAt: '' };
 }
 
-function useWeather(coords) {
+function useWeather(coords, enabled = true) {
   const { data } = useQuery({
+    enabled,
     queryKey: ['weather', coords?.lat ?? null, coords?.lon ?? null],
     queryFn: () => api.get(coords ? `/weather?lat=${coords.lat}&lon=${coords.lon}` : '/weather'),
     staleTime: 10 * 60 * 1000,
@@ -317,44 +318,154 @@ function Snow() {
   );
 }
 
-// A thunderstorm: the whole sky lights up now and then (behind the clouds),
-// and a bright bolt strikes down in front of them at the same moment.
-function LightningFlash() {
-  return <rect width="320" height="80" fill="#eef3ff" opacity="0.6" className="sky-flash" />;
+// Lightning that forks like the roots of a tree: a jagged main channel from
+// the cloud base down past the bottom, with branches splitting off it and
+// smaller twigs off those. Built once from a fixed seed, so it is the same
+// shape every visit. Real lightning is white at the core with a violet glow.
+function forkedBolt(seed, startX) {
+  const next = seeded(seed);
+  const jitter = (size) => (next() - 0.5) * size;
+  const line = (points) => points.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+
+  // The main channel, zig-zagging down.
+  const trunk = [[startX, -2]];
+  while (trunk[trunk.length - 1][1] < 84) {
+    const [x, y] = trunk[trunk.length - 1];
+    trunk.push([x + jitter(11), y + 5 + next() * 5]);
+  }
+
+  // Branches off the channel, each going down and out to one side, and
+  // twigs off the branches.
+  const branches = [];
+  const twigs = [];
+  trunk.slice(2, -2).forEach(([x, y], index) => {
+    if (next() > 0.55) return;
+    const side = index % 2 === 0 ? 1 : -1;
+    const branch = [[x, y]];
+    const steps = 3 + Math.floor(next() * 3);
+    for (let step = 0; step < steps; step += 1) {
+      const [bx, by] = branch[branch.length - 1];
+      branch.push([bx + side * (3 + next() * 6) + jitter(3), by + 3 + next() * 5]);
+    }
+    branches.push(line(branch));
+    if (next() < 0.6) {
+      const from = branch[1 + Math.floor(next() * (branch.length - 2))];
+      const twig = [from];
+      for (let step = 0; step < 2 + Math.floor(next() * 2); step += 1) {
+        const [tx, ty] = twig[twig.length - 1];
+        twig.push([tx - side * (1 + next() * 4) + jitter(2), ty + 2 + next() * 4]);
+      }
+      twigs.push(line(twig));
+    }
+  });
+  return { trunk: line(trunk), branches, twigs };
 }
 
-function LightningBolt() {
+const BOLTS = [
+  { ...forkedBolt(7331, 236), delay: 0, duration: 7 },
+  { ...forkedBolt(90210, 168), delay: -3.4, duration: 9 },
+];
+
+// The flash: the whole sky turns pale violet for an instant, behind the
+// clouds, in step with each bolt.
+function LightningFlash() {
   return (
-    <g className="sky-flash">
-      <path
-        d="M236 2 L224 32 L233 32 L220 66 L247 24 L237 24 L248 2Z"
-        fill="#fff3a6"
-        stroke="#ffffff"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-        style={{ filter: 'drop-shadow(0 0 4px #ffe066)' }}
-      />
-    </g>
+    <>
+      {BOLTS.map((bolt) => (
+        <rect
+          key={bolt.delay}
+          width="320"
+          height="80"
+          fill="#efe4ff"
+          opacity="0.6"
+          className="sky-flash"
+          style={{ animationDelay: `${bolt.delay}s`, animationDuration: `${bolt.duration}s` }}
+        />
+      ))}
+    </>
   );
 }
 
-function Fog({ night }) {
-  const colour = night ? '#8d96b3' : '#ffffff';
+// The bolts, in front of the clouds: a wide violet glow, a lilac body and a
+// white-hot core, each thinner for branches and twigs.
+function LightningBolts({ id }) {
   return (
-    <g fill={colour}>
-      {[18, 34, 50, 64].map((y, i) => (
-        <rect
-          key={y}
-          x="-40"
-          y={y}
-          width="400"
-          height="7"
-          rx="3.5"
-          opacity={0.35 - i * 0.05}
-          className="sky-fog"
-          style={{ animationDelay: `${-i * 2.3}s` }}
-        />
+    <>
+      <defs>
+        <filter id={`${id}-glow`} x="-50%" y="-20%" width="200%" height="140%">
+          <feGaussianBlur stdDeviation="2.2" />
+        </filter>
+      </defs>
+      {BOLTS.map((bolt) => (
+        <g
+          key={bolt.delay}
+          className="sky-flash"
+          style={{ animationDelay: `${bolt.delay}s`, animationDuration: `${bolt.duration}s` }}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <g stroke="#a855f7" opacity="0.9" filter={`url(#${id}-glow)`}>
+            <path d={bolt.trunk} strokeWidth="5" />
+            {bolt.branches.map((d) => (
+              <path key={d} d={d} strokeWidth="3" />
+            ))}
+          </g>
+          <g stroke="#d8b4fe">
+            <path d={bolt.trunk} strokeWidth="2.2" />
+            {bolt.branches.map((d) => (
+              <path key={d} d={d} strokeWidth="1.3" />
+            ))}
+            {bolt.twigs.map((d) => (
+              <path key={d} d={d} strokeWidth="0.8" />
+            ))}
+          </g>
+          <g stroke="#ffffff">
+            <path d={bolt.trunk} strokeWidth="1" />
+            {bolt.branches.map((d) => (
+              <path key={d} d={d} strokeWidth="0.55" />
+            ))}
+          </g>
+        </g>
       ))}
+    </>
+  );
+}
+
+// Fog: the sky washed out to a soft grey-white, with banks of mist (blurred,
+// so they have no edges) drifting slowly at different speeds, thicker low
+// down like real fog over the ground.
+function Fog({ id, night }) {
+  const mist = night ? '#9aa3bd' : '#f4f6f8';
+  return (
+    <g>
+      <defs>
+        <filter id={`${id}-mist`} x="-30%" y="-80%" width="160%" height="260%">
+          <feGaussianBlur stdDeviation="6" />
+        </filter>
+      </defs>
+      <rect width="320" height="80" fill={mist} opacity={night ? 0.32 : 0.5} />
+      <g fill={mist} filter={`url(#${id}-mist)`}>
+        {[
+          [60, 30, 90, 10, 0.55, 14, 0],
+          [230, 22, 110, 9, 0.5, 18, -6],
+          [140, 48, 150, 13, 0.75, 12, -3],
+          [40, 62, 140, 14, 0.85, 16, -9],
+          [270, 60, 130, 15, 0.85, 20, -4],
+          [170, 74, 200, 12, 0.95, 15, -11],
+        ].map(([cx, cy, rx, ry, opacity, duration, delay]) => (
+          <ellipse
+            key={`${cx}-${cy}`}
+            cx={cx}
+            cy={cy}
+            rx={rx / 2}
+            ry={ry}
+            opacity={opacity}
+            className="sky-fog"
+            style={{ animationDuration: `${duration}s`, animationDelay: `${delay}s` }}
+          />
+        ))}
+      </g>
     </g>
   );
 }
@@ -372,10 +483,13 @@ const ICONS = {
 
 const timeOf = (iso) => (iso ? iso.slice(11, 16) : '');
 
-export function SkyBanner({ className = '' }) {
+// `preview` draws a given weather instead of the real one (the development
+// gallery of every sky uses it).
+export function SkyBanner({ className = '', preview = null }) {
   const id = useId().replace(/:/g, '');
   const here = useLocation();
-  const weather = useWeather(here.coords);
+  const live = useWeather(here.coords, !preview);
+  const weather = preview ?? live;
   const clock = useClockNight();
   const night = weather ? !weather.isDay : clock;
   const kind = weather?.sky && SCENES[weather.sky] ? weather.sky : 'partly';
@@ -476,8 +590,8 @@ export function SkyBanner({ className = '' }) {
         {CLOUD_PLACES.slice(0, scene.clouds).map((place) => (
           <Cloud key={`${place.y}-${place.duration}`} light={light} shade={shade} {...place} />
         ))}
-        {scene.lightning && <LightningBolt />}
-        {scene.fog && <Fog night={night} />}
+        {scene.lightning && <LightningBolts id={id} />}
+        {scene.fog && <Fog id={id} night={night} />}
         {scene.drops > 0 && <Rain count={scene.drops} night={night} />}
         {scene.snow && <Snow />}
       </svg>
@@ -498,7 +612,7 @@ export function SkyBanner({ className = '' }) {
             <span className="max-w-24 truncate">{weather.label}</span>
             <span className="sr-only">in {weather.location}</span>
           </p>
-          {here.supported && (
+          {here.supported && !preview && (
             <button
               type="button"
               onClick={here.toggle}

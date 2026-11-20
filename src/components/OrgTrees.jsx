@@ -142,7 +142,10 @@ function Gap({ left, right, part = 'all', joinFrom = 0, leftShift = 0, rightShif
   // at the card's level instead (`joinFrom`), so it never runs past them.
   const joinY = part === 'right' ? joinFrom : fromY;
   const ys = lines ? right.items.map((_, row) => centre(row) + rightShift) : [];
-  const top = lines ? Math.min(joinY, ys[0]) : 0;
+  // The grey spine runs between the first and last card and the join; a join
+  // of 0 (the line comes in from the top of a scrolling column) does not pull
+  // it up to the top edge.
+  const top = lines ? Math.min(joinY > 0 ? joinY : ys[0], ys[0]) : 0;
   const bottom = lines ? Math.max(joinY, ys[ys.length - 1]) : 0;
   const grey = 'var(--color-line)';
   const blue = 'var(--color-accent)';
@@ -285,7 +288,7 @@ function Columns({ columns, scrollLast = false, centreFirst = false }) {
     // top of a department lower in the list): the line goes from the
     // department's level straight up to them, with no cover or still part.
     const above = fromRow >= 0 && toRow >= 0 && centre(toRow) < fromY;
-    const covered = fromRow >= 0 && toRow >= 0 && !above;
+    const covered = fromRow >= 0 && toRow >= 0 && centre(toRow) > fromY;
     return (
       <div ref={box} className="overflow-x-auto rounded-xl border border-line bg-surface p-4 shadow-card">
         <div className="flex w-max items-start">
@@ -299,7 +302,12 @@ function Columns({ columns, scrollLast = false, centreFirst = false }) {
             <Gap left={parent} right={last} part="left" />
             <div className="max-h-[calc(100dvh-425px)] min-h-72 overflow-y-auto overscroll-contain pr-1 lg:max-h-[calc(100dvh-307px)]">
               <div className="relative flex items-start">
-                <Gap left={parent} right={last} part="right" joinFrom={above ? fromY : 0} />
+                {/* The line on this side starts level with the chosen
+                    department, so the spine runs from there to the people
+                    (never up to the top edge, and never short of a
+                    department lower in the list). Only with the cover in
+                    use does it start from the top. */}
+                <Gap left={parent} right={last} part="right" joinFrom={!covered && fromRow >= 0 ? fromY : 0} />
                 <ColumnList column={last} width={width} />
                 {covered && (
                   <div
@@ -308,7 +316,7 @@ function Columns({ columns, scrollLast = false, centreFirst = false }) {
                     style={{ height: Math.max(centre(toRow) - 2, 0) }}
                   >
                     <div className="sticky top-0 z-20 bg-surface" style={{ height: fromY - 1 }}>
-                      <span className="absolute left-[0.25px] top-0 h-full w-[1.5px] bg-line" />
+                      <span className="absolute bottom-0 left-[0.25px] w-[1.5px] bg-line" style={{ top: centre(0) }} />
                     </div>
                   </div>
                 )}

@@ -81,28 +81,25 @@ function roleBadges(member, members) {
   else if (member.role === 'admin' || /assistant\s*manager/i.test(member.designation ?? '')) {
     badges.push(['Assistant Manager', 'bg-accent-soft text-accent']);
   } else if (member.teamLead || members.some((other) => other.reportsTo === member.id)) {
-    badges.push(['Team Lead', 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300']);
+    badges.push(['Team Lead', 'bg-approved-soft text-approved']);
   }
   if (member.workFromHome) badges.push(['WFH', 'bg-sunken text-ink']);
   return badges;
 }
 
-function Fact({ icon: Icon, label, children }) {
+function Row({ icon: Icon, label, children }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-line bg-surface p-3">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted">{label}</span>
-        <span className="block truncate text-sm font-medium">{children}</span>
-      </span>
+    <div className="flex items-center gap-3 px-4 py-3">
+      <Icon className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
+      <dt className="w-28 shrink-0 text-[13px] text-muted">{label}</dt>
+      <dd className="min-w-0 flex-1 truncate text-right text-sm font-medium">{children}</dd>
     </div>
   );
 }
 
-// A person's card: a banner with their photo, name, role badges and leave
-// today; one-tap mail and call; then where they sit and who they report to.
+// A person's card, kept plain and solid (no gradients): a navy band with
+// their photo, name, role badges and leave today; mail and call; then their
+// details in one list, including who they report to.
 export function MemberProfile({ member, onClose }) {
   const { data } = useTeam();
   const members = data?.members ?? [];
@@ -112,40 +109,34 @@ export function MemberProfile({ member, onClose }) {
 
   return (
     <Dialog open onClose={onClose} title="Profile" kind="modal">
-      <div className="-mx-5 -mt-5 overflow-hidden">
-        {/* The banner: navy with a soft glow, the photo overlapping it. */}
-        <div className="relative h-28 bg-[linear-gradient(135deg,#1b2654_0%,#2f3f9a_55%,#5b4bd0_100%)]">
-          <div aria-hidden="true" className="absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[#f2a93b]/30 blur-2xl" />
-          <div aria-hidden="true" className="absolute -left-6 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-xl" />
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 opacity-30 [background-image:radial-gradient(rgb(255_255_255/0.4)_1px,transparent_1px)] [background-size:16px_16px]"
-          />
-        </div>
-        <div className="-mt-12 flex flex-col items-center px-5 text-center">
-          <span className="rounded-full bg-surface p-1 shadow-[0_10px_30px_-10px_rgb(22_32_74/0.45)]">
-            <PhotoAvatar user={member} size={96} wave />
-          </span>
-          <p className="mt-3 text-xl font-semibold tracking-tight">{member.name}</p>
-          <p className="text-sm text-muted">
+      <div className="-mx-5 -mt-5">
+        <div className="h-16 bg-[#16204a]" aria-hidden="true" />
+        <div className="px-5">
+          <div className="-mt-10 flex items-end justify-between gap-3">
+            <span className="rounded-full bg-surface p-1 shadow-card">
+              <PhotoAvatar user={member} size={80} wave />
+            </span>
+            {badges.length > 0 && (
+              <div className="mb-1 flex flex-wrap justify-end gap-1.5">
+                {badges.map(([label, look]) => (
+                  <span key={label} className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${look}`}>
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <p className="mt-3 text-[22px] font-semibold leading-tight tracking-tight">{member.name}</p>
+          <p className="mt-0.5 text-sm text-muted">
             {member.designation}
-            <span className="mx-1.5 text-line">|</span>
+            <span className="mx-1.5 text-line">·</span>
             <span className="tabular-nums">{member.employeeId}</span>
           </p>
-          {badges.length > 0 && (
-            <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-              {badges.map(([label, look]) => (
-                <span key={label} className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${look}`}>
-                  {label}
-                </span>
-              ))}
-            </div>
-          )}
-          <LeaveTag leave={member.leave} className="mt-3" />
-          <div className="mt-5 grid w-full grid-cols-2 gap-2">
+          <LeaveTag leave={member.leave} className="mt-2" />
+          <div className="mt-4 grid grid-cols-2 gap-2">
             <a
               href={`mailto:${member.email}`}
-              className="flex h-10 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-medium text-on-accent shadow-[0_10px_24px_-12px_var(--color-accent)] transition-colors hover:bg-accent-deep"
+              className="flex h-10 items-center justify-center gap-2 rounded-lg bg-accent text-sm font-medium text-on-accent transition-colors hover:bg-accent-deep"
             >
               <Mail className="h-4 w-4" aria-hidden="true" />
               Email
@@ -153,13 +144,13 @@ export function MemberProfile({ member, onClose }) {
             {phone ? (
               <a
                 href={`tel:${phone}`}
-                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-line bg-surface text-sm font-medium transition-colors hover:bg-bg"
+                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-line bg-surface text-sm font-medium transition-colors hover:bg-bg"
               >
                 <Phone className="h-4 w-4" aria-hidden="true" />
                 Call
               </a>
             ) : (
-              <span className="flex h-10 items-center justify-center gap-2 rounded-xl border border-dashed border-line text-sm text-muted">
+              <span className="flex h-10 items-center justify-center gap-2 rounded-lg border border-line text-sm text-muted">
                 <Phone className="h-4 w-4" aria-hidden="true" />
                 No phone
               </span>
@@ -167,26 +158,26 @@ export function MemberProfile({ member, onClose }) {
           </div>
         </div>
       </div>
-      <div className="mt-5 grid gap-2 sm:grid-cols-2">
-        <Fact icon={Mail} label="Email">
+      <dl className="mt-5 divide-y divide-line rounded-xl border border-line">
+        <Row icon={Mail} label="Email">
           {member.email}
-        </Fact>
-        <Fact icon={Phone} label="Phone">
+        </Row>
+        <Row icon={Phone} label="Phone">
           {member.phone || 'Not set'}
-        </Fact>
-        <Fact icon={Building2} label="Department">
+        </Row>
+        <Row icon={Building2} label="Department">
           {member.department}
-        </Fact>
-        <Fact icon={UserRound} label="Reports to">
+        </Row>
+        <Row icon={UserRound} label="Reports to">
           {boss ? boss.name : 'Nobody above'}
-        </Fact>
-        <Fact icon={MapPin} label="Location">
+        </Row>
+        <Row icon={MapPin} label="Location">
           {member.location}
-        </Fact>
-        <Fact icon={BadgeCheck} label="Employee ID">
+        </Row>
+        <Row icon={BadgeCheck} label="Employee ID">
           {member.employeeId}
-        </Fact>
-      </div>
+        </Row>
+      </dl>
     </Dialog>
   );
 }

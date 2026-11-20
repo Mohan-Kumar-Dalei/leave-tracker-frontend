@@ -398,7 +398,7 @@ function Team({ id, members, canChooseAssistant, assistants = [] }) {
                           .filter((choice) => choice.id !== person.id)
                           .map((choice) => (
                             <option key={choice.id} value={choice.id}>
-                              {`Leave to ${choice.name} · ${choice.department}`}
+                              {`Leave to ${choice.name} · ${choice.place}`}
                             </option>
                           ))}
                       </SelectBox>

@@ -7,8 +7,8 @@ import { LoadError, PageHeading, Panel, PanelTitle, Reveal, RowsSkeleton, Select
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const SHORT = MONTHS.map((name) => name.slice(0, 3));
 const number = (value) => (Number.isInteger(value) ? value : value.toFixed(1));
-// Empty cells for months with no leave, like the tracker sheet.
-const cell = (value) => (value ? number(value) : '');
+// Months with no leave show 0.
+const cell = (value) => number(value ?? 0);
 
 function Stat({ label, value, accent = false }) {
   return (

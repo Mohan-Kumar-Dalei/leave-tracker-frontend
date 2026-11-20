@@ -107,7 +107,9 @@ function Gap({ left, right, part = 'all', joinFrom = 0 }) {
       : part === 'right'
         ? (right?.items.length ?? 0)
         : Math.max(left.items.length, right?.items.length ?? 0);
-  const height = heightOf(rows);
+  // Tall enough for the line from the chosen card too, when that card sits
+  // lower than the last card on the right (a department with few people).
+  const height = Math.max(heightOf(rows), part === 'right' && joinFrom ? joinFrom + CARD / 2 : 0);
   const offset = part === 'right' ? SPINE - 1 : 0;
   const width = part === 'left' ? SPINE - 1 : part === 'right' ? GAP - SPINE + 1 : GAP;
   const from = left.items.findIndex((item) => item.id === left.chosen);

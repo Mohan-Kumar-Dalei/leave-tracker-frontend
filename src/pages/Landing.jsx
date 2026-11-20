@@ -49,14 +49,14 @@ const STEPS = [
 ];
 
 const ROLES = [
-  { title: 'Employee', path: '/employee/CON-030', points: ['Apply and track leave', 'Balances and holidays', 'Your department at a glance'] },
+  { title: 'Employee', opens: 'Opens on your leave dashboard', points: ['Apply and track leave', 'Balances and holidays', 'Your department at a glance'] },
   {
     title: 'Assistant manager',
-    path: '/employee/assistantmanager/CON-001',
+    opens: 'Opens on your team’s overview',
     points: ['Approve the team’s leave', 'Invite and approve joiners', 'Calendar, totals and balances'],
     featured: true,
   },
-  { title: 'Manager', path: '/employee/manager/CON-031', points: ['Add departments and their AMs', 'Approve the assistant managers', 'See every department'] },
+  { title: 'Manager', opens: 'Opens on the whole company’s overview', points: ['Add departments and their AMs', 'Approve the assistant managers', 'See every department'] },
 ];
 
 function Cta({ to, children, variant = 'brass', className = '' }) {
@@ -530,7 +530,7 @@ export default function Landing() {
 
         <section id="roles" className="mx-auto max-w-6xl scroll-mt-8 px-4 py-24 sm:px-6">
           <SectionHead eyebrow="Roles" title="The right view for everyone" center>
-            After you sign in, your own address opens with your employee ID.
+            Sign in once and the app opens on what matters to you.
           </SectionHead>
           <div className="mt-12 grid items-stretch gap-4 lg:grid-cols-3">
             {ROLES.map((role, index) => (
@@ -546,20 +546,21 @@ export default function Landing() {
                     <MandalaCorner className="absolute -right-20 -top-20 -z-10 h-56 w-56 text-[#f2b54a] opacity-[0.12]" />
                   )}
                   <span
-                    className={`grid h-11 w-11 place-items-center rounded-2xl ${
+                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${
                       role.featured ? 'bg-white/10 text-[#f2b54a]' : 'bg-accent-soft text-accent'
                     }`}
                   >
                     <UserRound className="h-5 w-5" aria-hidden="true" />
                   </span>
                   <h3 className={`mt-5 text-xl font-semibold tracking-[-0.01em] ${role.featured ? 'text-white' : ''}`}>{role.title}</h3>
-                  <code
-                    className={`mt-2 block truncate rounded-lg px-2.5 py-1.5 text-[11px] ${
-                      role.featured ? 'bg-white/[0.07] text-white/60' : 'bg-bg text-muted'
+                  <p
+                    className={`mt-2 inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium ${
+                      role.featured ? 'bg-white/[0.08] text-[#f2b54a]' : 'bg-accent-soft text-accent'
                     }`}
                   >
-                    {role.path}
-                  </code>
+                    <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                    {role.opens}
+                  </p>
                   <ul className="mt-5 space-y-3 text-[15px]">
                     {role.points.map((point) => (
                       <li key={point} className="flex gap-2.5">

@@ -32,9 +32,21 @@ const initialsOf = (name) =>
 
 // Senior roles first, the way the team reads its own chart.
 const ROLE_ORDER = ['director', 'admin', 'manager', 'team lead', 'lead', 'senior', 'technical', 'associate', 'analyst'];
-// Whether someone belongs under a department: their own, or one they manage.
-export const inDepartment = (member, department) =>
-  member.department === department || (member.manages ?? []).includes(department);
+// Whether someone belongs under a department: only their own. A manager who
+// runs several departments shows in their own one here; the Employee tree
+// shows them above the assistant managers of all of them.
+export const inDepartment = (member, department) => member.department === department;
+
+export const isManager = (member) => (member.manages ?? []).length > 0;
+
+// A small "Manager" badge for whoever manages a department.
+export function ManagerBadge() {
+  return (
+    <span className="shrink-0 rounded bg-[#f2a93b]/15 px-1.5 py-px text-[10px] font-semibold text-[#a8650b] dark:text-[#f5c26b]">
+      Manager
+    </span>
+  );
+}
 
 // HR first, then a manager ahead of an assistant manager, then the rest.
 export const roleRank = (text = '') => {
@@ -60,6 +72,7 @@ function PersonCard({ member, on, tag, onClick }) {
         <span className="block truncate text-sm font-medium">{member.name}</span>
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted">
           <span className="truncate">{member.designation}</span>
+          {isManager(member) && <ManagerBadge />}
           {tag && (
             <span className="shrink-0 rounded bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent">
               {tag}
@@ -340,7 +353,7 @@ export function DepartmentTree({ data, department, onDepartment, onOpen }) {
   const counts = useMemo(() => {
     const result = {};
     for (const member of data.members) {
-      for (const name of new Set([member.department, ...(member.manages ?? [])])) result[name] = (result[name] ?? 0) + 1;
+      result[member.department] = (result[member.department] ?? 0) + 1;
     }
     return result;
   }, [data.members]);

@@ -1,3 +1,4 @@
+import { isManager, ManagerBadge } from './OrgTrees';
 import { useQuery } from '@tanstack/react-query';
 import { Mail, MapPin, Phone, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -55,6 +56,12 @@ export function MemberRow({ member, onOpen, detail = 'leave', shortTag = false }
         <span className="block truncate text-sm">
           <span className="text-muted">{member.employeeId} - </span>
           <span className="font-medium">{member.name}</span>
+          {isManager(member) && (
+            <>
+              {' '}
+              <ManagerBadge />
+            </>
+          )}
         </span>
         {detail === 'phone' ? (
           member.phone && <span className="block truncate text-[13px] tabular-nums text-muted">{member.phone}</span>

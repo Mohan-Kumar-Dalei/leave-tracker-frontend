@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { Cloud as CloudIcon, CloudDrizzle, CloudFog, CloudLightning, CloudMoon, CloudRain, CloudSun, Moon as MoonIcon, Snowflake, Sun as SunIcon } from 'lucide-react';
+import { Cloud as CloudIcon, CloudDrizzle, CloudFog, CloudLightning, CloudMoon, CloudRain, CloudSun, LocateFixed, MapPin, Moon as MoonIcon, Snowflake, Sun as SunIcon } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { api } from '../lib/api';
 
-// The band at the top of the profile card: the sky over the office right
-// now. The server reads the weather in Bhubaneswar every ten minutes (see
-// services/weather.js) and the band draws it: day or night by the real sun,
+// The band at the top of the profile card: the sky right now, over the
+// office (Bhubaneswar, Odisha) or, if the person shares it, where they are.
+// The server reads the weather every ten minutes (see services/weather.js)
+// and the band draws it: day or night by the real sun,
 // then clear, a few clouds, overcast, fog, drizzle, rain, or a thunderstorm
 // with lightning. A small label says the temperature and the weather. When the
 // weather cannot be read, it falls back to the clock: sun and clouds by day,
@@ -28,15 +29,113 @@ function useClockNight() {
   return night;
 }
 
-function useWeather() {
+// Whether this person chose to see the weather where they are. The browser
+// asks them once, when they press the location button; after that their
+// choice is remembered here. Until then (or if they say no) the sky shows
+// the office, Bhubaneswar, Odisha.
+const HERE_KEY = 'lt-weather-here';
+const readHere = () => {
+  try {
+    return localStorage.getItem(HERE_KEY) === 'yes';
+  } catch {
+    return false;
+  }
+};
+const saveHere = (value) => {
+  try {
+    localStorage.setItem(HERE_KEY, value ? 'yes' : 'no');
+  } catch {
+    // Storage may be off; the choice simply lasts this visit.
+  }
+};
+// About 10 km: enough for the weather, and all the server ever sees.
+const roughly = (value) => Math.round(value * 10) / 10;
+
+function useLocation() {
+  const [wanted, setWanted] = useState(readHere);
+  const [coords, setCoords] = useState(null);
+  const [asking, setAsking] = useState(false);
+  const supported = typeof navigator !== 'undefined' && 'geolocation' in navigator;
+
+  const locate = (onDone) => {
+    setAsking(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoords({ lat: roughly(position.coords.latitude), lon: roughly(position.coords.longitude) });
+        setAsking(false);
+        onDone?.(true);
+      },
+      () => {
+        setCoords(null);
+        setAsking(false);
+        onDone?.(false);
+      },
+      { maximumAge: 30 * 60 * 1000, timeout: 10000, enableHighAccuracy: false },
+    );
+  };
+
+  // Someone who said yes before: find them again quietly (no prompt, since
+  // the browser already has their permission). Once, when the card shows.
+  useEffect(() => {
+    if (!wanted || !supported) return;
+    locate((ok) => {
+      if (!ok) {
+        setWanted(false);
+        saveHere(false);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggle = () => {
+    if (!supported) return;
+    if (wanted) {
+      setWanted(false);
+      setCoords(null);
+      saveHere(false);
+      return;
+    }
+    // This is where the browser asks for permission.
+    locate((ok) => {
+      setWanted(ok);
+      saveHere(ok);
+    });
+  };
+
+  return { coords: wanted ? coords : null, using: wanted && Boolean(coords), asking, supported, toggle };
+}
+
+// In development only, ?sky=rain&time=night shows that sky, to see each one.
+const SKY_LABELS = {
+  clear: 'Clear sky',
+  partly: 'Partly cloudy',
+  cloudy: 'Overcast',
+  fog: 'Fog',
+  drizzle: 'Drizzle',
+  rain: 'Rain',
+  thunder: 'Thunderstorm',
+  snow: 'Snow',
+};
+function previewWeather() {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const sky = params.get('sky');
+  if (!SKY_LABELS[sky]) return null;
+  const night = params.get('time') === 'night';
+  return { available: true, sky, label: SKY_LABELS[sky], isDay: !night, temperature: night ? 24 : 31, location: 'Preview', observedAt: '' };
+}
+
+function useWeather(coords) {
   const { data } = useQuery({
-    queryKey: ['weather'],
-    queryFn: () => api.get('/weather'),
+    queryKey: ['weather', coords?.lat ?? null, coords?.lon ?? null],
+    queryFn: () => api.get(coords ? `/weather?lat=${coords.lat}&lon=${coords.lon}` : '/weather'),
     staleTime: 10 * 60 * 1000,
     refetchInterval: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
   });
+  const preview = previewWeather();
+  if (preview) return preview;
   return data?.available ? data : null;
 }
 
@@ -275,7 +374,8 @@ const timeOf = (iso) => (iso ? iso.slice(11, 16) : '');
 
 export function SkyBanner({ className = '' }) {
   const id = useId().replace(/:/g, '');
-  const weather = useWeather();
+  const here = useLocation();
+  const weather = useWeather(here.coords);
   const clock = useClockNight();
   const night = weather ? !weather.isDay : clock;
   const kind = weather?.sky && SCENES[weather.sky] ? weather.sky : 'partly';
@@ -382,19 +482,38 @@ export function SkyBanner({ className = '' }) {
         {scene.snow && <Snow />}
       </svg>
 
-      {/* The weather in words, top left. */}
+      {/* The weather in words, top left, with the location button. */}
       {weather && (
-        <p
-          title={`${weather.location}, as of ${timeOf(weather.observedAt)}`}
-          className={`absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium shadow-sm backdrop-blur-sm ${
+        <div
+          className={`absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full py-0.5 pl-2 pr-0.5 text-[11px] font-medium shadow-sm backdrop-blur-sm ${
             night ? 'bg-black/25 text-white' : 'bg-white/70 text-[#1f2a44]'
           }`}
         >
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="tabular-nums">{weather.temperature}°</span>
-          <span className="max-w-24 truncate">{weather.label}</span>
-          <span className="sr-only">in {weather.location}</span>
-        </p>
+          <p
+            title={`${weather.location}${weather.observedAt ? `, as of ${timeOf(weather.observedAt)}` : ''}`}
+            className="inline-flex min-w-0 items-center gap-1.5"
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="tabular-nums">{weather.temperature}°</span>
+            <span className="max-w-24 truncate">{weather.label}</span>
+            <span className="sr-only">in {weather.location}</span>
+          </p>
+          {here.supported && (
+            <button
+              type="button"
+              onClick={here.toggle}
+              disabled={here.asking}
+              aria-pressed={here.using}
+              title={here.using ? 'Showing your location. Switch back to Bhubaneswar, Odisha' : 'Show the weather where you are'}
+              aria-label={here.using ? 'Show the weather in Bhubaneswar, Odisha' : 'Show the weather where you are'}
+              className={`grid h-5 w-5 place-items-center rounded-full transition-colors disabled:opacity-50 ${
+                here.using ? 'bg-accent text-on-accent' : night ? 'hover:bg-white/20' : 'hover:bg-black/10'
+              }`}
+            >
+              {here.using ? <LocateFixed className="h-3 w-3" aria-hidden="true" /> : <MapPin className="h-3 w-3" aria-hidden="true" />}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

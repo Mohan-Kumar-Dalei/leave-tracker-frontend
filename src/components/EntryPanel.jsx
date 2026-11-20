@@ -81,7 +81,9 @@ function EntryRow({ entry, onAvail }) {
   );
 }
 
-export function EntryPanel({ filters, entries, loading, scroll, onAvail, label }) {
+// With `fill`, panels side by side share one fixed height on a laptop, so
+// they end level however many entries each has; the list scrolls inside.
+export function EntryPanel({ filters, entries, loading, scroll, fill = false, onAvail, label }) {
   const [filter, setFilter] = useState('all');
   const shown = useMemo(
     () => (filter === 'all' ? entries : entries.filter((entry) => entry.kind === filter)),
@@ -89,8 +91,8 @@ export function EntryPanel({ filters, entries, loading, scroll, onAvail, label }
   );
 
   return (
-    <Panel>
-      <div className="border-b border-line p-3 sm:px-5">
+    <Panel className={fill ? 'flex flex-col xl:h-[30rem]' : ''}>
+      <div className="shrink-0 border-b border-line p-3 sm:px-5">
         <SelectBox
           aria-label={label}
           value={filter}
@@ -107,7 +109,10 @@ export function EntryPanel({ filters, entries, loading, scroll, onAvail, label }
       {loading && <RowsSkeleton rows={3} />}
       {!loading && shown.length === 0 && <Empty title="Nothing here yet" />}
       {!loading && shown.length > 0 && (
-        <ul tabIndex={scroll ? 0 : undefined} className={`@container ${scroll ? 'max-h-96 overflow-y-auto' : ''}`}>
+        <ul
+          tabIndex={scroll ? 0 : undefined}
+          className={`@container ${scroll ? 'max-h-96 overflow-y-auto' : ''} ${fill ? 'min-h-0 flex-1 xl:max-h-none' : ''}`}
+        >
           {shown.map((entry) => (
             <EntryRow key={`${entry.kind}-${entry.id}`} entry={entry} onAvail={onAvail} />
           ))}

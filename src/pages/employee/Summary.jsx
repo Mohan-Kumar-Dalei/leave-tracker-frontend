@@ -399,6 +399,7 @@ export default function Summary() {
                     loading={isPending}
                     onAvail={avail}
                     scroll
+                    fill
                   />
                 </Reveal>
                 <Reveal delay={0.16}>
@@ -409,6 +410,7 @@ export default function Summary() {
                     loading={isPending}
                     onAvail={avail}
                     scroll
+                    fill
                   />
                 </Reveal>
               </div>

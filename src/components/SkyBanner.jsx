@@ -361,25 +361,27 @@ function forkedBolt(seed, startX) {
   return { trunk: line(trunk), branches, twigs };
 }
 
+// Two bolts in different places take turns, one every 8 seconds.
 const BOLTS = [
-  { ...forkedBolt(7331, 236), delay: 0, duration: 7 },
-  { ...forkedBolt(90210, 168), delay: -3.4, duration: 9 },
+  { ...forkedBolt(7331, 236), delay: 0 },
+  { ...forkedBolt(90210, 168), delay: -8 },
 ];
 
-// The flash: the whole sky turns pale violet for an instant, behind the
-// clouds, in step with each bolt.
-function LightningFlash() {
+// Before each strike the whole scene slowly darkens, the strike lights it
+// up pale violet for an instant (with the bolt's flickers), and then the
+// scene slowly comes back. This sits over the clouds and the rain.
+function StormLight() {
   return (
     <>
+      <rect width="320" height="80" fill="#0a0d1c" className="storm-dark" />
       {BOLTS.map((bolt) => (
         <rect
           key={bolt.delay}
           width="320"
           height="80"
           fill="#efe4ff"
-          opacity="0.6"
-          className="sky-flash"
-          style={{ animationDelay: `${bolt.delay}s`, animationDuration: `${bolt.duration}s` }}
+          className="storm-light"
+          style={{ animationDelay: `${bolt.delay}s` }}
         />
       ))}
     </>
@@ -399,8 +401,8 @@ function LightningBolts({ id }) {
       {BOLTS.map((bolt) => (
         <g
           key={bolt.delay}
-          className="sky-flash"
-          style={{ animationDelay: `${bolt.delay}s`, animationDuration: `${bolt.duration}s` }}
+          className="storm-bolt"
+          style={{ animationDelay: `${bolt.delay}s` }}
           fill="none"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -586,14 +588,18 @@ export function SkyBanner({ className = '', preview = null }) {
 
         {/* Cloud cover */}
         {scene.grey > 0 && <rect width="320" height="80" fill={`url(#${id}-overcast)`} opacity={scene.grey} />}
-        {scene.lightning && <LightningFlash />}
         {CLOUD_PLACES.slice(0, scene.clouds).map((place) => (
           <Cloud key={`${place.y}-${place.duration}`} light={light} shade={shade} {...place} />
         ))}
-        {scene.lightning && <LightningBolts id={id} />}
         {scene.fog && <Fog id={id} night={night} />}
         {scene.drops > 0 && <Rain count={scene.drops} night={night} />}
         {scene.snow && <Snow />}
+        {scene.lightning && (
+          <>
+            <StormLight />
+            <LightningBolts id={id} />
+          </>
+        )}
       </svg>
 
       {/* The weather in words, top left, with the location button. */}

@@ -5,7 +5,10 @@ import { MonthlyBars } from './MonthlyBars';
 import { LoadError, PageHeading, Panel, PanelTitle, Reveal, RowsSkeleton, SelectBox, StickyTop } from './ui';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const SHORT = MONTHS.map((name) => name.slice(0, 3));
 const number = (value) => (Number.isInteger(value) ? value : value.toFixed(1));
+// Empty cells for months with no leave, like the tracker sheet.
+const cell = (value) => (value ? number(value) : '');
 
 function Stat({ label, value, accent = false }) {
   return (
@@ -16,25 +19,104 @@ function Stat({ label, value, accent = false }) {
   );
 }
 
+// The team's tracker sheet, kept by the app: one line per person (or per
+// department), their Leave Balance and Leave Availed for the year, the leave
+// taken in each month, and a Total line. Casual/Sick leave by default, like
+// the sheet; any other type, or all of them, can be chosen.
+function SheetTable({ data, month, onDepartment }) {
+  const people = data.rowKind === 'person';
+  const totals = data.summary;
+  const head = 'px-3 py-2 text-right font-medium';
+  const monthHead = (index) => `${head} ${index === month - 1 ? 'bg-accent-soft text-accent' : ''}`;
+  const monthCell = (index) => `px-3 py-2 text-right tabular-nums ${index === month - 1 ? 'bg-accent-soft/60' : ''}`;
+
+  return (
+    <div className="max-h-[520px] overflow-auto">
+      <table className="w-full min-w-[960px] border-separate border-spacing-0 text-sm">
+        <thead className="sticky top-0 z-10 bg-surface">
+          <tr className="text-xs text-muted">
+            <th className="sticky left-0 z-10 border-b border-line bg-surface px-4 py-2 text-left font-medium sm:px-5">
+              {people ? 'Name' : 'Department'}
+            </th>
+            {!people && <th className={`${head} border-b border-line`}>People</th>}
+            <th className={`${head} border-b border-line`}>Leave Balance</th>
+            <th className={`${head} border-b border-line`}>Leave Availed</th>
+            {SHORT.map((name, index) => (
+              <th key={name} className={`${monthHead(index)} border-b border-line`}>
+                {name}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.rows.map((row) => (
+            <tr key={row.employeeId ?? row.name} className="hover:bg-bg">
+              <td className="sticky left-0 border-b border-line bg-surface px-4 py-2 sm:px-5">
+                {!people && data.canChooseDepartment ? (
+                  <button
+                    type="button"
+                    onClick={() => onDepartment(row.name)}
+                    className="font-medium text-accent hover:underline underline-offset-4"
+                  >
+                    {row.name}
+                  </button>
+                ) : (
+                  <span className="block whitespace-nowrap font-medium">{row.name}</span>
+                )}
+                {row.employeeId && <span className="block whitespace-nowrap text-xs text-muted">{row.employeeId}</span>}
+              </td>
+              {!people && <td className="border-b border-line px-3 py-2 text-right tabular-nums">{row.people}</td>}
+              <td className="border-b border-line px-3 py-2 text-right font-medium tabular-nums">{number(row.balance)}</td>
+              <td className="border-b border-line px-3 py-2 text-right font-medium tabular-nums">{number(row.availed)}</td>
+              {row.months.map((days, index) => (
+                <td key={SHORT[index]} className={`${monthCell(index)} border-b border-line`}>
+                  {cell(days)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+        {/* The Total line, like the sheet's last row; it stays in view. */}
+        <tfoot className="sticky bottom-0 bg-surface">
+          <tr className="font-semibold">
+            <td className="sticky left-0 border-t-2 border-line bg-surface px-4 py-2.5 sm:px-5">Total</td>
+            {!people && <td className="border-t-2 border-line px-3 py-2.5 text-right tabular-nums">{totals.people}</td>}
+            <td className="border-t-2 border-line px-3 py-2.5 text-right tabular-nums">{number(totals.balance)}</td>
+            <td className="border-t-2 border-line px-3 py-2.5 text-right tabular-nums">{number(totals.availed)}</td>
+            {totals.months.map((days, index) => (
+              <td key={SHORT[index]} className={`${monthCell(index)} border-t-2 border-line`}>
+                {number(days)}
+              </td>
+            ))}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
 // The Leave Tracker's "Leave totals" page. A manager picks any department (or
-// all of them); everyone else sees their own department. Any month of the
-// year can be chosen for "Taken". Managers and assistant managers also see
-// each person's figures when one department is chosen.
+// all of them); everyone else sees their own department. The leave type and
+// the month can be chosen. Managers and assistant managers see the sheet
+// person by person; employees see their department's totals.
 export function LeaveTotalsPage() {
   const [department, setDepartment] = useState('all');
   const [month, setMonth] = useState(null);
+  const [type, setType] = useState(null);
   const { data, isPending, isError, error, refetch } = useQuery({
-    queryKey: ['team-totals', department, month],
+    queryKey: ['team-totals', department, month, type],
     queryFn: () => {
       const params = new URLSearchParams();
       if (department !== 'all') params.set('department', department);
       if (month) params.set('month', String(month));
+      if (type) params.set('type', type);
       return api.get(`/team/totals${params.size ? `?${params}` : ''}`);
     },
     placeholderData: keepPreviousData,
   });
   const shownMonth = month ?? data?.month;
   const scope = data ? (data.department === 'all' ? 'All departments' : data.department) : '';
+  const typeName = data ? (data.type ? data.type.name : 'All leave types') : '';
 
   return (
     <div>
@@ -45,12 +127,7 @@ export function LeaveTotalsPage() {
             data && (
               <>
                 {data.canChooseDepartment && (
-                  <SelectBox
-                    aria-label="Department"
-                    className="w-56"
-                    value={department}
-                    onChange={(event) => setDepartment(event.target.value)}
-                  >
+                  <SelectBox aria-label="Department" className="w-52" value={department} onChange={(event) => setDepartment(event.target.value)}>
                     <option value="all">All departments</option>
                     {data.departments.map((name) => (
                       <option key={name} value={name}>
@@ -59,6 +136,19 @@ export function LeaveTotalsPage() {
                     ))}
                   </SelectBox>
                 )}
+                <SelectBox
+                  aria-label="Leave type"
+                  className="w-52"
+                  value={type ?? data.type?.code ?? 'all'}
+                  onChange={(event) => setType(event.target.value)}
+                >
+                  {data.types.map((item) => (
+                    <option key={item.code} value={item.code}>
+                      {item.name}
+                    </option>
+                  ))}
+                  <option value="all">All leave types</option>
+                </SelectBox>
                 <SelectBox
                   aria-label="Month"
                   className="w-44"
@@ -75,9 +165,7 @@ export function LeaveTotalsPage() {
             )
           }
         >
-          {data
-            ? `${scope}: balance still available, leave applied in ${data.year} and taken in ${data.monthName}.`
-            : ' '}
+          {data ? `${scope} · ${typeName} · ${data.year}` : ' '}
         </PageHeading>
       </StickyTop>
 
@@ -90,70 +178,28 @@ export function LeaveTotalsPage() {
             <Panel>
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-line lg:grid-cols-4">
                 <Stat label="People" value={data.summary.people} />
-                <Stat label="Available balance" value={data.summary.available} accent />
-                <Stat label={`Applied in ${data.year}`} value={data.summary.applied} />
+                <Stat label="Leave Balance" value={data.summary.balance} accent />
+                <Stat label={`Leave Availed in ${data.year}`} value={data.summary.availed} />
                 <Stat label={`Taken in ${data.monthName}`} value={data.summary.takenInMonth} />
               </dl>
             </Panel>
           </Reveal>
 
-          {/* Full width, one under the other, so no card is left with an
-              empty bottom beside a longer one. */}
-          <Reveal delay={0.04}>
+          {data.rows.length > 0 && (
+            <Reveal delay={0.04}>
+              <Panel>
+                <PanelTitle>{data.rowKind === 'person' ? `${data.department}, person by person` : 'By department'}</PanelTitle>
+                <SheetTable data={data} month={shownMonth} onDepartment={setDepartment} />
+              </Panel>
+            </Reveal>
+          )}
+
+          <Reveal delay={0.08}>
             <Panel>
               <PanelTitle>Taken month by month, {data.year}</PanelTitle>
               <MonthlyBars months={data.months} />
             </Panel>
           </Reveal>
-
-          {data.rows.length > 0 && (
-            <Reveal delay={0.08}>
-              <Panel>
-                <PanelTitle>{data.rowKind === 'person' ? `People in ${data.department}` : 'By department'}</PanelTitle>
-                {(
-                  <div className="max-h-[460px] overflow-auto">
-                    <table className="w-full min-w-[520px] text-sm">
-                      <thead className="sticky top-0 bg-surface">
-                        <tr className="text-left text-xs text-muted">
-                          <th className="px-4 py-2 font-medium sm:px-5">{data.rowKind === 'person' ? 'Person' : 'Department'}</th>
-                          {data.rowKind === 'department' && <th className="px-3 py-2 text-right font-medium">People</th>}
-                          <th className="px-3 py-2 text-right font-medium">Available</th>
-                          <th className="px-3 py-2 text-right font-medium">Applied ({data.year})</th>
-                          <th className="px-4 py-2 text-right font-medium sm:px-5">Taken ({data.monthName})</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.rows.map((row) => (
-                          <tr key={row.employeeId ?? row.name} className="border-t border-line">
-                            <td className="px-4 py-2 sm:px-5">
-                              {data.rowKind === 'department' && data.canChooseDepartment ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setDepartment(row.name)}
-                                  className="font-medium text-accent hover:underline underline-offset-4"
-                                >
-                                  {row.name}
-                                </button>
-                              ) : (
-                                <span className="font-medium">{row.name}</span>
-                              )}
-                              {row.employeeId && (
-                                <span className="block text-xs text-muted">{`${row.employeeId} · ${row.designation}`}</span>
-                              )}
-                            </td>
-                            {data.rowKind === 'department' && <td className="px-3 py-2 text-right tabular-nums">{row.people}</td>}
-                            <td className="px-3 py-2 text-right tabular-nums">{number(row.available)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">{number(row.applied)}</td>
-                            <td className="px-4 py-2 text-right tabular-nums sm:px-5">{number(row.takenInMonth)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </Panel>
-            </Reveal>
-          )}
         </div>
       )}
     </div>

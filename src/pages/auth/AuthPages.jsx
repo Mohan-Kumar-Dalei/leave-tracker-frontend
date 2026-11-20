@@ -106,7 +106,7 @@ function Preview() {
 // marked like booked leave (blue) and holidays (amber). The pattern is fixed
 // (a small hash), not random on each visit.
 const PITCH = 15;
-const TILE_COLUMNS = 14;
+const TILE_COLUMNS = 12;
 // The gap between tiles grows column by column, from none (solid panel) to
 // 5px, so there is no line where the tiles begin.
 const gapAt = (col) => Math.min(5, col * 0.75);
@@ -132,18 +132,15 @@ const TILE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="${STRIP}" heigh
   },
 ).join('')}</svg>`;
 const TILE_MASK = `url("data:image/svg+xml,${encodeURIComponent(TILE_SVG)}")`;
-// Three layers, added together: the panel, a soft fade over the start of the
-// strip (so the panel stays solid there and the gaps open slowly), and the tiles.
-const FADE = 'linear-gradient(to right, #000 0%, #000 22%, rgb(0 0 0 / 0.55) 42%, transparent 70%)';
 const PANEL_MASK = {
-  maskImage: `linear-gradient(#000, #000), ${FADE}, ${TILE_MASK}`,
-  maskSize: `calc(100% - ${STRIP}px + 1px) 100%, ${STRIP}px 100%, ${STRIP}px ${TILE_ROWS * PITCH}px`,
-  maskPosition: '0 0, 100% 0, 100% 0',
-  maskRepeat: 'no-repeat, no-repeat, repeat-y',
-  WebkitMaskImage: `linear-gradient(#000, #000), ${FADE}, ${TILE_MASK}`,
-  WebkitMaskSize: `calc(100% - ${STRIP}px + 1px) 100%, ${STRIP}px 100%, ${STRIP}px ${TILE_ROWS * PITCH}px`,
-  WebkitMaskPosition: '0 0, 100% 0, 100% 0',
-  WebkitMaskRepeat: 'no-repeat, no-repeat, repeat-y',
+  maskImage: `linear-gradient(#000, #000), ${TILE_MASK}`,
+  maskSize: `calc(100% - ${STRIP}px) 100%, ${STRIP}px ${TILE_ROWS * PITCH}px`,
+  maskPosition: '0 0, 100% 0',
+  maskRepeat: 'no-repeat, repeat-y',
+  WebkitMaskImage: `linear-gradient(#000, #000), ${TILE_MASK}`,
+  WebkitMaskSize: `calc(100% - ${STRIP}px) 100%, ${STRIP}px ${TILE_ROWS * PITCH}px`,
+  WebkitMaskPosition: '0 0, 100% 0',
+  WebkitMaskRepeat: 'no-repeat, repeat-y',
 };
 
 // The marked tiles, laid on the same grid at the panel's right edge.

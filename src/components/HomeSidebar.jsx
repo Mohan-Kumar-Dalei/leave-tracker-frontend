@@ -83,12 +83,18 @@ export function HomeSidebar({ show = 3 }) {
   );
   const isAssistant = (member) => /assistant\s*manager/i.test(member.designation ?? '');
   const position = positionOf(user);
+  // The manager may have chosen another assistant manager for your leave.
+  const chosen = me.leaveReportTo ? data.members.find((member) => member.id === me.leaveReportTo) : null;
+  const departmentManager = data.members.find(
+    (member) => member.id !== user.id && (member.manages ?? []).includes(me.department),
+  );
   const manager =
-    position === 'hr' || position === 'manager'
+    chosen ??
+    (position === 'hr' || position === 'manager'
       ? null
       : position === 'assistantmanager'
-        ? (admins.find((member) => !isAssistant(member)) ?? null)
-        : (admins.find(isAssistant) ?? admins[0] ?? null);
+        ? (departmentManager ?? admins.find((member) => !isAssistant(member)) ?? null)
+        : (admins.find(isAssistant) ?? admins[0] ?? null));
   // Only the people in the same department, now that there are several.
   const others = leaveFirst(
     data.members.filter((member) => member.id !== user.id && member.department === me.department),

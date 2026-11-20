@@ -275,7 +275,7 @@ function Requests({ id, requests }) {
   );
 }
 
-function Team({ id, members, canChooseAssistant }) {
+function Team({ id, members, canChooseAssistant, assistants = [] }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const choose = useMutation({
@@ -294,7 +294,10 @@ function Team({ id, members, canChooseAssistant }) {
     onSuccess: (_data, { person, change }) => {
       queryClient.invalidateQueries({ queryKey: ['department', id] });
       queryClient.invalidateQueries({ queryKey: ['team'] });
-      if (change.teamLead !== undefined) {
+      if (change.leaveReportTo !== undefined) {
+        const to = assistants.find((choice) => choice.id === change.leaveReportTo);
+        toast.success('Saved', `${person.name}'s leave now goes to ${to ? to.name : 'their assistant manager'}.`);
+      } else if (change.teamLead !== undefined) {
         toast.success(change.teamLead ? 'Team lead added' : 'Team lead removed', `${person.name} ${change.teamLead ? 'is now a team lead' : 'is no longer a team lead; their team reports to the assistant manager'}.`);
       } else toast.success('Saved', `${person.name}'s reporting line is updated.`);
     },
@@ -388,6 +391,25 @@ function Team({ id, members, canChooseAssistant }) {
                         ))}
                     </SelectBox>
                     )}
+                    {/* The manager picks which assistant manager gets this
+                        person's leave; it shows as "Reporting to" on their dashboard. */}
+                    {canChooseAssistant && assistants.length > 0 && (
+                      <SelectBox
+                        aria-label={`Who gets ${person.name}'s leave`}
+                        className="w-56"
+                        value={person.leaveReportTo ?? ''}
+                        onChange={(event) => arrange.mutate({ person, change: { leaveReportTo: event.target.value || null } })}
+                      >
+                        <option value="">Leave to their AM</option>
+                        {assistants
+                          .filter((choice) => choice.id !== person.id)
+                          .map((choice) => (
+                            <option key={choice.id} value={choice.id}>
+                              {`Leave to ${choice.name} · ${choice.department}`}
+                            </option>
+                          ))}
+                      </SelectBox>
+                    )}
                     {/* Someone who already leads a team stays a team lead. */}
                     <Button
                       variant="ghost"
@@ -474,7 +496,7 @@ export default function DepartmentHome() {
       {isError && <LoadError error={error} onRetry={refetch} />}
 
       {data && (
-        <div className="grid gap-4 md:h-[calc(100dvh-290px)] md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:h-[calc(100dvh-170px)]">
+        <div className="grid gap-4 md:h-[calc(100dvh-335px)] md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:h-[calc(100dvh-227px)]">
           <Reveal className="flex min-h-0 flex-col gap-4">
             {data.you.canInviteAssistant && <InviteAssistant id={id} pending={data.assistantInvite} />}
             <InviteTeam id={id} joinLink={data.joinLink} />
@@ -485,6 +507,7 @@ export default function DepartmentHome() {
               id={id}
               members={data.members}
               canChooseAssistant={data.you.canChooseAssistant}
+              assistants={data.assistants}
             />
           </Reveal>
         </div>

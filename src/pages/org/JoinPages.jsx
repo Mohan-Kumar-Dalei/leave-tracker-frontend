@@ -11,6 +11,7 @@ import { AuthLayout, authLink, FormError } from '../auth/AuthPages';
 //                   assistant manager; they create their account.
 //   JoinDepartment  the department's join link; anyone can ask to join, and
 //                   the manager or assistant manager approves them.
+// Both start with the person's Gmail App Password when the server keeps them.
 
 const PASSWORD_HINT = 'At least 10 characters, with a letter and a number.';
 
@@ -41,6 +42,77 @@ function Done({ title, children }) {
   );
 }
 
+const looksLikeAppPassword = (value) => /^[a-z]{16}$/i.test(String(value ?? '').replace(/\s+/g, ''));
+const aboutAppPassword = (message = '') => /app password|gmail/i.test(message);
+
+// Where the person is: step 1 (Gmail App Password) or step 2 (the account).
+function StepBar({ step, onBack }) {
+  const labels = ['Gmail App Password', 'Your account'];
+  return (
+    <div className="mb-5 space-y-2">
+      <div className="flex gap-1.5" aria-hidden="true">
+        {labels.map((label, index) => (
+          <span key={label} className={`h-1 flex-1 rounded-full ${index <= step ? 'bg-accent' : 'bg-line'}`} />
+        ))}
+      </div>
+      <p className="flex items-center justify-between text-[13px] text-muted">
+        <span>
+          Step {step + 1} of 2: <span className="font-medium text-ink">{labels[step]}</span>
+        </span>
+        {step > 0 && onBack && (
+          <button type="button" onClick={onBack} className={authLink}>
+            Back
+          </button>
+        )}
+      </p>
+    </div>
+  );
+}
+
+// Step 1 for anyone invited by mail: their Gmail App Password, so leave mails
+// go from their own Gmail. Google checks it when they finish; it then shows as
+// connected on their Profile.
+function AppPasswordStep({ email, onEmail, value, onChange, onNext, problem }) {
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onNext();
+      }}
+    >
+      <StepBar step={0} />
+      <ol className="list-decimal space-y-1.5 rounded-lg bg-sunken py-3 pl-8 pr-3 text-[13px] leading-relaxed">
+        <li>Turn on 2-Step Verification for {email || 'your Gmail'}.</li>
+        <li>
+          Open{' '}
+          <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer noopener" className={authLink}>
+            myaccount.google.com/apppasswords
+          </a>{' '}
+          and make one called Leave Tracker.
+        </li>
+        <li>Paste the 16 letters below.</li>
+      </ol>
+      {onEmail && (
+        <TextInput label="Work email (Gmail)" type="email" autoComplete="username" required maxLength={160} value={email} onChange={onEmail} />
+      )}
+      <PasswordInput
+        label="Gmail App Password"
+        placeholder="abcd efgh ijkl mnop"
+        autoComplete="off"
+        required
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        hint="Checked with Google when you finish. Your leave mails then go from this Gmail."
+      />
+      <FormError message={problem} />
+      <Button type="submit" className="h-10! w-full">
+        Next
+      </Button>
+    </form>
+  );
+}
+
 // Checks the two passwords match before sending.
 function usePasswords() {
   const [password, setPassword] = useState('');
@@ -61,6 +133,8 @@ export function AcceptInvite() {
   const [problem, setProblem] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
+  const [appPassword, setAppPassword] = useState('');
+  const [step, setStep] = useState(0);
 
   if (isPending) return <AuthLayout title="Opening your invitation"><Loading /></AuthLayout>;
   if (error) return <Problem error={error} />;
@@ -81,9 +155,11 @@ export function AcceptInvite() {
     try {
       const body = { name: form.name || data.name, password: passwords.password };
       if (form.phone) body.phone = form.phone;
+      if (data.appPassword) body.appPassword = appPassword;
       setDone(await api.post(`/join/invite/${token}`, body));
     } catch (issue) {
       setProblem(issue.message);
+      if (data.appPassword && aboutAppPassword(issue.message)) setStep(0);
     } finally {
       setBusy(false);
     }
@@ -92,9 +168,26 @@ export function AcceptInvite() {
   return (
     <AuthLayout
       title={`Join ${data.department} as ${data.roleName}`}
-      intro={`${data.company} has invited you. Create your account to start.`}
+      intro={`${data.company} has invited you. ${data.appPassword ? 'First connect your Gmail, then create your account.' : 'Create your account to start.'}`}
     >
+      {data.appPassword && step === 0 ? (
+        <AppPasswordStep
+          email={data.email}
+          value={appPassword}
+          onChange={setAppPassword}
+          problem={problem}
+          onNext={() => {
+            if (!looksLikeAppPassword(appPassword)) {
+              setProblem('An App Password is 16 letters, shown by Google in four groups of four.');
+              return;
+            }
+            setProblem('');
+            setStep(1);
+          }}
+        />
+      ) : (
       <form onSubmit={submit} className="space-y-4">
+        {data.appPassword && <StepBar step={1} onBack={() => setStep(0)} />}
         <TextInput label="Work email" value={data.email} disabled readOnly />
         <TextInput label="Full name" required minLength={2} maxLength={80} defaultValue={data.name} onChange={set('name')} />
         <div className="grid gap-4 sm:grid-cols-2">
@@ -122,6 +215,7 @@ export function AcceptInvite() {
           Create my account
         </Button>
       </form>
+      )}
     </AuthLayout>
   );
 }
@@ -138,6 +232,8 @@ export function JoinDepartment() {
   const [problem, setProblem] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [appPassword, setAppPassword] = useState('');
+  const [step, setStep] = useState(0);
 
   if (isPending) return <AuthLayout title="Opening the link"><Loading /></AuthLayout>;
   if (error) return <Problem error={error} />;
@@ -158,10 +254,11 @@ export function JoinDepartment() {
     setBusy(true);
     try {
       const body = Object.fromEntries(Object.entries(form).filter(([, value]) => value.trim() !== ''));
-      await api.post(`/join/${code}`, { ...body, password: passwords.password });
+      await api.post(`/join/${code}`, { ...body, password: passwords.password, ...(data.appPassword ? { appPassword } : {}) });
       setDone(true);
     } catch (issue) {
       setProblem(issue.message);
+      if (data.appPassword && aboutAppPassword(issue.message)) setStep(0);
     } finally {
       setBusy(false);
     }
@@ -169,9 +266,37 @@ export function JoinDepartment() {
 
   return (
     <AuthLayout title={`Join ${data.department}`} intro={`${data.company}${data.location ? `, ${data.location}` : ''}. Fill in your details; your manager will approve you.`}>
+      {data.appPassword && step === 0 ? (
+        <AppPasswordStep
+          email={form.email}
+          onEmail={set('email')}
+          value={appPassword}
+          onChange={setAppPassword}
+          problem={problem}
+          onNext={() => {
+            if (!looksLikeAppPassword(appPassword)) {
+              setProblem('An App Password is 16 letters, shown by Google in four groups of four.');
+              return;
+            }
+            setProblem('');
+            setStep(1);
+          }}
+        />
+      ) : (
       <form onSubmit={submit} className="space-y-4">
+        {data.appPassword && <StepBar step={1} onBack={() => setStep(0)} />}
         <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} />
-        <TextInput label="Work email" type="email" autoComplete="username" required maxLength={160} value={form.email} onChange={set('email')} />
+        <TextInput
+          label="Work email"
+          type="email"
+          autoComplete="username"
+          required
+          maxLength={160}
+          value={form.email}
+          onChange={set('email')}
+          disabled={Boolean(data.appPassword)}
+          hint={data.appPassword ? 'The Gmail from step 1.' : undefined}
+        />
         <div className="grid gap-4 sm:grid-cols-2">
           <EmployeeIdField hint="Yours once approved" />
           <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
@@ -204,6 +329,7 @@ export function JoinDepartment() {
           Ask to join
         </Button>
       </form>
+      )}
       <div className="mt-4 text-center">
         <Link to="/login" className={authLink}>
           Already have an account? Sign in

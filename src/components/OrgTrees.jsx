@@ -250,7 +250,7 @@ function Columns({ columns, scrollLast = false }) {
           ))}
           <div className="relative flex items-start">
             <Gap left={parent} right={last} part="left" />
-            <div className="max-h-[calc(100dvh-380px)] min-h-72 overflow-y-auto overscroll-contain pr-1 lg:max-h-[calc(100dvh-250px)]">
+            <div className="max-h-[calc(100dvh-425px)] min-h-72 overflow-y-auto overscroll-contain pr-1 lg:max-h-[calc(100dvh-307px)]">
               <div className="relative flex items-start">
                 <Gap left={parent} right={last} part="right" joinFrom={above ? fromY : 0} />
                 <ColumnList column={last} width={width} />
@@ -290,7 +290,7 @@ function Columns({ columns, scrollLast = false }) {
   return (
     <div
       ref={box}
-      className="max-h-[calc(100dvh-346px)] min-h-72 overflow-auto overscroll-contain rounded-xl border border-line bg-surface p-4 shadow-card lg:max-h-[calc(100dvh-216px)]"
+      className="max-h-[calc(100dvh-391px)] min-h-72 overflow-auto overscroll-contain rounded-xl border border-line bg-surface p-4 shadow-card lg:max-h-[calc(100dvh-273px)]"
     >
       <div className="flex w-max items-start">
         {columns.map((column, index) => (

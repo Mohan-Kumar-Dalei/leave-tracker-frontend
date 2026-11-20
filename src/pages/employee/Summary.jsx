@@ -17,9 +17,12 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
+import { homeOf, isStaff } from '../../lib/home';
 import { ApplyLeaveDialog } from '../../components/ApplyLeave';
 import { EntryPanel, MY_PAST_FILTERS, MY_UPCOMING_FILTERS } from '../../components/EntryPanel';
+import { LeaveTotals } from '../../components/LeaveTotals';
 import { MonthlyBars } from '../../components/MonthlyBars';
 import { TeamCalendarView } from '../../components/TeamCalendarView';
 import { HomeSidebar } from '../../components/HomeSidebar';
@@ -292,9 +295,19 @@ export default function Summary() {
             </h1>
             <p className="mt-1 text-sm text-muted">{data ? subtitle(data) : ' '}</p>
           </div>
-          <Button className="max-sm:w-full" onClick={() => setDialog({ open: true, preset: null })}>
-            Apply Leave
-          </Button>
+          <div className="flex flex-wrap gap-2 max-sm:w-full">
+            {/* Managers and assistant managers can correct their own balance. */}
+            {isStaff(user) && (
+              <Link to={`${homeOf(user)}/employees/${user.id}`} className="max-sm:flex-1">
+                <Button variant="secondary" className="w-full">
+                  Edit my balance
+                </Button>
+              </Link>
+            )}
+            <Button className="max-sm:flex-1" onClick={() => setDialog({ open: true, preset: null })}>
+              Apply Leave
+            </Button>
+          </div>
         </Reveal>
 
         <Reveal delay={0.04} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
@@ -401,6 +414,9 @@ export default function Summary() {
                   </Panel>
                 </Reveal>
               )}
+              <Reveal delay={0.22}>
+                <LeaveTotals />
+              </Reveal>
             </>
           ) : (
             <Reveal>

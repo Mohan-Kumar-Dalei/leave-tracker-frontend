@@ -36,6 +36,26 @@
   --animate-sheet-in: sheet-in 0.32s var(--ease-calm);
   --animate-modal-in: modal-in 0.24s var(--ease-calm);
   --animate-pop-in: pop-in 0.14s var(--ease-calm);
+  /* The sign-in page's marquee: two copies side by side slide one width. */
+  --animate-marquee: marquee 38s linear infinite;
+  --animate-marquee-back: marquee-back 44s linear infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes marquee-back {
+    from {
+      transform: translateX(-50%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
 
   @keyframes sheet-in {
     from {

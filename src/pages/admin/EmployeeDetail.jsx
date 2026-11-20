@@ -286,6 +286,7 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
 // signature of the leave mails this person sends.
 function EditDetails({ user, onClose }) {
   const [form, setForm] = useState({
+    email: user.email ?? '',
     department: user.department ?? '',
     designation: user.designation ?? '',
     phone: user.phone ?? '',
@@ -339,6 +340,15 @@ function EditDetails({ user, onClose }) {
           save.mutate();
         }}
       >
+        <TextInput
+          label="Email"
+          type="email"
+          required
+          maxLength={160}
+          value={form.email}
+          onChange={set('email')}
+          hint="Their sign-in. A new email needs a new Gmail App Password."
+        />
         <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
         <TextInput
           label="Designation"

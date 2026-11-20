@@ -9,12 +9,13 @@ import { useAuth } from '../lib/auth';
 import { isoFromCreatedAt, slashDate } from '../lib/dates';
 import { useToast } from '../lib/toast';
 
-const EDITABLE = ['name', 'phone', 'designation', 'department'];
+const EDITABLE = ['name', 'email', 'phone', 'designation', 'department'];
 
 const pick = (user) => Object.fromEntries(EDITABLE.map((key) => [key, user[key] ?? '']));
 
-// The person's own details. Name, phone, designation and department are theirs
-// to change; email and employee ID stay with the admin. Joined is the day the
+// The person's own details. Name, email, phone, designation and department are
+// theirs to change (a new email asks for the current password); the employee
+// ID stays with the admin. Joined is the day the
 // account was made in the Leave Tracker.
 function ProfileDetails() {
   const { user, setUser } = useAuth();
@@ -24,7 +25,11 @@ function ProfileDetails() {
   const [error, setError] = useState('');
 
   const save = useMutation({
-    mutationFn: () => api.patch('/me/profile', form),
+    mutationFn: () => {
+      const { currentPassword, ...fields } = form;
+      const changingEmail = fields.email.trim().toLowerCase() !== (user.email ?? '').toLowerCase();
+      return api.patch('/me/profile', changingEmail ? { ...fields, currentPassword } : { ...fields, email: user.email });
+    },
     onSuccess: ({ user: saved }) => {
       setUser(saved);
       setEditing(false);
@@ -78,6 +83,25 @@ function ProfileDetails() {
           }}
         >
           <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} />
+          <TextInput
+            label="Email"
+            type="email"
+            required
+            maxLength={160}
+            value={form.email}
+            onChange={set('email')}
+            hint="Your sign-in and the Gmail your leave mails go from."
+          />
+          {form.email.trim().toLowerCase() !== (user.email ?? '').toLowerCase() && (
+            <PasswordInput
+              label="Current password"
+              autoComplete="current-password"
+              required
+              value={form.currentPassword ?? ''}
+              onChange={set('currentPassword')}
+              hint="Needed to change your email. Add your Gmail App Password again afterwards."
+            />
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <TextInput
               label="Phone"
@@ -96,7 +120,7 @@ function ProfileDetails() {
             />
             <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
           </div>
-          <p className="text-[13px] text-muted">Your email and employee ID are set by your admin.</p>
+          <p className="text-[13px] text-muted">Your employee ID is set by your admin.</p>
           {error && (
             <p role="alert" className="text-sm text-rejected">
               {error}

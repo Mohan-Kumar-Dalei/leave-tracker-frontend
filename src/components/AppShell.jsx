@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Building2, CalendarCheck, CalendarDays, ChevronsUpDown, FileText, History, Inbox, LayoutGrid, LogOut, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
+import { CalendarCheck, ChevronsUpDown, House, LogOut, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
@@ -11,37 +11,96 @@ import { NotificationBell } from './NotificationBell';
 import { Avatar } from './ProfilePhoto';
 import { IconButton } from './ui';
 
-// Menus by position. `to` is the page under the person's own address
-// (lib/home.js), '' being the page it opens on.
-const PERSONAL_NAV = [
-  { to: '', label: 'Dashboard', icon: LayoutGrid, end: true },
-  { to: 'requests', label: 'My requests', icon: FileText },
-  { to: 'department', label: 'Department', short: 'Department', icon: Network },
-  { to: 'profile', label: 'Profile', short: 'Profile', icon: UserRound },
+// The menu, Zoho style: a dark rail on the left with a few sections, and the
+// section's pages as tabs along the top. `to` is the page under the person's
+// own address (lib/home.js), '' being the page it opens on.
+const EMPLOYEE_SECTIONS = [
+  {
+    key: 'home',
+    label: 'Home',
+    icon: House,
+    items: [
+      { to: '', label: 'Dashboard', end: true },
+      { to: 'requests', label: 'My requests' },
+    ],
+  },
+  { key: 'people', label: 'Department', icon: Network, items: [{ to: 'department', label: 'Department' }] },
+  { key: 'me', label: 'Profile', icon: UserRound, items: [{ to: 'profile', label: 'Profile' }] },
 ];
 
-const STAFF_NAV = [
-  { to: 'requests', label: 'Leave requests', short: 'Requests', icon: Inbox, badge: true },
-  { to: 'calendar', label: 'Team calendar', short: 'Calendar', icon: CalendarDays },
-  { to: 'upcoming', label: 'Upcoming & past', short: 'Upcoming', icon: History },
-  { to: 'department', label: 'Department', short: 'Department', icon: Network },
-  { to: 'employees', label: 'Employees', short: 'Employees', icon: Users },
-  { to: 'setup', label: 'Setup', short: 'Setup', icon: Settings2 },
-];
+const LEAVE_SECTION = {
+  key: 'leave',
+  label: 'Leave Tracker',
+  icon: CalendarCheck,
+  items: [
+    { to: 'requests', label: 'Leave requests', badge: true },
+    { to: 'calendar', label: 'Team calendar' },
+    { to: 'upcoming', label: 'Upcoming & past' },
+  ],
+};
 
-// Assistant managers and managers see their department; they take leave too,
-// so they also have My leave.
-const ADMIN_NAV = [
-  { to: '', label: 'Overview', short: 'Overview', icon: LayoutGrid, end: true },
-  ...STAFF_NAV,
-  { to: 'my-leave', label: 'My leave', short: 'My leave', icon: CalendarCheck },
-];
+const SETTINGS_SECTION = {
+  key: 'settings',
+  label: 'Settings',
+  icon: Settings2,
+  items: [
+    { to: 'setup', label: 'Setup' },
+    { to: 'profile', label: 'Profile' },
+  ],
+};
 
-// HR runs the organisation and sees the whole company's leave.
-const OWNER_NAV = [
-  { to: '', label: 'Organisation', short: 'Organisation', icon: Building2, end: true },
-  { to: 'overview', label: 'Overview', short: 'Overview', icon: LayoutGrid },
-  ...STAFF_NAV,
+// Assistant managers and managers: their own leave under Home, the team's
+// leave, their people (a manager also organises the company), and settings.
+function staffSections({ manager, myDepartment }) {
+  return [
+    {
+      key: 'home',
+      label: 'Home',
+      icon: House,
+      items: [
+        { to: '', label: 'Overview', end: true },
+        { to: 'my-leave', label: 'My leave' },
+        { to: 'my-requests', label: 'My requests' },
+      ],
+    },
+    LEAVE_SECTION,
+    {
+      key: 'people',
+      label: 'People',
+      icon: Users,
+      items: [
+        ...(manager ? [{ to: 'organisation', label: 'Organisation' }] : []),
+        ...(myDepartment ? [{ to: `my-department/${myDepartment.id}`, match: 'my-department', label: 'My department' }] : []),
+        { to: 'department', label: 'Department' },
+        { to: 'employees', label: 'Employees' },
+      ],
+    },
+    SETTINGS_SECTION,
+  ];
+}
+
+// HR (turned off for now) would open on the organisation.
+const HR_SECTIONS = [
+  {
+    key: 'home',
+    label: 'Home',
+    icon: House,
+    items: [
+      { to: '', label: 'Organisation', end: true },
+      { to: 'overview', label: 'Overview' },
+    ],
+  },
+  LEAVE_SECTION,
+  {
+    key: 'people',
+    label: 'People',
+    icon: Users,
+    items: [
+      { to: 'department', label: 'Department' },
+      { to: 'employees', label: 'Employees' },
+    ],
+  },
+  SETTINGS_SECTION,
 ];
 
 export function Logo() {
@@ -52,26 +111,6 @@ export function Logo() {
       </span>
       <span className="text-[15px] font-semibold tracking-tight">Leave Tracker</span>
     </span>
-  );
-}
-
-function SideLink({ item, badge }) {
-  return (
-    <NavLink
-      to={item.to}
-      end={item.end}
-      className={({ isActive }) =>
-        `flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors ${
-          isActive ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-sunken hover:text-ink'
-        }`
-      }
-    >
-      <item.icon className="h-[18px] w-[18px]" aria-hidden="true" />
-      {item.label}
-      {item.badge && badge > 0 && (
-        <span className="ml-auto rounded-full bg-accent px-1.5 text-[11px] font-medium leading-[18px] tabular-nums text-on-accent">{badge}</span>
-      )}
-    </NavLink>
   );
 }
 
@@ -176,32 +215,69 @@ function ThemeSwitch({ inSidebar = false }) {
   );
 }
 
+// Whether a page of a section is the one open.
+function isOpen(item, home, pathname) {
+  const path = `${home}${item.to ? `/${item.match ?? item.to}` : ''}`;
+  return item.end ? pathname === path || pathname === `${path}/` : pathname === path || pathname.startsWith(`${path}/`);
+}
+
+function Badge({ count, className = '' }) {
+  if (!count) return null;
+  return (
+    <span className={`rounded-full bg-accent px-1.5 text-[10px] font-semibold leading-4 tabular-nums text-on-accent ${className}`}>
+      {count}
+    </span>
+  );
+}
+
+// The tabs of the open section, along the top.
+function SectionTabs({ section, home, badge }) {
+  return (
+    <nav aria-label={section.label} className="flex min-w-0 items-stretch gap-1 overflow-x-auto [scrollbar-width:none]">
+      {section.items.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to ? `${home}/${item.to}` : home}
+          end={item.end}
+          className={({ isActive }) =>
+            `relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-sm font-medium transition-colors ${
+              isActive
+                ? 'text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-accent'
+                : 'text-muted hover:text-ink'
+            }`
+          }
+        >
+          {item.label}
+          {item.badge && <Badge count={badge} />}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
 export function AppShell() {
   const { user, signOut } = useAuth();
+  const { pathname } = useLocation();
+  const position = positionOf(user);
   const isAdmin = user.role === 'admin';
   const home = homeOf(user);
 
-  // Whoever manages a department (its manager or assistant manager) gets a
-  // "My department" page to invite and approve their team.
+  // Whoever runs a department gets a "My department" page to invite and
+  // approve their team; a manager can switch to any department there.
   const { data: mine } = useQuery({
     queryKey: ['my-departments'],
     queryFn: () => api.get('/departments/mine'),
     enabled: user.role !== 'owner',
   });
   const myDepartment = mine?.items?.[0];
-  const baseNav =
-    user.role === 'owner'
-      ? OWNER_NAV
-      : positionOf(user) === 'manager'
-        ? [ADMIN_NAV[0], { to: 'organisation', label: 'Organisation', short: 'Organisation', icon: Building2 }, ...ADMIN_NAV.slice(1)]
-        : isAdmin
-          ? ADMIN_NAV
-          : PERSONAL_NAV;
-  const pages = myDepartment
-    ? [...baseNav, { to: `my-department/${myDepartment.id}`, label: 'My department', short: 'My dept', icon: Building2 }]
-    : baseNav;
-  // Every link points under the person's own address, e.g. /employee/CON-030/requests.
-  const nav = pages.map((item) => ({ ...item, to: item.to ? `${home}/${item.to}` : home, end: item.end ?? !item.to }));
+  const sections =
+    position === 'hr'
+      ? HR_SECTIONS
+      : isAdmin
+        ? staffSections({ manager: position === 'manager', myDepartment })
+        : EMPLOYEE_SECTIONS;
+  const current =
+    sections.find((section) => section.items.some((item) => isOpen(item, home, pathname))) ?? sections[0];
 
   useLiveUpdates(true);
 
@@ -211,39 +287,63 @@ export function AppShell() {
     enabled: isAdmin || user.role === 'owner',
   });
   const badge = overview?.pendingCount ?? 0;
+  const sectionBadge = (section) => (section.items.some((item) => item.badge) ? badge : 0);
+  const firstPage = (section) => (section.items[0].to ? `${home}/${section.items[0].to}` : home);
 
   return (
-    <div className="min-h-dvh pb-20 lg:pb-0 lg:pl-60">
+    <div className="min-h-dvh pb-20 lg:pb-0 lg:pl-[84px]">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2">
         Skip to content
       </a>
 
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
-        <Link to={home} className="flex h-14 items-center px-4">
-          <Logo />
+      {/* The rail: the app's sections, on a dark band down the left. */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[84px] flex-col items-center bg-[#16204a] py-3 lg:flex">
+        <Link to={home} aria-label="Leave Tracker home" className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-accent text-on-accent">
+          <CalendarCheck className="h-5 w-5" strokeWidth={2.25} aria-hidden="true" />
         </Link>
-        <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
-          {nav.map((item) => (
-            <SideLink key={item.to} item={item} badge={badge} />
-          ))}
+        <nav aria-label="Sections" className="flex w-full flex-1 flex-col items-center gap-1 overflow-y-auto px-1.5">
+          {sections.map((section) => {
+            const active = section.key === current.key;
+            return (
+              <Link
+                key={section.key}
+                to={firstPage(section)}
+                aria-current={active ? 'page' : undefined}
+                className="group relative flex w-full flex-col items-center gap-1 rounded-xl py-2 text-center"
+              >
+                <span
+                  className={`grid h-10 w-10 place-items-center rounded-xl transition-colors ${
+                    active ? 'bg-white text-[#16204a]' : 'bg-white/10 text-white/80 group-hover:bg-white/20 group-hover:text-white'
+                  }`}
+                >
+                  <section.icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <span className={`text-[11px] font-medium leading-tight ${active ? 'text-white' : 'text-white/70 group-hover:text-white'}`}>
+                  {section.label}
+                </span>
+                {sectionBadge(section) > 0 && <Badge count={sectionBadge(section)} className="absolute right-2.5 top-1.5" />}
+              </Link>
+            );
+          })}
         </nav>
-        {/* Notifications, the theme and the account sit at the foot of the
-            sidebar on desktop, so the page has the whole width and height. */}
-        <div className="space-y-0.5 border-t border-line px-3 py-3">
-          <NotificationBell inSidebar />
-          <ThemeSwitch inSidebar />
-          <div className="pt-2">
-            <UserMenu user={user} onSignOut={signOut} inSidebar />
-          </div>
-        </div>
       </aside>
 
-      <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur lg:hidden">
-        <div className="mx-auto flex h-14 max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6">
+      {/* The top: the open section's pages as tabs, and the account on the
+          right. On phones the logo row sits above the tabs. */}
+      <header className="sticky top-0 z-20 border-b border-line bg-surface/95 backdrop-blur">
+        <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6 lg:hidden">
           <Link to={home}>
             <Logo />
           </Link>
           <div className="flex items-center gap-1.5">
+            <ThemeSwitch />
+            <NotificationBell />
+            <UserMenu user={user} onSignOut={signOut} />
+          </div>
+        </div>
+        <div className="flex h-11 items-stretch justify-between gap-3 px-2 sm:px-4 lg:h-14 lg:px-6">
+          <SectionTabs section={current} home={home} badge={badge} />
+          <div className="hidden items-center gap-1.5 lg:flex">
             <ThemeSwitch />
             <NotificationBell />
             <UserMenu user={user} onSignOut={signOut} />
@@ -255,25 +355,25 @@ export function AppShell() {
         <Outlet />
       </main>
 
-      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
-        {nav.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              `relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium max-[359px]:text-[9px] ${
-                isActive ? 'text-accent' : 'text-muted'
-              }`
-            }
-          >
-            <item.icon className="h-5 w-5" aria-hidden="true" />
-            {item.short ?? item.label}
-            {item.badge && badge > 0 && (
-              <span className="absolute left-1/2 top-1.5 ml-1.5 rounded-full bg-accent px-1 text-[10px] leading-4 tabular-nums text-on-accent">{badge}</span>
-            )}
-          </NavLink>
-        ))}
+      {/* Phones: the sections along the bottom. */}
+      <nav aria-label="Sections" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
+        {sections.map((section) => {
+          const active = section.key === current.key;
+          return (
+            <Link
+              key={section.key}
+              to={firstPage(section)}
+              aria-current={active ? 'page' : undefined}
+              className={`relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium ${
+                active ? 'text-accent' : 'text-muted'
+              }`}
+            >
+              <section.icon className="h-5 w-5" aria-hidden="true" />
+              <span className="truncate px-1">{section.label}</span>
+              {sectionBadge(section) > 0 && <Badge count={sectionBadge(section)} className="absolute left-1/2 top-1.5 ml-1.5" />}
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );

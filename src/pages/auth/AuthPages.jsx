@@ -99,20 +99,91 @@ function Preview() {
   );
 }
 
+// The edge of the sign-in panel: its last strip breaks up into calendar
+// tiles, solid at first and fewer towards the form, so the navy dissolves into
+// the light side. It is a mask on the panel itself, so every tile is exactly
+// the panel's colour, and nothing reaches into the form. A few tiles are
+// marked like booked leave (blue) and holidays (amber). The pattern is fixed
+// (a small hash), not random on each visit.
+const PITCH = 15;
+const TILE_COLUMNS = 14;
+// The gap between tiles grows column by column, from none (solid panel) to
+// 5px, so there is no line where the tiles begin.
+const gapAt = (col) => Math.min(5, col * 0.75);
+const sizeAt = (col) => PITCH - gapAt(col);
+const TILE_ROWS = 72;
+const STRIP = TILE_COLUMNS * PITCH;
+const hash = (col, row) => (Math.imul(col + 1, 73856093) ^ Math.imul(row + 7, 19349663)) >>> 0;
+const TILES = [];
+for (let row = 0; row < TILE_ROWS; row += 1) {
+  for (let col = 0; col < TILE_COLUMNS; col += 1) {
+    const keep = col < 3 ? 1 : 1 - ((col - 2.5) / (TILE_COLUMNS - 2)) ** 0.7;
+    if ((hash(col, row) % 1000) / 1000 > keep) continue;
+    const mark = hash(row, col) % 100;
+    TILES.push({ col, row, kind: col >= 5 && mark < 6 ? 'leave' : col >= 5 && mark < 9 ? 'holiday' : 'day' });
+  }
+}
+const TILE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="${STRIP}" height="${TILE_ROWS * PITCH}">${TILES.map(
+  ({ col, row }) => {
+    const size = sizeAt(col);
+    const offset = gapAt(col) / 2;
+    const round = Math.min(3, col * 0.6);
+    return `<rect x="${col * PITCH + offset}" y="${row * PITCH + offset}" width="${size}" height="${size}" rx="${round}"/>`;
+  },
+).join('')}</svg>`;
+const TILE_MASK = `url("data:image/svg+xml,${encodeURIComponent(TILE_SVG)}")`;
+// Three layers, added together: the panel, a soft fade over the start of the
+// strip (so the panel stays solid there and the gaps open slowly), and the tiles.
+const FADE = 'linear-gradient(to right, #000 0%, #000 22%, rgb(0 0 0 / 0.55) 42%, transparent 70%)';
+const PANEL_MASK = {
+  maskImage: `linear-gradient(#000, #000), ${FADE}, ${TILE_MASK}`,
+  maskSize: `calc(100% - ${STRIP}px + 1px) 100%, ${STRIP}px 100%, ${STRIP}px ${TILE_ROWS * PITCH}px`,
+  maskPosition: '0 0, 100% 0, 100% 0',
+  maskRepeat: 'no-repeat, no-repeat, repeat-y',
+  WebkitMaskImage: `linear-gradient(#000, #000), ${FADE}, ${TILE_MASK}`,
+  WebkitMaskSize: `calc(100% - ${STRIP}px + 1px) 100%, ${STRIP}px 100%, ${STRIP}px ${TILE_ROWS * PITCH}px`,
+  WebkitMaskPosition: '0 0, 100% 0, 100% 0',
+  WebkitMaskRepeat: 'no-repeat, no-repeat, repeat-y',
+};
+
+// The marked tiles, laid on the same grid at the panel's right edge.
+function MarkedTiles() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 overflow-hidden" style={{ width: STRIP }}>
+      {TILES.filter((tile) => tile.kind !== 'day').map(({ col, row, kind }, index) => (
+        <span
+          key={`${col}-${row}`}
+          className={`absolute rounded-[3px] ${
+            kind === 'leave'
+              ? 'animate-twinkle bg-accent shadow-[0_0_10px_var(--color-accent)] motion-reduce:animate-none'
+              : 'bg-[#f2a93b]'
+          }`}
+          style={{
+            left: col * PITCH + gapAt(col) / 2,
+            top: row * PITCH + gapAt(col) / 2,
+            width: sizeAt(col),
+            height: sizeAt(col),
+            animationDelay: kind === 'leave' ? `${(index % 11) * 0.3}s` : undefined,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 // The sign-in pages. On a laptop: a deep navy panel on the left with an
-// aurora glow, the app's promise and a glimpse of it, joined to the form by a
-// soft wave; on a phone just the form.
+// aurora glow, the app's promise and a glimpse of it, joined to the form by an
+// edge of calendar tiles; on a phone just the form.
 export function AuthLayout({ title, intro, children }) {
   return (
-    <main className="grid min-h-dvh bg-bg lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+    <main className="grid min-h-dvh bg-bg lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       <section
         aria-label="About Leave Tracker"
-        className="relative hidden flex-col overflow-hidden bg-[#0d1433] px-12 pb-8 pt-10 text-white lg:flex xl:px-16"
+        className="aurora-bg relative hidden flex-col overflow-hidden pb-8 pl-12 pr-48 pt-10 text-white lg:flex xl:pl-16"
+        style={PANEL_MASK}
       >
+        <MarkedTiles />
         {/* Aurora and a faint dot grid behind everything. */}
-        <div aria-hidden="true" className="absolute -left-32 -top-40 h-[520px] w-[520px] rounded-full bg-[#3a5bff]/45 blur-[120px]" />
-        <div aria-hidden="true" className="absolute -bottom-40 left-1/3 h-[420px] w-[420px] rounded-full bg-[#7c4dff]/30 blur-[120px]" />
-        <div aria-hidden="true" className="absolute right-10 top-1/3 h-64 w-64 rounded-full bg-[#f2a93b]/20 blur-[100px]" />
         <div
           aria-hidden="true"
           className="absolute inset-0 opacity-[0.18] [background-image:radial-gradient(rgb(255_255_255/0.35)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_30%_40%,black,transparent_75%)]"
@@ -139,34 +210,10 @@ export function AuthLayout({ title, intro, children }) {
           <Preview />
         </div>
 
-        <div className="relative -mx-12 xl:-mx-16">
+        <div className="relative -ml-12 xl:-ml-16">
           <Marquee />
         </div>
 
-        {/* The join between the halves: a soft wave with a glowing edge. */}
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 120 900"
-          preserveAspectRatio="none"
-          className="pointer-events-none absolute inset-y-0 -right-px h-full w-24 xl:w-32"
-        >
-          <defs>
-            <linearGradient id="wave-edge" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#8fb3ff" />
-              <stop offset="0.5" stopColor="#c7b8ff" />
-              <stop offset="1" stopColor="#ffd59a" />
-            </linearGradient>
-          </defs>
-          <path d="M120 0 H74 C24 150 110 280 60 450 C18 600 104 730 52 900 H120 Z" fill="var(--color-bg)" />
-          <path
-            d="M74 0 C24 150 110 280 60 450 C18 600 104 730 52 900"
-            fill="none"
-            stroke="url(#wave-edge)"
-            strokeOpacity="0.8"
-            strokeWidth="2"
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
       </section>
 
       <section className="relative grid place-items-center px-5 py-12 sm:px-10">

@@ -113,7 +113,9 @@ function DepartmentCard({ name, on, onClick }) {
 // runs from the top of the column to the chosen person; the line from the
 // chosen card on the left up to that top is drawn separately and stays still
 // (see Columns), so nothing has to follow the scroll and the two always meet.
-function Gap({ left, right, part = 'all', joinFrom = 0 }) {
+// `leftShift` and `rightShift` move a column down (in px), e.g. to centre the
+// managers against their assistant managers.
+function Gap({ left, right, part = 'all', joinFrom = 0, leftShift = 0, rightShift = 0 }) {
   const rows =
     part === 'left'
       ? left.items.length
@@ -122,19 +124,24 @@ function Gap({ left, right, part = 'all', joinFrom = 0 }) {
         : Math.max(left.items.length, right?.items.length ?? 0);
   // Tall enough for the line from the chosen card too, when that card sits
   // lower than the last card on the right (a department with few people).
-  const height = Math.max(heightOf(rows), part === 'right' && joinFrom ? joinFrom + CARD / 2 : 0);
+  const height = Math.max(
+    heightOf(rows),
+    part === 'right' && joinFrom ? joinFrom + CARD / 2 : 0,
+    leftShift + heightOf(left.items.length),
+    right ? rightShift + heightOf(right.items.length) : 0,
+  );
   const offset = part === 'right' ? SPINE - 1 : 0;
   const width = part === 'left' ? SPINE - 1 : part === 'right' ? GAP - SPINE + 1 : GAP;
   const from = left.items.findIndex((item) => item.id === left.chosen);
   const to = right ? right.items.findIndex((item) => item.id === right.chosen) : -1;
   const lines = right && from >= 0 && right.items.length > 0;
-  const fromY = centre(from);
+  const fromY = centre(from) + leftShift;
   // Where the blue line enters: level with the chosen card, or for a column
   // that scrolls on its own, at its top.
   // When the chosen person sits higher than the chosen card, the line starts
   // at the card's level instead (`joinFrom`), so it never runs past them.
   const joinY = part === 'right' ? joinFrom : fromY;
-  const ys = lines ? right.items.map((_, row) => centre(row)) : [];
+  const ys = lines ? right.items.map((_, row) => centre(row) + rightShift) : [];
   const top = lines ? Math.min(joinY, ys[0]) : 0;
   const bottom = lines ? Math.max(joinY, ys[ys.length - 1]) : 0;
   const grey = 'var(--color-line)';
@@ -147,7 +154,7 @@ function Gap({ left, right, part = 'all', joinFrom = 0 }) {
         <svg width={BADGE_LEFT} height={height} className="absolute left-0 top-0">
           {left.items.map((item, row) =>
             item.count > 0 && !(lines && item.id === left.chosen) ? (
-              <path key={item.id} d={`M0 ${centre(row)} H${BADGE_LEFT}`} stroke={grey} strokeWidth="1.5" fill="none" />
+              <path key={item.id} d={`M0 ${centre(row) + leftShift} H${BADGE_LEFT}`} stroke={grey} strokeWidth="1.5" fill="none" />
             ) : null,
           )}
         </svg>
@@ -204,7 +211,7 @@ function Gap({ left, right, part = 'all', joinFrom = 0 }) {
           item.count > 0 ? (
             <span
               key={item.id}
-              style={{ top: centre(row), left: BADGE_LEFT, minWidth: BADGE_W }}
+              style={{ top: centre(row) + leftShift, left: BADGE_LEFT, minWidth: BADGE_W }}
               className={`absolute grid h-6 -translate-y-1/2 place-items-center rounded-md px-1.5 text-xs font-semibold tabular-nums ${
                 item.id === left.chosen && lines
                   ? 'bg-accent text-on-accent'
@@ -219,9 +226,9 @@ function Gap({ left, right, part = 'all', joinFrom = 0 }) {
   );
 }
 
-function ColumnList({ column, width }) {
+function ColumnList({ column, width, shift = 0 }) {
   return (
-    <ul className="shrink-0" style={{ width }} aria-label={column.label}>
+    <ul className="shrink-0" style={{ width, marginTop: shift }} aria-label={column.label}>
       {column.items.map((item) => (
         <li key={item.id} style={{ height: CARD, marginBottom: ROW - CARD }}>
           {item.card}
@@ -257,7 +264,7 @@ function useColumnWidth(count, gaps, extra = 0) {
 // (phones also leave room for the bottom bar). With `scrollLast`, only the
 // last column scrolls, with its line, and the columns before it stay put;
 // otherwise the whole box scrolls.
-function Columns({ columns, scrollLast = false }) {
+function Columns({ columns, scrollLast = false, centreFirst = false }) {
   const split = scrollLast && columns.length > 1;
   const trailing = !split && columns[columns.length - 1]?.items.some((item) => item.count > 0) ? 1 : 0;
   const [box, width] = useColumnWidth(columns.length, columns.length - 1 + trailing, split ? 14 : 0);
@@ -327,6 +334,14 @@ function Columns({ columns, scrollLast = false }) {
     );
   }
 
+  // With `centreFirst`, the first column (the managers) sits in the middle of
+  // the column beside it (their assistant managers) instead of at the top;
+  // several managers stack there the same way.
+  const shifts = columns.map(() => 0);
+  if (centreFirst && columns.length > 1) {
+    shifts[0] = Math.max(0, Math.round((heightOf(columns[1].items.length) - heightOf(columns[0].items.length)) / 2));
+  }
+
   return (
     <div
       ref={box}
@@ -335,9 +350,9 @@ function Columns({ columns, scrollLast = false }) {
       <div className="flex w-max items-start">
         {columns.map((column, index) => (
           <Fragment key={column.key}>
-            <ColumnList column={column} width={width} />
+            <ColumnList column={column} width={width} shift={shifts[index]} />
             {(index < columns.length - 1 || column.items.some((item) => item.count > 0)) && (
-              <Gap left={column} right={columns[index + 1]} />
+              <Gap left={column} right={columns[index + 1]} leftShift={shifts[index]} rightShift={shifts[index + 1] ?? 0} />
             )}
           </Fragment>
         ))}
@@ -489,5 +504,5 @@ export function EmployeeTree({ data, onOpen }) {
     })),
   }));
 
-  return <Columns columns={columns} />;
+  return <Columns columns={columns} centreFirst />;
 }

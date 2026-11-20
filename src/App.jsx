@@ -19,6 +19,7 @@ const EmployeeDetail = lazy(() => import('./pages/admin/EmployeeDetail'));
 const Setup = lazy(() => import('./pages/admin/Setup'));
 const Schedule = lazy(() => import('./pages/admin/Schedule'));
 const Organisation = lazy(() => import('./pages/org/Organisation'));
+const LeaveTotalsPage = lazy(() => import('./components/LeaveTotals').then((module) => ({ default: module.LeaveTotalsPage })));
 const DepartmentHome = lazy(() => import('./pages/org/DepartmentHome'));
 const Register = lazy(() => import('./pages/org/Register'));
 const AcceptInvite = lazy(() => import('./pages/org/JoinPages').then((module) => ({ default: module.AcceptInvite })));
@@ -35,12 +36,14 @@ const STAFF_PAGES = [
   ['employees/:id', EmployeeDetail],
   ['setup', Setup],
   ['profile', Profile],
+  ['totals', LeaveTotalsPage],
 ];
 
 const PAGES = {
   employee: [
     ['', Summary],
     ['requests', MyRequests],
+    ['totals', LeaveTotalsPage],
     ['department', Team],
     ['profile', Profile],
   ],

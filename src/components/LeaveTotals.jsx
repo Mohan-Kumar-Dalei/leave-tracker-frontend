@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { Panel, PanelTitle } from './ui';
+import { PageHeading, Panel, PanelTitle, Reveal, RowsSkeleton, StickyTop } from './ui';
 
 const number = (value) => (Number.isInteger(value) ? value : value.toFixed(1));
 
@@ -54,5 +54,26 @@ export function LeaveTotals() {
         </table>
       </div>
     </Panel>
+  );
+}
+
+// The Leave Tracker's "Leave totals" page.
+export function LeaveTotalsPage() {
+  const { isPending } = useQuery({ queryKey: ['team-totals'], queryFn: () => api.get('/team/totals') });
+  return (
+    <div>
+      <StickyTop>
+        <PageHeading title="Leave totals">
+          Every department at a glance: balance still available, leave applied this year and taken this month.
+        </PageHeading>
+      </StickyTop>
+      {isPending ? (
+        <RowsSkeleton rows={5} />
+      ) : (
+        <Reveal>
+          <LeaveTotals />
+        </Reveal>
+      )}
+    </div>
   );
 }

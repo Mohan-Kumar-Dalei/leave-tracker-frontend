@@ -5,7 +5,6 @@ import { ReviewList } from '../../components/ReviewList';
 import { HomeSidebar } from '../../components/HomeSidebar';
 import { MandalaBackdrop } from '../../components/MandalaCorner';
 import { Empty, LoadError, Panel, PanelTitle, Reveal, RowsSkeleton } from '../../components/ui';
-import { LeaveTotals } from '../../components/LeaveTotals';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { dayWord, greeting, longDate, shortRange, weekday } from '../../lib/dates';
@@ -211,9 +210,6 @@ export default function Overview() {
                 <UsageByType rows={data.byType} />
               </Reveal>
             )}
-            <Reveal delay={0.12} className="2xl:col-span-2">
-              <LeaveTotals />
-            </Reveal>
           </div>
         </div>
       </div>

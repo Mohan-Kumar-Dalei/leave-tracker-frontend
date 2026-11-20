@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { CalendarCheck, ChevronsUpDown, House, LogOut, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
+import { CalendarCheck, ChevronsUpDown, House, LogOut, Menu, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
@@ -15,13 +15,14 @@ import { IconButton } from './ui';
 // section's pages as tabs along the top. `to` is the page under the person's
 // own address (lib/home.js), '' being the page it opens on.
 const EMPLOYEE_SECTIONS = [
+  { key: 'home', label: 'Home', icon: House, items: [{ to: '', label: 'Dashboard', end: true }] },
   {
-    key: 'home',
-    label: 'Home',
-    icon: House,
+    key: 'leave',
+    label: 'Leave Tracker',
+    icon: CalendarCheck,
     items: [
-      { to: '', label: 'Dashboard', end: true },
       { to: 'requests', label: 'My requests' },
+      { to: 'totals', label: 'Leave totals' },
     ],
   },
   { key: 'people', label: 'Department', icon: Network, items: [{ to: 'department', label: 'Department' }] },
@@ -36,6 +37,7 @@ const LEAVE_SECTION = {
     { to: 'requests', label: 'Leave requests', badge: true },
     { to: 'calendar', label: 'Team calendar' },
     { to: 'upcoming', label: 'Upcoming & past' },
+    { to: 'totals', label: 'Leave totals' },
   ],
 };
 
@@ -215,6 +217,8 @@ function ThemeSwitch({ inSidebar = false }) {
   );
 }
 
+const POSITION_NAME = { employee: 'Employee', assistantmanager: 'Assistant Manager', manager: 'Manager', hr: 'HR' };
+
 // Whether a page of a section is the one open.
 function isOpen(item, home, pathname) {
   const path = `${home}${item.to ? `/${item.match ?? item.to}` : ''}`;
@@ -260,6 +264,23 @@ export function AppShell() {
   const { pathname } = useLocation();
   const position = positionOf(user);
   const isAdmin = user.role === 'admin';
+  // The rail opens with the section names, or folds to icons; remembered.
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem('lt-rail') !== 'folded';
+    } catch {
+      return true;
+    }
+  });
+  const toggleRail = () =>
+    setOpen((value) => {
+      try {
+        localStorage.setItem('lt-rail', value ? 'folded' : 'open');
+      } catch {
+        // Storage may be off; it simply is not remembered.
+      }
+      return !value;
+    });
   const home = homeOf(user);
 
   // Whoever runs a department gets a "My department" page to invite and
@@ -291,41 +312,92 @@ export function AppShell() {
   const firstPage = (section) => (section.items[0].to ? `${home}/${section.items[0].to}` : home);
 
   return (
-    <div className="min-h-dvh pb-20 lg:pb-0 lg:pl-[84px]">
+    <div className={`min-h-dvh pb-20 transition-[padding] duration-300 ease-[var(--ease-calm)] lg:pb-0 ${open ? 'lg:pl-60' : 'lg:pl-[76px]'}`}>
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2">
         Skip to content
       </a>
 
-      {/* The rail: the app's sections, on a dark band down the left. */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[84px] flex-col items-center bg-[#16204a] py-3 lg:flex">
-        <Link to={home} aria-label="Leave Tracker home" className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-accent text-on-accent">
-          <CalendarCheck className="h-5 w-5" strokeWidth={2.25} aria-hidden="true" />
-        </Link>
-        <nav aria-label="Sections" className="flex w-full flex-1 flex-col items-center gap-1 overflow-y-auto px-1.5">
+      {/* The rail: the app's sections on a dark band down the left. The
+          menu button folds it to icons only, or opens it with the names. */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 hidden flex-col overflow-hidden border-r border-white/5 bg-[linear-gradient(180deg,#1b2654_0%,#141c42_55%,#0f1534_100%)] text-white transition-[width] duration-300 ease-[var(--ease-calm)] lg:flex ${
+          open ? 'w-60' : 'w-[76px]'
+        }`}
+      >
+        <div aria-hidden="true" className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full bg-accent/30 blur-3xl" />
+        <div className={`relative flex h-16 shrink-0 items-center gap-2 ${open ? 'px-4' : 'justify-center px-2'}`}>
+          <button
+            type="button"
+            onClick={toggleRail}
+            aria-label={open ? 'Fold the menu' : 'Open the menu'}
+            aria-expanded={open}
+            title={open ? 'Fold the menu' : 'Open the menu'}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          </button>
+          {open && (
+            <Link to={home} className="flex min-w-0 items-center gap-2.5">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent text-on-accent shadow-[0_6px_18px_-6px_var(--color-accent)]">
+                <CalendarCheck className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
+              </span>
+              <span className="truncate text-[15px] font-semibold tracking-tight">Leave Tracker</span>
+            </Link>
+          )}
+        </div>
+
+        <nav aria-label="Sections" className={`relative flex flex-1 flex-col gap-1 overflow-y-auto py-3 ${open ? 'px-3' : 'px-2'}`}>
+          {open && <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">Menu</p>}
           {sections.map((section) => {
             const active = section.key === current.key;
+            const count = sectionBadge(section);
             return (
               <Link
                 key={section.key}
                 to={firstPage(section)}
                 aria-current={active ? 'page' : undefined}
-                className="group relative flex w-full flex-col items-center gap-1 rounded-xl py-2 text-center"
+                aria-label={open ? undefined : section.label}
+                title={open ? undefined : section.label}
+                className={`group relative flex items-center rounded-xl transition-colors ${
+                  open ? 'gap-3 px-2.5 py-2' : 'justify-center py-2'
+                } ${active ? 'bg-white/[0.12] text-white' : 'text-white/70 hover:bg-white/[0.06] hover:text-white'}`}
               >
+                {active && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-accent" />}
                 <span
-                  className={`grid h-10 w-10 place-items-center rounded-xl transition-colors ${
-                    active ? 'bg-white text-[#16204a]' : 'bg-white/10 text-white/80 group-hover:bg-white/20 group-hover:text-white'
+                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg transition-colors ${
+                    active ? 'bg-accent text-on-accent shadow-[0_6px_18px_-6px_var(--color-accent)]' : 'bg-white/[0.06] group-hover:bg-white/10'
                   }`}
                 >
-                  <section.icon className="h-5 w-5" aria-hidden="true" />
+                  <section.icon className="h-[18px] w-[18px]" aria-hidden="true" />
                 </span>
-                <span className={`text-[11px] font-medium leading-tight ${active ? 'text-white' : 'text-white/70 group-hover:text-white'}`}>
-                  {section.label}
-                </span>
-                {sectionBadge(section) > 0 && <Badge count={sectionBadge(section)} className="absolute right-2.5 top-1.5" />}
+                {open && <span className="truncate text-sm font-medium">{section.label}</span>}
+                {count > 0 &&
+                  (open ? (
+                    <Badge count={count} className="ml-auto" />
+                  ) : (
+                    <span className="absolute right-3 top-1.5 h-2 w-2 rounded-full bg-accent ring-2 ring-[#16204a]" aria-hidden="true" />
+                  ))}
               </Link>
             );
           })}
         </nav>
+
+        {/* Who is signed in, at the foot of the rail. */}
+        <Link
+          to={`${home}/profile`}
+          title={open ? undefined : user.name}
+          className={`relative m-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.05] p-2 transition-colors hover:bg-white/10 ${
+            open ? '' : 'justify-center'
+          }`}
+        >
+          <Avatar user={user} size={32} />
+          {open && (
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">{user.name}</span>
+              <span className="block truncate text-xs text-white/55">{POSITION_NAME[position] ?? 'Employee'}</span>
+            </span>
+          )}
+        </Link>
       </aside>
 
       {/* The top: the open section's pages as tabs, and the account on the

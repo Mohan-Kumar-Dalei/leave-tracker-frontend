@@ -22,7 +22,6 @@ import { useAuth } from '../../lib/auth';
 import { homeOf, isStaff } from '../../lib/home';
 import { ApplyLeaveDialog } from '../../components/ApplyLeave';
 import { EntryPanel, MY_PAST_FILTERS, MY_UPCOMING_FILTERS } from '../../components/EntryPanel';
-import { LeaveTotals } from '../../components/LeaveTotals';
 import { MonthlyBars } from '../../components/MonthlyBars';
 import { TeamCalendarView } from '../../components/TeamCalendarView';
 import { HomeSidebar } from '../../components/HomeSidebar';
@@ -97,7 +96,7 @@ function cardSpan(index, count) {
   if (count % 2 === 1 && index === count - 1) classes.push('col-span-2');
   const leftover = count % 3;
   classes.push(leftover && index >= count - leftover ? SPAN_MD[leftover] : SPAN_MD[0]);
-  classes.push('2xl:col-span-1');
+  classes.push('xl:col-span-1');
   return classes.join(' ');
 }
 
@@ -125,7 +124,7 @@ function BalanceCard({ balance, index = 0, count = 1, className = '' }) {
 
   return (
     <div
-      className={`relative isolate overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card ${className}`}
+      className={`relative isolate flex flex-col overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card ${className}`}
     >
       {/* A mandala in the spirit of Odisha's jhoti chita, shared with the card
           beside it, with a faint layer of the card colour over it so the text
@@ -137,7 +136,9 @@ function BalanceCard({ balance, index = 0, count = 1, className = '' }) {
         </span>
         <h3 className="min-h-9 text-[13px] font-medium leading-[18px] tracking-normal">{leaveType.name}</h3>
       </div>
-      <dl className="mt-4 space-y-2 text-[13px]">
+      {/* The figures sit at the foot, so they line up across the row however
+          long the leave type's name is. */}
+      <dl className="mt-auto space-y-2 pt-4 text-[13px]">
         {leaveType.tracksBalance && (
           <div className="flex items-baseline justify-between">
             <dt className="text-muted">Available</dt>
@@ -365,7 +366,8 @@ export default function Summary() {
         </aside>
         <div className="min-w-0 space-y-4">
           <Reveal delay={0.08}>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-6 2xl:grid-cols-5">
+            {/* All five leave types in one row on a laptop or bigger. */}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-6 xl:grid-cols-5">
               {data
                 ? data.balances.map((balance, index) => (
                     <BalanceCard
@@ -387,25 +389,29 @@ export default function Summary() {
 
           {view === 'list' ? (
             <>
-              <Reveal delay={0.12}>
-                <EntryPanel
-                  label="Filter upcoming"
-                  filters={MY_UPCOMING_FILTERS}
-                  entries={data?.upcoming ?? []}
-                  loading={isPending}
-                  onAvail={avail}
-                />
-              </Reveal>
-              <Reveal delay={0.16}>
-                <EntryPanel
-                  label="Filter past"
-                  filters={MY_PAST_FILTERS}
-                  entries={data?.past ?? []}
-                  loading={isPending}
-                  onAvail={avail}
-                  scroll
-                />
-              </Reveal>
+              {/* Upcoming and past side by side, each scrolling inside. */}
+              <div className="grid items-start gap-4 xl:grid-cols-2">
+                <Reveal delay={0.12}>
+                  <EntryPanel
+                    label="Filter upcoming"
+                    filters={MY_UPCOMING_FILTERS}
+                    entries={data?.upcoming ?? []}
+                    loading={isPending}
+                    onAvail={avail}
+                    scroll
+                  />
+                </Reveal>
+                <Reveal delay={0.16}>
+                  <EntryPanel
+                    label="Filter past"
+                    filters={MY_PAST_FILTERS}
+                    entries={data?.past ?? []}
+                    loading={isPending}
+                    onAvail={avail}
+                    scroll
+                  />
+                </Reveal>
+              </div>
               {data && data.monthly.some((days) => days > 0) && (
                 <Reveal delay={0.2}>
                   <Panel>
@@ -414,9 +420,6 @@ export default function Summary() {
                   </Panel>
                 </Reveal>
               )}
-              <Reveal delay={0.22}>
-                <LeaveTotals />
-              </Reveal>
             </>
           ) : (
             <Reveal>

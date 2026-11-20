@@ -19,6 +19,7 @@ import {
   TextInput,
 } from '../../components/ui';
 import { AddEmployeeDialog } from '../../components/AddEmployeeDialog';
+import { SegmentedTabs } from '../../components/Tabs';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 
@@ -65,6 +66,26 @@ function RoleCell({ person, invited }) {
     );
   }
   return <span className="text-muted">-</span>;
+}
+
+// All of a department's assistant managers. One shows as usual; two or more
+// stack in a compact list, smaller, so the row stays short.
+function AssistantsCell({ department }) {
+  const list = department.assistants ?? (department.lead ? [department.lead] : []);
+  if (list.length <= 1) return <RoleCell person={list[0]} invited={department.invited.assistant} />;
+  return (
+    <ul className="flex min-w-0 flex-col gap-1.5" aria-label={`${list.length} assistant managers`}>
+      {list.map((person) => (
+        <li key={person.id} className="flex min-w-0 items-center gap-2">
+          <Avatar user={person} size={24} />
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-medium leading-4">{person.name}</span>
+            <span className="block truncate text-[11px] leading-4 text-muted">{person.designation}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 const STEPS = ['Department', 'Manager', 'Assistant Manager', 'Invitation'];
@@ -499,73 +520,125 @@ function DepartmentForm({ department, people, company, onClose }) {
   );
 }
 
+function ManagerCell({ department }) {
+  if (department.manager) return <RoleCell person={department.manager} />;
+  if (department.managerName) return <span className="text-sm font-medium">{department.managerName}</span>;
+  return <span className="text-muted">-</span>;
+}
+
+// On a phone each department is a small card: name, manager, every assistant
+// manager, and the people count, with Open and Edit.
+function DepartmentCards({ departments, onEdit, onShowPeople }) {
+  return (
+    <ul className="divide-y divide-line sm:hidden">
+      {departments.map((department) => (
+        <li key={department.id} className="space-y-3 px-4 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Link to={`/departments/${department.id}`} className="font-medium hover:text-accent">
+                {department.name}
+              </Link>
+              <span className="block text-xs text-muted">{department.location || 'No location'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onShowPeople(department.name)}
+              className="shrink-0 rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-semibold tabular-nums text-accent"
+            >
+              {department.people} people
+            </button>
+          </div>
+          <dl className="grid grid-cols-[88px_minmax(0,1fr)] items-start gap-x-3 gap-y-2.5">
+            <dt className="pt-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-muted">Manager</dt>
+            <dd className="min-w-0">
+              <ManagerCell department={department} />
+            </dd>
+            <dt className="pt-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-muted">Asst. managers</dt>
+            <dd className="min-w-0">
+              <AssistantsCell department={department} />
+            </dd>
+          </dl>
+          <div className="flex gap-2">
+            <Link
+              to={`/departments/${department.id}`}
+              className="inline-flex h-9 flex-1 items-center justify-center rounded-lg bg-accent-soft text-sm font-medium text-accent"
+            >
+              Open
+            </Link>
+            <Button variant="ghost" className="flex-1" onClick={() => onEdit(department)}>
+              Edit
+            </Button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function DepartmentsTable({ departments, onEdit, onShowPeople }) {
   if (!departments.length) return <Empty title="No departments yet">Add the first one to start.</Empty>;
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] text-sm">
-        <thead className="border-b border-line bg-bg/60">
-          <tr>
-            <th className={head}>Department</th>
-            <th className={head}>Manager</th>
-            <th className={head}>Assistant manager</th>
-            <th className={`${head} text-right`}>Employees</th>
-            <th className={head}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          {departments.map((department) => (
-            <tr key={department.id} className="hover:bg-bg/60">
-              <td className={cell}>
-                <Link to={`/departments/${department.id}`} className="font-medium hover:text-accent hover:underline underline-offset-4">
-                  {department.name}
-                </Link>
-                <span className="block text-xs text-muted">{department.location || 'No location'}</span>
-                {department.waiting > 0 && (
-                  <span className="mt-1 inline-flex rounded bg-pending-soft px-1.5 py-px text-[10px] font-semibold text-pending">
-                    {department.waiting} waiting to join
-                  </span>
-                )}
-              </td>
-              <td className={cell}>
-                {department.manager ? (
-                  <RoleCell person={department.manager} />
-                ) : department.managerName ? (
-                  <span className="text-sm font-medium">{department.managerName}</span>
-                ) : (
-                  <span className="text-muted">-</span>
-                )}
-              </td>
-              <td className={cell}>
-                <RoleCell person={department.lead} invited={department.invited.assistant} />
-              </td>
-              <td className={`${cell} text-right`}>
-                <button
-                  type="button"
-                  onClick={() => onShowPeople(department.name)}
-                  className="font-medium tabular-nums text-accent underline-offset-4 hover:underline"
-                >
-                  {department.people}
-                </button>
-              </td>
-              <td className={`${cell} w-0 whitespace-nowrap text-right`}>
-                <Link
-                  to={`/departments/${department.id}`}
-                  className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium text-accent hover:bg-accent-soft"
-                >
-                  Open
-                </Link>
-                <Button variant="ghost" onClick={() => onEdit(department)}>
-                  Edit
-                </Button>
-              </td>
+    <>
+      <DepartmentCards departments={departments} onEdit={onEdit} onShowPeople={onShowPeople} />
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead className="border-b border-line bg-bg/60">
+            <tr>
+              <th className={head}>Department</th>
+              <th className={head}>Manager</th>
+              <th className={head}>Assistant managers</th>
+              <th className={`${head} text-right`}>Employees</th>
+              <th className={head}>
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {departments.map((department) => (
+              <tr key={department.id} className="hover:bg-bg/60">
+                <td className={cell}>
+                  <Link to={`/departments/${department.id}`} className="font-medium hover:text-accent hover:underline underline-offset-4">
+                    {department.name}
+                  </Link>
+                  <span className="block text-xs text-muted">{department.location || 'No location'}</span>
+                  {department.waiting > 0 && (
+                    <span className="mt-1 inline-flex rounded bg-pending-soft px-1.5 py-px text-[10px] font-semibold text-pending">
+                      {department.waiting} waiting to join
+                    </span>
+                  )}
+                </td>
+                <td className={cell}>
+                  <ManagerCell department={department} />
+                </td>
+                <td className={cell}>
+                  <AssistantsCell department={department} />
+                </td>
+                <td className={`${cell} text-right`}>
+                  <button
+                    type="button"
+                    onClick={() => onShowPeople(department.name)}
+                    className="font-medium tabular-nums text-accent underline-offset-4 hover:underline"
+                  >
+                    {department.people}
+                  </button>
+                </td>
+                <td className={`${cell} w-0 whitespace-nowrap text-right`}>
+                  <Link
+                    to={`/departments/${department.id}`}
+                    className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium text-accent hover:bg-accent-soft"
+                  >
+                    Open
+                  </Link>
+                  <Button variant="ghost" onClick={() => onEdit(department)}>
+                    Edit
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -694,22 +767,7 @@ export default function Organisation() {
         <PageHeading title="Organisation" actions={action}>
           {data ? `${data.company.name} · ${data.departments.length} departments · ${data.people.length} employees` : ' '}
         </PageHeading>
-        <div role="tablist" aria-label="Organisation view" className="inline-flex rounded-lg border border-line bg-surface p-1">
-          {TABS.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={tab === key}
-              onClick={() => go(key)}
-              className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                tab === key ? 'bg-accent text-on-accent shadow-card' : 'text-muted hover:text-ink'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <SegmentedTabs label="Organisation view" tabs={TABS} value={tab} onChange={go} />
       </StickyTop>
 
       {isPending && <RowsSkeleton rows={5} />}

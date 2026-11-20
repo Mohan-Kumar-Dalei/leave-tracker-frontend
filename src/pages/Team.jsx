@@ -2,6 +2,7 @@ import { MapPin } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DepartmentTree, EmployeeTree, inDepartment, roleRank } from '../components/OrgTrees';
+import { SegmentedTabs } from '../components/Tabs';
 import { MemberProfile, MemberRow, useTeam } from '../components/TeamPeople';
 import {
   LoadError,
@@ -94,26 +95,12 @@ export default function Team() {
           Everyone in the department, who reports to whom, and who is on leave today.
         </PageHeading>
 
-        <div
-          role="tablist"
-          aria-label="Department view"
-          className="inline-flex rounded-lg border border-line bg-surface p-1"
-        >
-          {VIEWS.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={view === key}
-              onClick={() => setParams(key === 'team' ? {} : { view: key }, { replace: true })}
-              className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                view === key ? 'bg-accent text-on-accent shadow-card' : 'text-muted hover:text-ink'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <SegmentedTabs
+          label="Department view"
+          tabs={VIEWS}
+          value={view}
+          onChange={(key) => setParams(key === 'team' ? {} : { view: key }, { replace: true })}
+        />
 
         {view === 'team' && (
           <Reveal delay={0.04}>

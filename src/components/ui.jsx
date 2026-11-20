@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { Select } from './Select';
 
 const EASE = [0.16, 1, 0.3, 1];
@@ -197,36 +197,111 @@ export function Pagination({ page, pages, total, onChange }) {
 
 // Uses the native dialog element, which handles focus and the Escape key.
 const DIALOG_BASE =
-  'rounded-2xl border border-line bg-surface p-0 text-ink shadow-float backdrop:bg-black/40 backdrop:backdrop-blur-sm motion-reduce:animate-none';
+  'rounded-2xl border border-line bg-surface p-0 text-ink shadow-float backdrop:bg-black/40 backdrop:animate-backdrop-in motion-reduce:animate-none motion-reduce:backdrop:animate-none';
 
 const DIALOG_KIND = {
   sheet: `${DIALOG_BASE} my-3 ml-auto mr-3 h-[calc(100dvh-24px)] max-h-[calc(100dvh-24px)] w-[min(480px,calc(100%-24px))] max-w-full open:animate-sheet-in`,
   modal: `${DIALOG_BASE} m-auto w-[min(440px,calc(100%-32px))] open:animate-modal-in`,
 };
 
+const CLOSE_MS = 150;
+
+// Fades a closing dialog out. The dialog itself goes at once (it may be
+// leaving the page), so a still copy of it, with its backdrop, is laid on top
+// and faded away. It works however the dialog closes: the close button,
+// Escape, the backdrop, or a Cancel or Save button that unmounts it.
+function fadeOut(dialog) {
+  if (!dialog?.open || !dialog.isConnected) return;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const rect = dialog.getBoundingClientRect();
+  const layer = document.createElement('div');
+  layer.setAttribute('aria-hidden', 'true');
+  layer.inert = true;
+  layer.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:rgb(0 0 0 / 0.4)';
+  const ghost = document.createElement('div');
+  ghost.className = dialog.className.replace(/(^|\s)(open|backdrop):\S+/g, ' ');
+  ghost.style.cssText = `position:fixed;margin:0;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;max-height:none;overflow:hidden`;
+  for (const child of dialog.childNodes) ghost.append(child.cloneNode(true));
+  // A copy keeps what was typed and how far the content was scrolled.
+  const fields = dialog.querySelectorAll('input, textarea, select');
+  ghost.querySelectorAll('input, textarea, select').forEach((field, index) => {
+    if (fields[index] && field.type !== 'file') field.value = fields[index].value;
+  });
+  const scrolled = [...dialog.querySelectorAll('*')]
+    .filter((node) => node.scrollTop > 0)
+    .map((node) => {
+      const path = [];
+      for (let at = node; at && at !== dialog; at = at.parentElement) path.unshift([...at.parentElement.children].indexOf(at));
+      return [path, node.scrollTop];
+    });
+  layer.append(ghost);
+  const sheet = dialog.dataset.kind === 'sheet';
+  // Shown once the change is done: a dialog that is still open by then was not
+  // closing at all (React's development check mounts things twice).
+  queueMicrotask(() => {
+    if (dialog.isConnected && dialog.open) return;
+    document.body.append(layer);
+    for (const [path, top] of scrolled) {
+      let copy = ghost;
+      for (const index of path) copy = copy?.children[index];
+      if (copy) copy.scrollTop = top;
+    }
+    layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CLOSE_MS, easing: 'ease-in', fill: 'forwards' });
+    ghost
+      .animate([{ transform: 'none' }, { transform: sheet ? 'translateX(24px)' : 'translateY(6px) scale(0.97)' }], {
+        duration: CLOSE_MS,
+        easing: 'cubic-bezier(0.4, 0, 1, 1)',
+        fill: 'forwards',
+      })
+      .finished.finally(() => layer.remove());
+  });
+}
+
 export function Dialog({ open, onClose, title, kind = 'sheet', children, footer }) {
   const ref = useRef(null);
+  // The content stays while a dialog told to close (open = false) fades out.
+  const [kept, setKept] = useState(open);
+  if (open && !kept) setKept(true);
 
-  useEffect(() => {
+  // Opens in the same frame the content is drawn, so the animation starts on
+  // the first frame instead of a frame late.
+  useLayoutEffect(() => {
     const dialog = ref.current;
     if (open && !dialog.open) {
       dialog.showModal();
       dialog.querySelector('[data-autofocus]')?.focus();
     }
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
+    if (!open && dialog.open) {
+      fadeOut(dialog);
+      dialog.close();
+    }
+    if (!open && kept) setKept(false);
+  }, [open, kept]);
+
+  // Leaving the page while open (the usual way a dialog closes) fades too.
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    return () => fadeOut(dialog);
+  }, []);
 
   return (
     <dialog
       ref={ref}
+      data-kind={kind}
       className={DIALOG_KIND[kind]}
       aria-label={title}
       onClose={onClose}
+      // Escape asks to close like the close button does, so the dialog fades
+      // out instead of the browser shutting it at once.
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
       onClick={(event) => {
         if (event.target === ref.current) onClose();
       }}
     >
-      {open && (
+      {(open || kept) && (
         // A modal never gets taller than this; longer content scrolls inside it
         // while the title and the buttons stay in place.
         <div className={`flex flex-col ${kind === 'sheet' ? 'h-full' : 'max-h-[min(680px,84dvh)]'}`}>

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { LayoutGroup, motion } from 'framer-motion';
 import { CalendarCheck, ChevronsUpDown, House, LogOut, Menu, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -235,27 +236,63 @@ function Badge({ count, className = '' }) {
 }
 
 // The tabs of the open section, along the top.
+const TAB_SPRING = { type: 'spring', stiffness: 520, damping: 42, mass: 0.8 };
+
+// The section's pages along the top. The blue underline slides across to the
+// tab you open, and a soft pill follows the pointer over the others.
 function SectionTabs({ section, home, badge }) {
+  const [hovered, setHovered] = useState(null);
   return (
-    <nav aria-label={section.label} className="flex min-w-0 items-stretch gap-1 overflow-x-auto [scrollbar-width:none]">
-      {section.items.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to ? `${home}/${item.to}` : home}
-          end={item.end}
-          className={({ isActive }) =>
-            `relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-sm font-medium transition-colors ${
-              isActive
-                ? 'text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-accent'
-                : 'text-muted hover:text-ink'
-            }`
-          }
-        >
-          {item.label}
-          {item.badge && <Badge count={badge} />}
-        </NavLink>
-      ))}
-    </nav>
+    <LayoutGroup id={`tabs-${section.label}`}>
+      <nav
+        aria-label={section.label}
+        onMouseLeave={() => setHovered(null)}
+        className="flex min-w-0 items-stretch gap-1 overflow-x-auto [scrollbar-width:none]"
+      >
+        {section.items.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to ? `${home}/${item.to}` : home}
+            end={item.end}
+            onMouseEnter={() => setHovered(item.to)}
+            onFocus={() => setHovered(item.to)}
+            onBlur={() => setHovered(null)}
+            className={({ isActive }) =>
+              `relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-200 ${
+                isActive ? 'text-ink' : 'text-muted hover:text-ink'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                {hovered === item.to && (
+                  <motion.span
+                    layoutId="tab-hover"
+                    aria-hidden="true"
+                    className="absolute inset-x-0.5 inset-y-2 rounded-lg bg-sunken"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={TAB_SPRING}
+                  />
+                )}
+                <span className="relative flex items-center gap-1.5">
+                  {item.label}
+                  {item.badge && <Badge count={badge} />}
+                </span>
+                {isActive && (
+                  <motion.span
+                    layoutId="tab-line"
+                    aria-hidden="true"
+                    className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-accent"
+                    transition={TAB_SPRING}
+                  />
+                )}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+    </LayoutGroup>
   );
 }
 
@@ -414,7 +451,7 @@ export function AppShell() {
           </div>
         </div>
         <div className="flex h-11 items-stretch justify-between gap-3 px-2 sm:px-4 lg:h-14 lg:px-6">
-          <SectionTabs section={current} home={home} badge={badge} />
+          <SectionTabs key={current.label} section={current} home={home} badge={badge} />
           <div className="hidden items-center gap-1.5 lg:flex">
             <ThemeSwitch />
             <NotificationBell />

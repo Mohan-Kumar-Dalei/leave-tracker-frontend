@@ -4,6 +4,7 @@ import { BadgeCheck, Building2, Mail, MapPin, Phone, Search, UserRound } from 'l
 import { useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { slashDate } from '../lib/dates';
+import { MandalaCorner } from './MandalaCorner';
 import { Avatar, PhotoAvatar } from './ProfilePhoto';
 import { Dialog } from './ui';
 
@@ -110,7 +111,12 @@ export function MemberProfile({ member, onClose }) {
   return (
     <Dialog open onClose={onClose} title="Profile" kind="modal">
       <div className="-mx-5 -mt-5">
-        <div className="h-16 bg-[#16204a]" aria-hidden="true" />
+        {/* The navy band with mandalas, solid, no gradient. */}
+        <div className="relative h-20 overflow-hidden bg-[#16204a]" aria-hidden="true">
+          <MandalaCorner className="absolute -right-10 -top-16 h-48 w-48 text-white opacity-[0.18]" />
+          <MandalaCorner className="absolute left-[38%] -top-12 h-32 w-32 text-white opacity-[0.08]" />
+          <MandalaCorner className="absolute -bottom-16 -left-10 h-36 w-36 text-[#f2a93b] opacity-[0.22]" />
+        </div>
         <div className="px-5">
           <div className="-mt-10 flex items-end justify-between gap-3">
             <span className="rounded-full bg-surface p-1 shadow-card">

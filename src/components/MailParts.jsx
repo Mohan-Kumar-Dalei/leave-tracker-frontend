@@ -196,14 +196,20 @@ function FitWidth({ children }) {
   );
 }
 
+// Their own pasted signature, or else the company's standard one exactly as
+// the server puts it in the mail (the same table as in Gmail, with the
+// Contify logo), so the preview always matches what is sent.
 function SignatureInner({ signature }) {
-  if (signature.customHtml) {
+  const html = signature.customHtml || signature.standardHtml;
+  if (html) {
     return (
       <FitWidth>
         <div
-          className="pb-1 font-[Arial,Helvetica,sans-serif] text-[13px] text-[#202124] [&_a]:text-[#1a73e8] [&_img]:inline-block"
+          className={`pb-1 font-[Arial,Helvetica,sans-serif] text-[13px] text-[#202124] [&_img]:inline-block ${
+            signature.customHtml ? '[&_a]:text-[#1a73e8]' : ''
+          }`}
           // Cleaned on the server when saved, and again here before showing.
-          dangerouslySetInnerHTML={{ __html: clean(signature.customHtml) }}
+          dangerouslySetInnerHTML={{ __html: clean(html) }}
         />
       </FitWidth>
     );

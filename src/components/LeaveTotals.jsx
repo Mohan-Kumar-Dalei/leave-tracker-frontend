@@ -33,9 +33,9 @@ function SheetTable({ data, month, onDepartment }) {
   return (
     <div className="max-h-[520px] overflow-auto">
       <table className="w-full min-w-[960px] border-separate border-spacing-0 text-sm">
-        <thead className="sticky top-0 z-10 bg-surface">
+        <thead className="sticky top-0 z-[1] bg-surface">
           <tr className="text-xs text-muted">
-            <th className="sticky left-0 z-10 border-b border-line bg-surface px-4 py-2 text-left font-medium sm:px-5">
+            <th className="sticky left-0 z-[2] border-b border-line bg-surface px-4 py-2 text-left font-medium sm:px-5">
               {people ? 'Name' : 'Department'}
             </th>
             {!people && <th className={`${head} border-b border-line`}>People</th>}

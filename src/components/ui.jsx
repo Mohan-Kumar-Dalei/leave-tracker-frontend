@@ -280,7 +280,7 @@ export function StickyTop({ children, className = '', roomy = false }) {
     : 'pb-4 bg-[linear-gradient(to_bottom,var(--color-bg)_calc(100%-1rem),transparent)]';
   return (
     <div
-      className={`sticky top-[101px] z-10 -mx-4 -mt-3 ${strip} px-4 pt-3 sm:-mx-6 sm:px-6 lg:top-[57px] lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8 ${className}`}
+      className={`sticky top-[101px] z-20 -mx-4 -mt-3 ${strip} px-4 pt-3 sm:-mx-6 sm:px-6 lg:top-[57px] lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8 ${className}`}
     >
       {children}
     </div>

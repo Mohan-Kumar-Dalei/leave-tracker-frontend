@@ -127,8 +127,8 @@ function Gap({ left, right, part = 'all', joinFrom = 0, leftShift = 0, rightShif
   const height = Math.max(
     heightOf(rows),
     part === 'right' && joinFrom ? joinFrom + CARD / 2 : 0,
-    leftShift + heightOf(left.items.length),
-    right ? rightShift + heightOf(right.items.length) : 0,
+    part !== 'right' ? leftShift + heightOf(left.items.length) : 0,
+    part !== 'left' && right ? rightShift + heightOf(right.items.length) : 0,
   );
   const offset = part === 'right' ? SPINE - 1 : 0;
   const width = part === 'left' ? SPINE - 1 : part === 'right' ? GAP - SPINE + 1 : GAP;

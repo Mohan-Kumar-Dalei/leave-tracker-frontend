@@ -33,10 +33,11 @@ const localToday = () => new Intl.DateTimeFormat('en-CA').format(new Date());
 
 // "Record a leave taken" is for days the employee was on leave but never
 // applied for: one day (full or half) or a range. It is saved as an approved
-// leave on those dates and comes off what is available. Older day changes,
-// made before this, can still be edited.
+// leave on those dates and comes off what is available. Restricted Holidays
+// are recorded too: one day picked from the restricted holiday list. Older
+// day changes, made before this, can still be edited.
 function AdjustBalance({ item, onClose, employeeId, balances }) {
-  const leaveOptions = balances.filter((balance) => !balance.leaveType.restrictedHolidayOnly);
+  const leaveOptions = balances;
   const mode = item ? 'days' : 'leave';
   const [form, setForm] = useState({
     days: item?.days ?? '',
@@ -49,14 +50,23 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
     session: 'full',
     note: '',
   });
-  const singleDay = taken.from === taken.to;
-  const session = singleDay ? taken.session : 'full';
   const [error, setError] = useState('');
   const queryClient = useQueryClient();
   const toast = useToast();
 
   const takenTypeId = taken.leaveTypeId || leaveOptions[0]?.leaveType.id;
   const takenBalance = leaveOptions.find((balance) => balance.leaveType.id === takenTypeId);
+  const restricted = Boolean(takenBalance?.leaveType.restrictedHolidayOnly);
+  const year = (taken.from || localToday()).slice(0, 4);
+  const { data: holidayData } = useQuery({
+    queryKey: ['holidays', year],
+    queryFn: () => api.get(`/holidays?year=${year}`),
+    enabled: restricted,
+  });
+  const restrictedHolidays = (holidayData?.items ?? []).filter((holiday) => holiday.restricted);
+  const singleDay = taken.from === taken.to;
+  // A restricted holiday is always one full day.
+  const session = singleDay && !restricted ? taken.session : 'full';
 
   // How many working days the range counts, and what would be left, checked
   // by the server with the same rules as saving.
@@ -148,7 +158,15 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
               label="Leave type"
               value={takenTypeId}
               hint={takenBalance?.available != null ? `${takenBalance.available} available now` : undefined}
-              onChange={(event) => setTaken({ ...taken, leaveTypeId: event.target.value })}
+              onChange={(event) => {
+                const next = leaveOptions.find((balance) => balance.leaveType.id === event.target.value);
+                // A restricted holiday starts unpicked and is always one full day.
+                setTaken(
+                  next?.leaveType.restrictedHolidayOnly
+                    ? { ...taken, leaveTypeId: event.target.value, from: '', to: '', session: 'full' }
+                    : { ...taken, leaveTypeId: event.target.value, from: taken.from || localToday(), to: taken.to || localToday() },
+                );
+              }}
             >
               {leaveOptions.map((balance) => (
                 <option key={balance.leaveType.id} value={balance.leaveType.id}>
@@ -156,6 +174,22 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
                 </option>
               ))}
             </SelectField>
+            {restricted ? (
+              <SelectField
+                label="Restricted holiday"
+                value={taken.from}
+                hint="A restricted holiday is taken as one full day."
+                onChange={(event) => setTaken({ ...taken, from: event.target.value, to: event.target.value, session: 'full' })}
+              >
+                <option value="">Pick a holiday</option>
+                {restrictedHolidays.map((holiday) => (
+                  <option key={holiday.id} value={holiday.date}>
+                    {`${holiday.name}, ${slashDate(holiday.date)}`}
+                  </option>
+                ))}
+              </SelectField>
+            ) : (
+            <>
             <div className="grid gap-4 sm:grid-cols-2">
               <TextInput
                 label="From"
@@ -214,6 +248,8 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
                 })}
               </div>
             </fieldset>
+            </>
+            )}
             {/* One fixed line for the count, problems and save errors, so the
                 form does not grow as it is filled in. */}
             <div aria-live="polite" className="flex min-h-11 items-center rounded-lg bg-bg px-3 py-2 text-sm">

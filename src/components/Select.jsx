@@ -38,10 +38,12 @@ export function Select({ value, onChange, children, id, className = '', triggerC
     const wanted = Math.min(options.length * OPTION_HEIGHT + 10, MAX_LIST_HEIGHT);
     const flip = roomBelow < wanted && roomAbove > roomBelow;
 
+    // At least wide enough to read the options, and never off the screen.
+    const width = Math.min(Math.max(box.width, 240), window.innerWidth - GAP * 2);
     setPlace({
       inset: 'auto',
-      left: box.left,
-      width: box.width,
+      left: Math.max(GAP, Math.min(box.left, window.innerWidth - width - GAP)),
+      width,
       maxHeight: Math.min(flip ? roomAbove : roomBelow, MAX_LIST_HEIGHT),
       ...(flip ? { bottom: window.innerHeight - box.top + GAP } : { top: box.bottom + GAP }),
     });

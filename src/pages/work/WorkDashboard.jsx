@@ -1,0 +1,280 @@
+import { MessageSquare } from 'lucide-react';
+import { useState } from 'react';
+import { SegmentedTabs } from '../../components/Tabs';
+import { Empty, Panel, PanelTitle, SelectBox } from '../../components/ui';
+
+// The work tracker's dashboard, for everyone: who was given what work and how
+// much, and how much of it is done. A manager picks a piece of work to see who
+// did it and how much; a team lead sees whether the people they gave work to
+// finished it. Worked out from the same sheet data, so it is always in step.
+
+const signed = (value) => (value > 0 ? `+${value}` : String(value));
+const tone = (value) => (value > 0 ? 'text-approved' : value < 0 ? 'text-rejected' : 'text-muted');
+const shortDay = (date) =>
+  new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+const STATUS = {
+  done: ['Done', 'bg-approved-soft text-approved'],
+  over: ['Done, more', 'bg-approved-soft text-approved'],
+  short: ['Short', 'bg-rejected-soft text-rejected'],
+  missing: ['Not filled', 'bg-pending-soft text-pending'],
+  waiting: ['Pending', 'bg-cancelled-soft text-cancelled'],
+  ahead: ['On track', 'bg-approved-soft text-approved'],
+  behind: ['Behind', 'bg-rejected-soft text-rejected'],
+};
+
+function Status({ kind }) {
+  const [label, colour] = STATUS[kind];
+  return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${colour}`}>{label}</span>;
+}
+
+function Bar({ done, of }) {
+  const share = of > 0 ? Math.min(1, done / of) : done > 0 ? 1 : 0;
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-sunken" aria-hidden="true">
+      <div className={`h-full rounded-full ${done >= of ? 'bg-approved' : 'bg-accent'}`} style={{ width: `${share * 100}%` }} />
+    </div>
+  );
+}
+
+// Everyone under someone in the department tree: the people who report to
+// them, the people who report to those, and so on.
+function below(people, id) {
+  const found = [];
+  const seen = new Set([id]);
+  for (let layer = [id]; layer.length; ) {
+    const next = people.filter((person) => layer.includes(person.reportsTo) && !seen.has(person.id));
+    for (const person of next) seen.add(person.id);
+    found.push(...next);
+    layer = next.map((person) => person.id);
+  }
+  return found;
+}
+
+// The days a month view counts: up to today in this month, every working day
+// in a month gone by, none in a month to come.
+const countedDays = (sheet) => sheet.days.filter((day) => !day.sunday && day.date <= sheet.today).map((day) => day.date);
+
+export function WorkDashboard({ sheet, me, notes, search = '' }) {
+  const workingDays = sheet.days.filter((day) => !day.sunday);
+  const inMonth = sheet.today >= sheet.days[0].date && sheet.today <= sheet.days.at(-1).date;
+  const firstDay = inMonth ? sheet.today : (countedDays(sheet).at(-1) ?? workingDays[0]?.date);
+  const myTeam = me ? below(sheet.people, me.id) : [];
+
+  const [period, setPeriod] = useState('day');
+  const [date, setDate] = useState(firstDay);
+  const [work, setWork] = useState('all');
+  const [whose, setWhose] = useState(myTeam.length ? 'mine' : 'all');
+
+  const words = search.trim().toLowerCase();
+  const people = (whose === 'mine' ? myTeam : sheet.people).filter((person) => !words || person.label.toLowerCase().includes(words));
+  const ids = new Set(people.map((person) => person.id));
+  const order = new Map(sheet.people.map((person, index) => [person.id, index]));
+  const byId = new Map(sheet.people.map((person) => [person.id, person]));
+
+  const rows = (() => {
+    const days = period === 'day' ? new Set([date]) : new Set(countedDays(sheet));
+    const groups = new Map();
+    for (const entry of sheet.entries) {
+      if (!ids.has(entry.user) || !days.has(entry.date)) continue;
+      if (work !== 'all' && entry.task !== work) continue;
+      const key = `${entry.user}|${entry.task}`;
+      const row = groups.get(key) ?? { user: entry.user, task: entry.task, target: 0, achieved: 0, filled: 0, unfilled: 0, days: 0 };
+      row.target += entry.target ?? 0;
+      row.days += 1;
+      if (entry.achieved === null || entry.achieved === undefined) row.unfilled += entry.date < sheet.today ? 1 : 0;
+      else {
+        row.achieved += entry.achieved;
+        row.filled += 1;
+      }
+      groups.set(key, row);
+    }
+    return [...groups.values()]
+      .map((row) => {
+        let status;
+        if (period === 'day') {
+          if (row.filled === 0) status = date < sheet.today ? 'missing' : 'waiting';
+          else status = row.achieved > row.target ? 'over' : row.achieved === row.target ? 'done' : 'short';
+        } else status = row.achieved >= row.target ? 'ahead' : 'behind';
+        return { ...row, person: byId.get(row.user), status };
+      })
+      .sort((a, b) => order.get(a.user) - order.get(b.user) || a.task.localeCompare(b.task));
+  })();
+
+  const total = rows.reduce((sum, row) => ({ target: sum.target + row.target, achieved: sum.achieved + row.achieved }), { target: 0, achieved: 0 });
+  const finished = rows.filter((row) => ['done', 'over', 'ahead'].includes(row.status)).length;
+  const missing = rows.filter((row) => row.status === 'missing' || row.unfilled > 0).length;
+
+  // Each piece of work: how many people, and how much of it is done.
+  const byWork = [...rows.reduce((map, row) => {
+    const item = map.get(row.task) ?? { task: row.task, people: new Set(), target: 0, achieved: 0 };
+    item.people.add(row.user);
+    item.target += row.target;
+    item.achieved += row.achieved;
+    return map.set(row.task, item);
+  }, new Map()).values()].sort((a, b) => b.target - a.target);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <SegmentedTabs
+          label="Period"
+          tabs={[
+            ['day', 'One day'],
+            ['month', 'Month so far'],
+          ]}
+          value={period}
+          onChange={setPeriod}
+        />
+        {period === 'day' && (
+          <SelectBox aria-label="Day" value={date} onChange={(event) => setDate(event.target.value)}>
+            {workingDays.map((day) => (
+              <option key={day.date} value={day.date}>
+                {shortDay(day.date)}
+                {day.date === sheet.today ? ' (today)' : ''}
+              </option>
+            ))}
+          </SelectBox>
+        )}
+        <SelectBox aria-label="Work" value={work} onChange={(event) => setWork(event.target.value)}>
+          <option value="all">All work</option>
+          {sheet.tasks.map((task) => (
+            <option key={task} value={task}>
+              {task}
+            </option>
+          ))}
+        </SelectBox>
+        {myTeam.length > 0 && (
+          <SegmentedTabs
+            label="Whose work"
+            tabs={[
+              ['mine', `My team (${myTeam.length})`],
+              ['all', 'Everyone'],
+            ]}
+            value={whose}
+            onChange={setWhose}
+          />
+        )}
+      </div>
+
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          ['Assigned', `${new Set(rows.map((row) => row.user)).size} people`, 'text-ink'],
+          ['Target', total.target, 'text-ink'],
+          ['Achieved', total.achieved, 'text-ink'],
+          ['Difference', signed(total.achieved - total.target), tone(total.achieved - total.target)],
+        ].map(([label, value, colour]) => (
+          <div key={label} className="rounded-xl border border-line bg-surface px-4 py-3">
+            <dt className="text-xs text-muted">{label}</dt>
+            <dd className={`mt-1 text-xl font-semibold tabular-nums ${colour}`}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {rows.length > 0 && (
+        <p className="text-sm text-muted">
+          <span className="font-medium text-approved">{finished} done</span> of {rows.length}
+          {missing > 0 && (
+            <>
+              {' · '}
+              <span className="font-medium text-pending">{missing} not filled in</span>
+            </>
+          )}
+        </p>
+      )}
+
+      {rows.length === 0 ? (
+        <Empty title="No work given for this">
+          {words
+            ? 'Nobody by that name has work here.'
+            : period === 'day'
+              ? 'Nobody has a target on this day for this work.'
+              : 'Nobody has a target for this work this month yet.'}
+        </Empty>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
+          <Panel>
+            <PanelTitle>By work</PanelTitle>
+            <ul className="divide-y divide-line">
+              {byWork.map((item) => (
+                <li key={item.task}>
+                  <button
+                    type="button"
+                    onClick={() => setWork(work === item.task ? 'all' : item.task)}
+                    className={`w-full px-4 py-3 text-left hover:bg-sunken sm:px-5 ${work === item.task ? 'bg-accent-soft' : ''}`}
+                  >
+                    <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
+                      <span className="font-medium">{item.task}</span>
+                      <span className="tabular-nums text-muted">
+                        {item.achieved} / {item.target}
+                      </span>
+                    </div>
+                    <Bar done={item.achieved} of={item.target} />
+                    <p className="mt-1 text-xs text-muted">
+                      {item.people.size} {item.people.size === 1 ? 'person' : 'people'}
+                    </p>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+
+          <Panel>
+            <PanelTitle>
+              Who did what{period === 'day' ? `, ${shortDay(date)}` : ', this month so far'}
+            </PanelTitle>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-xs text-muted">
+                    <th className="px-4 py-2 font-medium sm:px-5">Person</th>
+                    <th className="px-2 py-2 font-medium">Work</th>
+                    <th className="px-2 py-2 text-right font-medium">Target</th>
+                    <th className="px-2 py-2 text-right font-medium">Done</th>
+                    <th className="px-2 py-2 text-right font-medium">+/−</th>
+                    <th className="px-4 py-2 font-medium sm:px-5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const said = period === 'day' ? notes[`${row.user}|${date}`] : null;
+                    return (
+                      <tr key={`${row.user}|${row.task}`} className="border-b border-line last:border-b-0">
+                        <td className="px-4 py-2.5 sm:px-5">
+                          <span className="font-medium">{row.person?.name}</span>
+                          {row.person?.workFromHome && <span className="ml-1.5 text-xs text-muted">WFH</span>}
+                          {said?.length > 0 && (
+                            <span
+                              className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-xs text-[#a8650b]"
+                              title={said.map((comment) => `${comment.author.name}: ${comment.text}`).join('\n\n')}
+                            >
+                              <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                              {said.length}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2.5 text-muted">{row.task}</td>
+                        <td className="px-2 py-2.5 text-right tabular-nums">{row.target}</td>
+                        <td className="px-2 py-2.5 text-right tabular-nums">{row.filled ? row.achieved : '—'}</td>
+                        <td className={`px-2 py-2.5 text-right tabular-nums ${row.filled ? tone(row.achieved - row.target) : 'text-muted'}`}>
+                          {row.filled ? signed(row.achieved - row.target) : ''}
+                        </td>
+                        <td className="px-4 py-2.5 sm:px-5">
+                          <Status kind={row.status} />
+                          {period === 'month' && row.unfilled > 0 && (
+                            <span className="ml-1.5 text-xs text-pending">
+                              {row.unfilled} {row.unfilled === 1 ? 'day' : 'days'} not filled
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </div>
+      )}
+    </div>
+  );
+}

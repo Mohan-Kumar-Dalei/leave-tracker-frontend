@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Download, MessageSquarePlus, Plus, Target, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, MessageSquarePlus, Plus, Search, Target, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Tabs } from '../../components/Tabs';
+import { WorkDashboard } from './WorkDashboard';
 import {
   Button,
   Dialog,
@@ -361,16 +362,36 @@ function DayDialog({ open, person, day, total, today, tasks, comments, focusComm
   );
 }
 
-/* Setting a target for several people over several days at once. */
+// A search box for people's names.
+function SearchField({ value, onChange, label, className = '' }) {
+  return (
+    <label className={`relative block ${className}`}>
+      <span className="sr-only">{label}</span>
+      <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
+      <input
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={label}
+        className="h-10 w-full rounded-lg border border-line bg-surface pr-3 pl-9 text-base placeholder:text-muted focus:border-accent focus:ring-3 focus:ring-accent/20 focus:outline-none sm:text-sm"
+      />
+    </label>
+  );
+}
+
+/* Setting a target for several people on one day. */
 
 function TargetsDialog({ open, sheet, onClose }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const leadable = sheet.people.filter((person) => person.canLead);
   const [picked, setPicked] = useState(() => new Set());
+  const [find, setFind] = useState('');
+  const shown = leadable.filter((person) => person.label.toLowerCase().includes(find.trim().toLowerCase()));
+  const allShown = shown.length > 0 && shown.every((person) => picked.has(person.id));
   const first = sheet.days[0].date;
   const lastDay = sheet.days[sheet.days.length - 1].date;
-  const start = sheet.today >= first && sheet.today <= lastDay ? sheet.today : first;
+  const start = sheet.today >= first && sheet.today <= lastDay ? sheet.today : (sheet.days.find((day) => !day.sunday)?.date ?? first);
   const form = useZodForm(
     z
       .object({
@@ -383,31 +404,29 @@ function TargetsDialog({ open, sheet, onClose }) {
             (value) => !Number.isNaN(Number(value)) && Number(value) >= 0 && Number(value) <= 100000,
             'Use a number from 0 to 100000.',
           ),
-        from: z.string().min(1, 'Pick the first day.'),
-        to: z.string().min(1, 'Pick the last day.'),
-      })
-      .refine((fields) => fields.to >= fields.from, {
-        path: ['to'],
-        message: 'The last day comes before the first.',
+        date: z.string().min(1, 'Pick the day.'),
       }),
-    { task: sheet.tasks[0] ?? '', target: '', from: start, to: lastDay },
+    { task: sheet.tasks[0] ?? '', target: '', date: start },
   );
   const { errors } = form.formState;
   const [pickError, setPickError] = useState('');
 
   const save = useMutation({
-    mutationFn: (fields) =>
+    mutationFn: ({ date, ...fields }) =>
       api.post('/work/targets', {
         ...fields,
+        from: date,
+        to: date,
         target: Number(fields.target),
         users: [...picked],
       }),
     onSuccess: ({ set }) => {
       queryClient.invalidateQueries({ queryKey: ['work'] });
-      toast.success('Targets set', `${set} days, leaving out Sundays, holidays and leave.`);
+      if (set === 0) toast.error('No target set', 'That day is a Sunday or a holiday, or they are on leave.');
+      else toast.success('Targets set', `${set} ${set === 1 ? 'person' : 'people'}. Anyone on leave that day was left out.`);
       onClose();
     },
-    onError: (issue) => showServerError(form, issue, ['task', 'target', 'from', 'to']),
+    onError: (issue) => showServerError(form, issue, ['task', 'target', 'date']),
   });
 
   const toggle = (id) =>
@@ -453,16 +472,30 @@ function TargetsDialog({ open, sheet, onClose }) {
         <fieldset>
           <div className="mb-1.5 flex items-center justify-between">
             <legend className="text-sm font-medium">People</legend>
-            <button
-              type="button"
-              className="text-sm text-accent hover:underline"
-              onClick={() => setPicked(picked.size === leadable.length ? new Set() : new Set(leadable.map((person) => person.id)))}
-            >
-              {picked.size === leadable.length ? 'Clear' : 'Everyone'}
-            </button>
+            <span className="flex items-center gap-3 text-sm">
+              {picked.size > 0 && <span className="text-muted">{picked.size} picked</span>}
+              <button
+                type="button"
+                className="text-accent hover:underline"
+                onClick={() =>
+                  setPicked((now) => {
+                    const next = new Set(now);
+                    for (const person of shown) {
+                      if (allShown) next.delete(person.id);
+                      else next.add(person.id);
+                    }
+                    return next;
+                  })
+                }
+              >
+                {allShown ? 'Clear these' : find.trim() ? 'Pick these' : 'Everyone'}
+              </button>
+            </span>
           </div>
+          <SearchField value={find} onChange={setFind} label="Search people" className="mb-2" />
           <div className={`max-h-48 overflow-y-auto rounded-lg border ${pickError ? 'border-rejected' : 'border-line'}`}>
-            {leadable.map((person) => (
+            {shown.length === 0 && <p className="px-3 py-3 text-sm text-muted">Nobody by that name.</p>}
+            {shown.map((person) => (
               <label key={person.id} className="flex min-h-10 items-center gap-3 border-b border-line px-3 text-sm last:border-b-0">
                 <input
                   type="checkbox"
@@ -493,11 +526,12 @@ function TargetsDialog({ open, sheet, onClose }) {
             error={errors.target?.message}
             {...form.register('target')}
           />
-          <TextInput label="From" type="date" min={first} max={lastDay} error={errors.from?.message} {...form.register('from')} />
-          <TextInput label="To" type="date" min={first} max={lastDay} error={errors.to?.message} {...form.register('to')} />
+          <div className="col-span-2">
+            <TextInput label="Day" type="date" error={errors.date?.message} {...form.register('date')} />
+          </div>
         </div>
         <p className="text-sm text-muted">
-          Sundays, public holidays and days on full-day leave are left out. People working from home get this as their one piece of work.
+          Not on a Sunday or a holiday, or for anyone on leave that day. People working from home get this as their one piece of work.
         </p>
         <FormError>{formError(form)}</FormError>
       </form>
@@ -563,8 +597,10 @@ function NameCell({ children, className = '', strong = false }) {
   );
 }
 
-function Sheet({ sheet, totals, notes, onOpen }) {
-  const { days, people, today } = sheet;
+function Sheet({ sheet, totals, notes, search = '', onOpen }) {
+  const { days, today } = sheet;
+  const words = search.trim().toLowerCase();
+  const people = words ? sheet.people.filter((person) => person.label.toLowerCase().includes(words)) : sheet.people;
   const sum = (id, field) => days.reduce((total, day) => total + (day.sunday ? 0 : (totals[`${id}|${day.date}`]?.[field] ?? 0)), 0);
   const team = (date, field) => people.reduce((total, person) => total + (totals[`${person.id}|${date}`]?.[field] ?? 0), 0);
   const teamTotal = (field) => days.reduce((total, day) => total + (day.sunday ? 0 : team(day.date, field)), 0);
@@ -747,7 +783,7 @@ function Sheet({ sheet, totals, notes, onOpen }) {
   );
 }
 
-/* My day: today's work for the person signed in, to fill in quickly. */
+/* My work: today's work for the person signed in, to fill in quickly. */
 
 function MyDay({ sheet, me, totals, tasks, notes }) {
   const day = sheet.days.find((item) => item.date === sheet.today);
@@ -817,6 +853,7 @@ export default function WorkTracker() {
   const [tab, setTab] = useState('mine');
   const [opened, setOpened] = useState(null);
   const [setting, setSetting] = useState(false);
+  const [search, setSearch] = useState('');
 
   const query = {
     month: month ?? undefined,
@@ -840,7 +877,9 @@ export default function WorkTracker() {
   if (isError) return <LoadError error={error} onRetry={refetch} />;
 
   const me = sheet.people.find((person) => person.id === user.id);
-  const shownTab = me ? tab : 'sheet';
+  // Someone not on this sheet (a manager looking at another department) has
+  // no day of their own to fill in.
+  const shownTab = me || tab !== 'mine' ? tab : 'dashboard';
   const exportHref = `/api/work/sheet.xlsx${toQuery({ month: sheet.month, department: sheet.department })}`;
   const openedTotal = opened ? totals[`${opened.person.id}|${opened.day.date}`] : null;
   const openedPerson = opened ? sheet.people.find((person) => person.id === opened.person.id) : null;
@@ -872,20 +911,18 @@ export default function WorkTracker() {
       </PageHeading>
 
       <Reveal delay={0.06} className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        {me ? (
-          <Tabs
-            label="Work tracker views"
-            tabs={[
-              { id: 'mine', label: 'My day' },
-              { id: 'sheet', label: 'Team sheet' },
-            ]}
-            value={shownTab}
-            onChange={setTab}
-          />
-        ) : (
-          <span />
-        )}
+        <Tabs
+          label="Work tracker views"
+          tabs={[
+            ...(me ? [{ id: 'mine', label: 'My work' }] : []),
+            { id: 'dashboard', label: 'Dashboard' },
+            { id: 'sheet', label: 'Team sheet' },
+          ]}
+          value={shownTab}
+          onChange={setTab}
+        />
         <div className="flex flex-wrap items-center gap-2">
+          {shownTab !== 'mine' && <SearchField value={search} onChange={setSearch} label="Search people" className="w-full sm:w-56" />}
           {sheet.departments.length > 1 && (
             <SelectBox aria-label="Department" value={sheet.department} onChange={(event) => setDepartment(event.target.value)}>
               {sheet.departments.map((name) => (
@@ -910,11 +947,13 @@ export default function WorkTracker() {
       <Reveal delay={0.1}>
         {shownTab === 'mine' && me ? (
           <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} notes={notes} />
+        ) : shownTab === 'dashboard' ? (
+          <WorkDashboard key={`${sheet.month}|${sheet.department}`} sheet={sheet} me={me} notes={notes} search={search} />
         ) : sheet.people.length === 0 ? (
           <Empty title="Nobody here yet">People in this department appear here.</Empty>
         ) : (
           <>
-            <Sheet sheet={sheet} totals={totals} notes={notes} onOpen={(person, day, comment = false) => setOpened({ person, day, comment })} />
+            <Sheet sheet={sheet} totals={totals} notes={notes} search={search} onOpen={(person, day, comment = false) => setOpened({ person, day, comment })} />
             <p className="mt-2 text-xs text-muted">
               Tap a day to set a target or fill in work. A corner mark means a comment: point at it to read it, or select a day and press
               Ctrl+Alt+M to add one. Today is highlighted; holidays are orange; Sundays are grey.

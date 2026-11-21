@@ -1,8 +1,11 @@
-import { MessageSquare } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { MessageSquare, Trash2 } from 'lucide-react';
 import { MandalaBackdrop, MandalaCorner } from '../../components/MandalaCorner';
 import { useState } from 'react';
 import { SegmentedTabs } from '../../components/Tabs';
-import { Empty, Panel, PanelTitle, SelectBox } from '../../components/ui';
+import { ConfirmDialog, Empty, IconButton, Panel, PanelTitle, SelectBox } from '../../components/ui';
+import { api } from '../../lib/api';
+import { useToast } from '../../lib/toast';
 
 // The work tracker's dashboard, for everyone: who was given what work and how
 // much, and how much of it is done. A manager picks a piece of work to see who
@@ -210,6 +213,27 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
   const [date, setDate] = useState(firstDay);
   const [work, setWork] = useState('all');
   const [whose, setWhose] = useState(myTeam.length ? 'mine' : 'all');
+  // Removing set work: one person's piece of work, or a whole piece of work,
+  // for the day picked or the whole month.
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [removing, setRemoving] = useState(null); // { title, ids }
+  const remove = useMutation({
+    mutationFn: (ids) => api.post('/work/entries/remove', { ids }),
+    onSuccess: ({ removed }) => {
+      queryClient.invalidateQueries({ queryKey: ['work'] });
+      toast.success('Work removed', `${removed} ${removed === 1 ? 'day' : 'days'} of work taken off.`);
+      setRemoving(null);
+    },
+    onError: (issue) => {
+      toast.error('Could not remove it', issue.message);
+      setRemoving(null);
+    },
+  });
+  const leadable = (userId) => sheet.people.find((person) => person.id === userId)?.canLead;
+  const entriesOf = (match) =>
+    sheet.entries.filter((entry) => match(entry) && leadable(entry.user) && (period === 'day' ? entry.date === date : true));
+  const when = period === 'day' ? shortDay(date) : 'the whole month';
 
   const words = search.trim().toLowerCase();
   const people = (whose === 'mine' ? myTeam : sheet.people).filter((person) => !words || person.label.toLowerCase().includes(words));
@@ -357,11 +381,29 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
           <ArtPanel title="By work">
             <ul className="max-h-[min(62vh,560px)] divide-y divide-line overflow-y-auto">
               {byWork.map((item) => (
-                <li key={item.task}>
+                <li key={item.task} className="relative">
+                  {sheet.canLead &&
+                    entriesOf((entry) => entry.task === item.task && people.some((person) => person.id === entry.user)).length > 0 && (
+                      <IconButton
+                        label={`Remove ${item.task}`}
+                        className="absolute top-2 right-2 z-10 sm:right-3"
+                        onClick={() =>
+                          setRemoving({
+                            title: `Remove ${item.task} for ${when}?`,
+                            body: `It is taken off everyone you can set work for${whose === 'mine' ? ' in your team' : ''}, with what they filled in for it. This cannot be undone.`,
+                            ids: entriesOf((entry) => entry.task === item.task && people.some((person) => person.id === entry.user)).map(
+                              (entry) => entry.id,
+                            ),
+                          })
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </IconButton>
+                    )}
                   <button
                     type="button"
                     onClick={() => setWork(work === item.task ? 'all' : item.task)}
-                    className={`w-full px-4 py-3 text-left hover:bg-sunken sm:px-5 ${work === item.task ? 'bg-accent-soft' : ''}`}
+                    className={`w-full px-4 py-3 pr-12 text-left hover:bg-sunken sm:px-5 sm:pr-14 ${work === item.task ? 'bg-accent-soft' : ''}`}
                   >
                     <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
                       <span className="font-medium">{item.task}</span>
@@ -394,11 +436,17 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
                     <th className="px-2 py-2 text-right font-medium">Done</th>
                     <th className="px-2 py-2 text-right font-medium whitespace-nowrap">+/−</th>
                     <th className="px-4 py-2 font-medium sm:px-5">Status</th>
+                    {sheet.canLead && (
+                      <th className="w-10 px-2 py-2">
+                        <span className="sr-only">Remove</span>
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row) => {
                     const said = period === 'day' ? notes[`${row.user}|${date}`] : null;
+                    const mine = entriesOf((entry) => entry.user === row.user && entry.task === row.task);
                     return (
                       <tr key={`${row.user}|${row.task}`} className="border-b border-line last:border-b-0">
                         <td className="px-4 py-2.5 sm:px-5">
@@ -434,6 +482,24 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
                             </span>
                           )}
                         </td>
+                        {sheet.canLead && (
+                          <td className="px-2 py-1">
+                            {mine.length > 0 && (
+                              <IconButton
+                                label={`Remove ${row.task} for ${row.person?.name}`}
+                                onClick={() =>
+                                  setRemoving({
+                                    title: `Remove ${row.task} for ${row.person?.name}?`,
+                                    body: `For ${when}: ${mine.length} ${mine.length === 1 ? 'day' : 'days'} of work, with what was filled in for it. This cannot be undone.`,
+                                    ids: mine.map((entry) => entry.id),
+                                  })
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </IconButton>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -443,6 +509,12 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
           </Panel>
         </div>
       )}
+      <RemoveConfirm
+        removing={removing}
+        onClose={() => setRemoving(null)}
+        loading={remove.isPending}
+        onConfirm={() => remove.mutate(removing.ids)}
+      />
     </div>
   );
 }
@@ -452,6 +524,21 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
 
 const dayLabel = (date) =>
   new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+function RemoveConfirm({ removing, onClose, loading, onConfirm }) {
+  return (
+    <ConfirmDialog
+      open={Boolean(removing)}
+      onClose={onClose}
+      title={removing?.title ?? ''}
+      body={removing?.body ?? ''}
+      confirmLabel="Remove work"
+      danger
+      loading={loading}
+      onConfirm={onConfirm}
+    />
+  );
+}
 
 function MyDashboard({ sheet, me, notes }) {
   const workingDays = sheet.days.filter((day) => !day.sunday);

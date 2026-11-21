@@ -1127,7 +1127,8 @@ export default function WorkTracker() {
   const { user } = useAuth();
   const [month, setMonth] = useState(null);
   const [department, setDepartment] = useState(null);
-  const [tab, setTab] = useState('mine');
+  // The work tracker opens on the dashboard.
+  const [tab, setTab] = useState('dashboard');
   const [opened, setOpened] = useState(null);
   const [setting, setSetting] = useState(false);
   const [typesOpen, setTypesOpen] = useState(false);
@@ -1202,8 +1203,8 @@ export default function WorkTracker() {
           <Tabs
             label="Work tracker views"
             tabs={[
-              ...(me ? [{ id: 'mine', label: 'My work' }] : []),
               { id: 'dashboard', label: 'Dashboard' },
+              ...(me ? [{ id: 'mine', label: 'My work' }] : []),
               { id: 'sheet', label: 'Team sheet' },
               ...(sheet.canManageTypes ? [{ id: 'report', label: 'Report' }] : []),
             ]}

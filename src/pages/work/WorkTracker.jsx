@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { Tabs } from '../../components/Tabs';
 import { SheetGrid } from './SheetGrid';
 import { WorkDashboard } from './WorkDashboard';
-import { WorkReport } from './WorkReport';
+import { ChartSwitch, OutcomeChart, WorkReport, outcomesOf, useChartStyle } from './WorkReport';
 import {
   Button,
   Dialog,
@@ -1017,22 +1017,81 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
           <Comments person={me} day={day} comments={notes[`${me.id}|${day.date}`]} tasks={entries.map((entry) => entry.task)} />
         </div>
       </Panel>
-      <Panel>
-        <PanelTitle>{monthTitle(sheet.month)}</PanelTitle>
-        <dl className="grid grid-cols-3 gap-2 px-4 py-4 text-center sm:px-5">
-          {[
-            ['Target', target, 'text-ink'],
-            ['Achieved', achieved, 'text-ink'],
-            ['Difference', signed(achieved - target), tone(achieved - target)],
-          ].map(([label, value, colour]) => (
-            <div key={label} className="rounded-lg bg-sunken px-2 py-3">
-              <dt className="text-xs text-muted">{label}</dt>
-              <dd className={`mt-1 text-lg font-semibold tabular-nums ${colour}`}>{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </Panel>
+      <div className="space-y-4">
+        <Panel>
+          <PanelTitle>{monthTitle(sheet.month)}</PanelTitle>
+          <dl className="grid grid-cols-3 gap-2 px-4 py-4 text-center sm:px-5">
+            {[
+              ['Target', target, 'text-ink'],
+              ['Achieved', achieved, 'text-ink'],
+              ['Difference', signed(achieved - target), tone(achieved - target)],
+            ].map(([label, value, colour]) => (
+              <div key={label} className="rounded-lg bg-sunken px-2 py-3">
+                <dt className="text-xs text-muted">{label}</dt>
+                <dd className={`mt-1 text-lg font-semibold tabular-nums ${colour}`}>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </Panel>
+        <MyOutcomes
+          entries={sheet.entries.filter((entry) => entry.user === me.id && entry.date <= sheet.today)}
+          title={`${me.name}: what came of it`}
+          when={monthTitle(sheet.month)}
+        />
+      </div>
     </div>
+  );
+}
+
+// What came of my work this month (Fixed, Working fine...): in all, then by
+// each piece of work, and a chart of it, as a circle or as bars.
+function MyOutcomes({ entries, title, when }) {
+  const [style, setStyle] = useChartStyle();
+  const items = outcomesOf(entries);
+  const byWork = new Map();
+  for (const entry of entries) {
+    if (!(entry.breakdown ?? []).some((line) => line.count > 0)) continue;
+    const name = workName(entry);
+    byWork.set(name, [...(byWork.get(name) ?? []), entry]);
+  }
+  return (
+    <Panel>
+      <div className="flex min-h-12 items-center justify-between gap-2 border-b border-line px-4 py-2 sm:px-5">
+        <h2 className="text-sm font-semibold">What came of it</h2>
+        {items.length > 0 && <ChartSwitch value={style} onChange={setStyle} picture={{ title, subtitle: when, items }} />}
+      </div>
+      {items.length === 0 ? (
+        <p className="px-4 py-5 text-sm text-muted sm:px-5">Nothing counted yet. Save counts under your work, like Fixed 46.</p>
+      ) : (
+        <div className="space-y-4 px-4 py-4 sm:px-5">
+          <dl className="grid grid-cols-2 gap-2">
+            {items.map((item) => (
+              <div key={item.label} className="rounded-lg bg-sunken px-3 py-2">
+                <dt className="truncate text-xs text-muted">{item.label}</dt>
+                <dd className="mt-0.5 text-lg font-semibold tabular-nums">{item.count}</dd>
+              </div>
+            ))}
+          </dl>
+          {byWork.size > 0 && (
+            <ul className="space-y-1.5 text-sm">
+              {[...byWork].map(([name, list]) => (
+                <li key={name}>
+                  <p className="font-medium [overflow-wrap:anywhere]">{name}</p>
+                  <p className="text-xs text-muted">
+                    {outcomesOf(list)
+                      .map((item) => `${item.label} ${item.count}`)
+                      .join(' · ')}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="border-t border-line pt-4">
+            <OutcomeChart items={items} style={style} size={150} stacked />
+          </div>
+        </div>
+      )}
+    </Panel>
   );
 }
 

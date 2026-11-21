@@ -441,6 +441,47 @@ function Team({ id, members, canChooseAssistant, assistants = [] }) {
   );
 }
 
+// Turns the work tracker on or off for the department: when it is on, its
+// people see the Work Tracker tab.
+function WorkTrackerSwitch({ id, on }) {
+  const queryClient = useQueryClient();
+  const { retry } = useAuth();
+  const toast = useToast();
+  const change = useMutation({
+    mutationFn: (value) => api.patch(`/departments/${id}/work-tracker`, { on: value }),
+    onSuccess: ({ workTracker }) => {
+      queryClient.invalidateQueries({ queryKey: ['department', id] });
+      retry?.();
+      toast.success(workTracker ? 'Work tracker turned on' : 'Work tracker turned off');
+    },
+    onError: (issue) => toast.error('Could not change it', issue.message),
+  });
+  return (
+    <Panel>
+      <div className="flex items-start justify-between gap-4 px-4 py-3 sm:px-5">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold">Work tracker</h2>
+          <p className="mt-0.5 text-sm text-muted">
+            {on ? 'On: everyone in this department sees the Work Tracker tab.' : 'Off: nobody in this department sees the Work Tracker tab.'}
+          </p>
+        </div>
+        <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+          <input
+            type="checkbox"
+            className="peer sr-only"
+            checked={on}
+            disabled={change.isPending}
+            onChange={(event) => change.mutate(event.target.checked)}
+            aria-label="Work tracker for this department"
+          />
+          <span className="h-6 w-11 rounded-full bg-line transition-colors peer-checked:bg-accent peer-focus-visible:ring-3 peer-focus-visible:ring-accent/30" />
+          <span className="absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+        </label>
+      </div>
+    </Panel>
+  );
+}
+
 export default function DepartmentHome() {
   const { id } = useParams();
   const { user } = useAuth();
@@ -494,6 +535,7 @@ export default function DepartmentHome() {
       {data && (
         <div className="grid gap-4 md:h-[calc(100dvh-335px)] md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:h-[calc(100dvh-227px)]">
           <Reveal className="flex min-h-0 flex-col gap-4">
+            <WorkTrackerSwitch id={id} on={Boolean(data.department.workTracker)} />
             {data.you.canInviteAssistant && <InviteAssistant id={id} pending={data.assistantInvite} />}
             <InviteTeam id={id} joinLink={data.joinLink} />
             <Requests id={id} requests={data.requests} />

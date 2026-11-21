@@ -39,14 +39,27 @@ const tally = (into, breakdown = []) => {
 function Outcomes({ counts, className = '' }) {
   const list = [...counts].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
   if (!list.length) return null;
+  return <p className={`text-xs text-muted ${className}`}>{list.map(([label, n]) => `${label} ${n}`).join(' · ')}</p>;
+}
+
+// The kind of work an entry is (Sourcing...), and its full name.
+const kindOf = (entry) => entry.category || entry.task;
+const nameOf = (entry) =>
+  entry.category && entry.category.toLowerCase() !== entry.task.toLowerCase() ? `${entry.category} › ${entry.task}` : entry.task;
+
+// A comment count that opens the comments in a popup.
+function CommentsButton({ said, title, onOpen }) {
+  if (!said?.length) return null;
   return (
-    <ul className={`flex flex-wrap gap-1.5 ${className}`}>
-      {list.map(([label, n]) => (
-        <li key={label} className="rounded-md bg-sunken px-1.5 py-0.5 text-[11px] text-muted ring-1 ring-line">
-          {label} <span className="font-semibold text-ink tabular-nums">{n}</span>
-        </li>
-      ))}
-    </ul>
+    <button
+      type="button"
+      onClick={() => onOpen?.(title, said)}
+      aria-label={`${said.length} comment${said.length === 1 ? '' : 's'}`}
+      className="ml-1.5 inline-flex items-center gap-0.5 rounded px-1 align-middle text-xs text-[#a8650b] hover:bg-sunken"
+    >
+      <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+      {said.length}
+    </button>
   );
 }
 
@@ -203,7 +216,7 @@ function below(people, id) {
 // in a month gone by, none in a month to come.
 const countedDays = (sheet) => sheet.days.filter((day) => !day.sunday && day.date <= sheet.today).map((day) => day.date);
 
-function TeamDashboard({ sheet, me, notes, search = '' }) {
+function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
   const workingDays = sheet.days.filter((day) => !day.sunday);
   const inMonth = sheet.today >= sheet.days[0].date && sheet.today <= sheet.days.at(-1).date;
   const firstDay = inMonth ? sheet.today : (countedDays(sheet).at(-1) ?? workingDays[0]?.date);
@@ -246,11 +259,13 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
     const groups = new Map();
     for (const entry of sheet.entries) {
       if (!ids.has(entry.user) || !days.has(entry.date)) continue;
-      if (work !== 'all' && entry.task !== work) continue;
+      if (work !== 'all' && kindOf(entry) !== work) continue;
       const key = `${entry.user}|${entry.task}`;
       const row = groups.get(key) ?? {
         user: entry.user,
         task: entry.task,
+        kind: kindOf(entry),
+        name: nameOf(entry),
         target: 0,
         achieved: 0,
         filled: 0,
@@ -295,8 +310,9 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
   const byWork = [
     ...rows
       .reduce((map, row) => {
-        const item = map.get(row.task) ?? {
-          task: row.task,
+        const item = map.get(row.kind) ?? {
+          task: row.kind,
+          pieces: new Map(),
           people: new Set(),
           target: 0,
           achieved: 0,
@@ -308,7 +324,13 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
         for (const [key, place] of row.places) item.places.set(key, place);
         item.target += row.target;
         item.achieved += row.achieved;
-        return map.set(row.task, item);
+        if (row.task !== row.kind) {
+          const piece = item.pieces.get(row.task) ?? { target: 0, achieved: 0 };
+          piece.target += row.target;
+          piece.achieved += row.achieved;
+          item.pieces.set(row.task, piece);
+        }
+        return map.set(row.kind, item);
       }, new Map())
       .values(),
   ].sort((a, b) => b.target - a.target);
@@ -320,7 +342,7 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
           label="Period"
           tabs={[
             ['day', 'One day'],
-            ['month', 'Month so far'],
+            ['month', 'This month'],
           ]}
           value={period}
           onChange={setPeriod}
@@ -337,9 +359,9 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
         )}
         <SelectBox aria-label="Work" value={work} onChange={(event) => setWork(event.target.value)}>
           <option value="all">All work</option>
-          {sheet.tasks.map((task) => (
-            <option key={task} value={task}>
-              {task}
+          {[...new Set([...(sheet.types ?? []).map((type) => type.name), ...sheet.entries.map(kindOf)])].map((kind) => (
+            <option key={kind} value={kind}>
+              {kind}
             </option>
           ))}
         </SelectBox>
@@ -357,7 +379,7 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
       </div>
 
       <Hero
-        eyebrow={period === 'day' ? shortDay(date) : 'This month so far'}
+        eyebrow={period === 'day' ? shortDay(date) : 'This month'}
         title={whose === 'mine' ? 'My team at work' : 'Team at work'}
         target={total.target}
         achieved={total.achieved}
@@ -383,7 +405,7 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
               {byWork.map((item) => (
                 <li key={item.task} className="relative">
                   {sheet.canLead &&
-                    entriesOf((entry) => entry.task === item.task && people.some((person) => person.id === entry.user)).length > 0 && (
+                    entriesOf((entry) => kindOf(entry) === item.task && people.some((person) => person.id === entry.user)).length > 0 && (
                       <IconButton
                         label={`Remove ${item.task}`}
                         className="absolute top-2 right-2 z-10 sm:right-3"
@@ -391,7 +413,7 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
                           setRemoving({
                             title: `Remove ${item.task} for ${when}?`,
                             body: `It is taken off everyone you can set work for${whose === 'mine' ? ' in your team' : ''}, with what they filled in for it. This cannot be undone.`,
-                            ids: entriesOf((entry) => entry.task === item.task && people.some((person) => person.id === entry.user)).map(
+                            ids: entriesOf((entry) => kindOf(entry) === item.task && people.some((person) => person.id === entry.user)).map(
                               (entry) => entry.id,
                             ),
                           })
@@ -415,7 +437,19 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
                     <p className="mt-1 text-xs text-muted">
                       {item.people.size} {item.people.size === 1 ? 'person' : 'people'}
                     </p>
-                    <Outcomes counts={item.outcomes} className="mt-2" />
+                    {item.pieces.size > 0 && (
+                      <ul className="mt-1.5 space-y-0.5 text-xs text-muted">
+                        {[...item.pieces].map(([piece, n]) => (
+                          <li key={piece} className="flex justify-between gap-3">
+                            <span className="truncate">{piece}</span>
+                            <span className="tabular-nums">
+                              {n.achieved} / {n.target}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <Outcomes counts={item.outcomes} className="mt-1.5" />
                     <Places places={item.places} />
                   </button>
                 </li>
@@ -424,7 +458,7 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
           </ArtPanel>
 
           <Panel>
-            <PanelTitle>Who did what{period === 'day' ? `, ${shortDay(date)}` : ', this month so far'}</PanelTitle>
+            <PanelTitle>Who did what{period === 'day' ? `, ${shortDay(date)}` : ', this month'}</PanelTitle>
             <div className="max-h-[min(62vh,560px)] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-surface">
@@ -452,20 +486,9 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
                         <td className="px-4 py-2.5 sm:px-5">
                           <span className="font-medium">{row.person?.name}</span>
                           {row.person?.workFromHome && <span className="ml-1.5 text-xs text-muted">WFH</span>}
-                          {said?.length > 0 && (
-                            <span
-                              className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-xs text-[#a8650b]"
-                              title={said.map((comment) => `${comment.author.name}: ${comment.text}`).join('\n\n')}
-                            >
-                              <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
-                              {said.length}
-                            </span>
-                          )}
+                          <CommentsButton said={said} title={`${row.person?.name}, ${shortDay(date)}`} onOpen={onComments} />
                         </td>
-                        <td className="px-2 py-2.5 text-muted">
-                          {row.task}
-                          <Outcomes counts={row.outcomes} className="mt-1" />
-                        </td>
+                        <td className="px-2 py-2.5 text-muted">{row.name}</td>
                         <td className="px-2 py-2.5 text-muted">{[...row.by].join(', ') || '—'}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{row.target}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{row.filled ? row.achieved : '—'}</td>
@@ -486,10 +509,10 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
                           <td className="px-2 py-1">
                             {mine.length > 0 && (
                               <IconButton
-                                label={`Remove ${row.task} for ${row.person?.name}`}
+                                label={`Remove ${row.name} for ${row.person?.name}`}
                                 onClick={() =>
                                   setRemoving({
-                                    title: `Remove ${row.task} for ${row.person?.name}?`,
+                                    title: `Remove ${row.name} for ${row.person?.name}?`,
                                     body: `For ${when}: ${mine.length} ${mine.length === 1 ? 'day' : 'days'} of work, with what was filled in for it. This cannot be undone.`,
                                     ids: mine.map((entry) => entry.id),
                                   })
@@ -540,7 +563,7 @@ function RemoveConfirm({ removing, onClose, loading, onConfirm }) {
   );
 }
 
-function MyDashboard({ sheet, me, notes }) {
+function MyDashboard({ sheet, me, notes, onComments }) {
   const workingDays = sheet.days.filter((day) => !day.sunday);
   const inMonth = sheet.today >= sheet.days[0].date && sheet.today <= sheet.days.at(-1).date;
   const [period, setPeriod] = useState('month');
@@ -616,7 +639,7 @@ function MyDashboard({ sheet, me, notes }) {
       </div>
 
       <Hero
-        eyebrow={period === 'day' ? dayLabel(date) : 'My month so far'}
+        eyebrow={period === 'day' ? dayLabel(date) : 'This month'}
         title={`Hello, ${me.name.split(' ')[0]}`}
         target={dueSoFar}
         achieved={achieved}
@@ -694,20 +717,9 @@ function MyDashboard({ sheet, me, notes }) {
                       >
                         <td className="px-4 py-2.5 whitespace-nowrap sm:px-5">
                           {dayLabel(entry.date)}
-                          {said?.length > 0 && (
-                            <span
-                              className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-xs text-[#a8650b]"
-                              title={said.map((comment) => `${comment.author.name}: ${comment.text}`).join('\n\n')}
-                            >
-                              <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
-                              {said.length}
-                            </span>
-                          )}
+                          <CommentsButton said={said} title={dayLabel(entry.date)} onOpen={onComments} />
                         </td>
-                        <td className="px-2 py-2.5">
-                          {entry.task}
-                          <Outcomes counts={tally(new Map(), entry.breakdown)} className="mt-1" />
-                        </td>
+                        <td className="px-2 py-2.5">{nameOf(entry)}</td>
                         <td className="px-2 py-2.5 text-muted">{by(entry)}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{entry.target}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{filled ? entry.achieved : '—'}</td>
@@ -734,8 +746,8 @@ function MyDashboard({ sheet, me, notes }) {
 
 // Someone with nobody under them sees only their own work; a team lead, an
 // assistant manager or a manager sees the team's.
-export function WorkDashboard({ sheet, me, notes, search }) {
+export function WorkDashboard({ sheet, me, notes, search, onComments }) {
   const leads = me && (me.position !== 'employee' || sheet.people.some((person) => person.reportsTo === me.id));
-  if (me && !leads) return <MyDashboard sheet={sheet} me={me} notes={notes} />;
-  return <TeamDashboard sheet={sheet} me={me} notes={notes} search={search} />;
+  if (me && !leads) return <MyDashboard sheet={sheet} me={me} notes={notes} onComments={onComments} />;
+  return <TeamDashboard sheet={sheet} me={me} notes={notes} search={search} onComments={onComments} />;
 }

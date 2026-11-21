@@ -317,12 +317,10 @@ export function AppShell() {
     enabled: user.role !== 'owner',
   });
   const myDepartment = mine?.items?.[0];
-  const sections =
-    position === 'hr'
-      ? HR_SECTIONS
-      : isAdmin
-        ? staffSections({ manager: position === 'manager', myDepartment })
-        : EMPLOYEE_SECTIONS;
+  // The work tracker shows only where a department has turned it on.
+  const sections = (
+    position === 'hr' ? HR_SECTIONS : isAdmin ? staffSections({ manager: position === 'manager', myDepartment }) : EMPLOYEE_SECTIONS
+  ).filter((section) => section.key !== 'work' || user.workTracker);
   const current =
     sections.find((section) => section.items.some((item) => isOpen(item, home, pathname))) ?? sections[0];
 

@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { Tabs } from '../../components/Tabs';
 import { SheetGrid } from './SheetGrid';
 import { WorkDashboard } from './WorkDashboard';
+import { WorkReport } from './WorkReport';
 import {
   Button,
   Dialog,
@@ -33,6 +34,7 @@ import {
   TextArea,
   TextInput,
   inputClass,
+  Field,
 } from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
@@ -138,7 +140,104 @@ function WorkSource({ entry }) {
   );
 }
 
-function WorkLine({ entry, person, day, today, onDone, wide = false, assigners = {} }) {
+// The kind of work and its piece, as one name: "Sourcing › Sourcing Error Report".
+export const workName = (entry) =>
+  entry.category && entry.category.toLowerCase() !== entry.task.toLowerCase() ? `${entry.category} › ${entry.task}` : entry.task;
+
+// What came of the work: lines of a name and a count, saved on their own.
+// Each save adds to what is there, then the box is empty again; what was
+// saved shows above as plain text and goes into the day's comment.
+function Counts({ entry, person, day }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [lines, setLines] = useState([]);
+  const [error, setError] = useState('');
+  const saved = (entry?.breakdown ?? []).filter((line) => line.count > 0);
+  const save = useMutation({
+    mutationFn: () =>
+      api.put('/work/entries', {
+        user: person.id,
+        date: day.date,
+        task: entry.task,
+        addBreakdown: lines.map((line) => ({ label: line.label.trim(), count: Number(line.count) })),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work'] });
+      toast.success('Counts saved', 'Added to your comments for the day.');
+      setLines([]);
+    },
+    onError: (issue) => setError(issue.message),
+  });
+  const submit = () => {
+    if (!lines.length) return setError('Add a line first.');
+    const bad = lines.find((line) => !line.label.trim() || line.count === '' || Number.isNaN(Number(line.count)) || Number(line.count) < 0);
+    if (bad) return setError('Give every line a name and a count of 0 or more.');
+    setError('');
+    return save.mutate();
+  };
+
+  return (
+    <div className="col-span-full rounded-lg border border-line bg-sunken/60 p-3">
+      <p className="text-[13px] font-semibold">What came of it</p>
+      <p className="mt-0.5 mb-2 text-sm text-muted">
+        {saved.length
+          ? `Saved: ${saved.map((line) => `${line.label} ${line.count}`).join(', ')}`
+          : 'Nothing counted yet, like Fixed 46 or Working fine 22.'}
+      </p>
+      <ul className="space-y-2">
+        {lines.map((line, index) => (
+          // eslint-disable-next-line react/no-array-index-key
+          <li key={index} className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <input
+                value={line.label}
+                maxLength={40}
+                aria-label="What"
+                placeholder="Fixed"
+                onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, label: event.target.value } : item)))}
+                className={`${inputClass(error && !line.label.trim())} h-9!`}
+              />
+            </div>
+            <div className="w-24 shrink-0">
+              <input
+                value={line.count}
+                inputMode="numeric"
+                aria-label={`How many ${line.label || ''}`.trim()}
+                placeholder="0"
+                onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, count: event.target.value } : item)))}
+                className={`${inputClass(error && (line.count === '' || Number.isNaN(Number(line.count))))} h-9! text-right tabular-nums`}
+              />
+            </div>
+            <IconButton label={`Remove ${line.label || 'this line'}`} onClick={() => setLines(lines.filter((_, i) => i !== index))}>
+              <X className="h-4 w-4" />
+            </IconButton>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="mt-2 text-sm text-rejected">{error}</p>}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setError('');
+            setLines([...lines, { label: OUTCOMES.find((name) => !lines.some((line) => line.label === name)) ?? '', count: '' }]);
+          }}
+          className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add a line
+        </button>
+        {lines.length > 0 && (
+          <Button variant="secondary" loading={save.isPending} onClick={submit}>
+            Save counts
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorkLine({ entry, person, day, today, onDone, wide = false, assigners = {}, types = [] }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const future = day.date > today;
@@ -157,16 +256,19 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
       ? 'Set by you'
       : `Set by ${assigners[entry.targetBy] ?? 'your lead'}`;
   const saved = entry?.achieved ?? null;
+  const adding = !entry;
   // The achieved box starts empty: what was saved shows under it, and a new
   // number replaces it.
   const form = useZodForm(
     z.object({
-      task: z.string().trim().min(1, 'Name the work.').max(60, 'Keep it under 60 characters.'),
+      category: adding ? z.string().min(1, 'Pick the work.') : z.string(),
+      task: z.string().trim().max(60, 'Keep it under 60 characters.'),
       target: countRule('The target'),
       achieved: countRule('Achieved'),
       overtime: countRule('OT'),
     }),
     {
+      category: entry?.category ?? '',
       task: entry?.task ?? '',
       target: entry ? String(entry.target ?? 0) : '',
       achieved: '',
@@ -175,24 +277,18 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
   );
   const { errors } = form.formState;
 
-  // What came of the work: lines of a label and a count.
-  const startLines = () => (entry?.breakdown ?? []).map((line) => ({ label: line.label, count: String(line.count) }));
-  const [lines, setLines] = useState(startLines);
-  const [linesError, setLinesError] = useState('');
-  const linesChanged = JSON.stringify(lines) !== JSON.stringify(startLines());
-
   const save = useMutation({
     mutationFn: (fields) =>
       api.put('/work/entries', {
         user: person.id,
         date: day.date,
-        task: fields.task,
+        ...(adding ? { category: fields.category } : {}),
+        task: adding ? fields.task.trim() || fields.category : entry.task,
         ...(mayTarget && fields.target !== '' ? { target: toCount(fields.target) } : {}),
         ...(mayFill
           ? {
               ...(fields.achieved !== '' ? { achieved: toCount(fields.achieved) } : {}),
               overtime: toCount(fields.overtime) ?? 0,
-              ...(linesChanged ? { breakdown: lines.map((line) => ({ label: line.label.trim(), count: Number(line.count) })) } : {}),
             }
           : {}),
       }),
@@ -218,25 +314,47 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
   const achieved = typed !== '' ? Number(typed) : saved;
   const difference = achieved !== null && target !== '' ? achieved - Number(target) : null;
 
-  const submit = form.handleSubmit((fields) => {
-    const bad = lines.find((line) => !line.label.trim() || line.count === '' || Number.isNaN(Number(line.count)) || Number(line.count) < 0);
-    if (bad) {
-      setLinesError('Give every line a name and a count of 0 or more.');
-      return;
-    }
-    setLinesError('');
-    save.mutate(fields);
-  });
-
   return (
     <form
       noValidate
-      onSubmit={submit}
+      onSubmit={form.handleSubmit((fields) => save.mutate(fields))}
       className={`grid grid-cols-3 gap-3 border-b border-line py-3 last:border-b-0 ${wide ? 'sm:grid-cols-[1.4fr_1fr_1fr_0.8fr_auto] sm:items-start' : ''}`}
     >
       <WorkSource entry={entry} />
       <div className={wide ? 'col-span-3 sm:col-span-1' : 'col-span-3'}>
-        <TextInput label="Work" disabled={!mayTarget && Boolean(entry)} error={errors.task?.message} {...form.register('task')} />
+        {adding ? (
+          <div className="space-y-2">
+            <Field label="Work" error={errors.category?.message}>
+              {(id) => (
+                <SelectBox
+                  id={id}
+                  className="w-full"
+                  error={errors.category?.message}
+                  value={form.watch('category')}
+                  onChange={(event) => form.setValue('category', event.target.value, { shouldValidate: true })}
+                >
+                  <option value="">Pick the work</option>
+                  {types.map((type) => (
+                    <option key={type.id} value={type.name}>
+                      {type.name}
+                    </option>
+                  ))}
+                </SelectBox>
+              )}
+            </Field>
+            <TextInput
+              label="Piece of it (optional)"
+              placeholder="Sourcing Error Report"
+              error={errors.task?.message}
+              {...form.register('task')}
+            />
+          </div>
+        ) : (
+          <div>
+            <p className="mb-1.5 text-[13px] font-medium">Work</p>
+            <p className="flex min-h-10 items-center rounded-lg border border-line bg-sunken px-3 text-sm">{workName(entry)}</p>
+          </div>
+        )}
       </div>
       <TextInput
         label="Target"
@@ -270,72 +388,13 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
             Save
           </Button>
           {entry && (person.canLead || own) && (
-            <IconButton label={`Remove ${entry.task}`} onClick={() => remove.mutate()}>
+            <IconButton label={`Remove ${workName(entry)}`} onClick={() => remove.mutate()}>
               <Trash2 className="h-4 w-4" />
             </IconButton>
           )}
         </div>
       </div>
-
-      {/* What came of it: Fixed 46, Working fine 22... saved as the day's comment. */}
-      {(mayFill || lines.length > 0) && (
-        <div className="col-span-full rounded-lg border border-line bg-sunken/60 p-3">
-          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-[13px] font-semibold">What came of it</p>
-            {mayFill && <p className="text-xs text-muted">Saved with Save, and added to your comments for the day.</p>}
-          </div>
-          {lines.length === 0 && (
-            <p className="mb-2 text-sm text-muted">Count it here, like Fixed 46, Working fine 22, Webpage issue 49.</p>
-          )}
-          <ul className="space-y-2">
-            {lines.map((line, index) => (
-              // eslint-disable-next-line react/no-array-index-key
-              <li key={index} className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <input
-                    value={line.label}
-                    disabled={!mayFill}
-                    maxLength={40}
-                    aria-label="What"
-                    placeholder="Fixed"
-                    onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, label: event.target.value } : item)))}
-                    className={`${inputClass(linesError && !line.label.trim())} h-9!`}
-                  />
-                </div>
-                <div className="w-24 shrink-0">
-                  <input
-                    value={line.count}
-                    disabled={!mayFill}
-                    inputMode="numeric"
-                    aria-label={`How many ${line.label || ''}`.trim()}
-                    placeholder="0"
-                    onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, count: event.target.value } : item)))}
-                    className={`${inputClass(linesError && (line.count === '' || Number.isNaN(Number(line.count))))} h-9! text-right tabular-nums`}
-                  />
-                </div>
-                {mayFill && (
-                  <IconButton label={`Remove ${line.label || 'this line'}`} onClick={() => setLines(lines.filter((_, i) => i !== index))}>
-                    <X className="h-4 w-4" />
-                  </IconButton>
-                )}
-              </li>
-            ))}
-          </ul>
-          {linesError && <p className="mt-2 text-sm text-rejected">{linesError}</p>}
-          {mayFill && (
-            <button
-              type="button"
-              onClick={() =>
-                setLines([...lines, { label: OUTCOMES.find((name) => !lines.some((line) => line.label === name)) ?? '', count: '' }])
-              }
-              className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Add a line
-            </button>
-          )}
-        </div>
-      )}
+      {entry && (mayFill || (entry.breakdown ?? []).length > 0) && (mayFill ? <Counts entry={entry} person={person} day={day} /> : null)}
       {formError(form) && (
         <div className="col-span-full">
           <FormError>{formError(form)}</FormError>
@@ -383,12 +442,6 @@ function Comments({ person, day, comments = [], tasks = [], startAdding = false 
         <Button variant="secondary" disabled={!comments.length} onClick={() => setView(true)}>
           View comments{comments.length ? ` (${comments.length})` : ''}
         </Button>
-        {person.canFill && (
-          <Button variant="secondary" onClick={() => setAdd(true)}>
-            <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
-            Add comment
-          </Button>
-        )}
       </div>
       <Dialog open={view} onClose={() => setView(false)} title={`Comments, ${dayTitle(day.date)}`} kind="modal">
         {view && <CommentList comments={comments} />}
@@ -527,12 +580,12 @@ function CommentForm({ person, day, tasks = [], onDone }) {
   );
 }
 
-function DayDialog({ open, person, day, total, today, tasks, comments, focusComment, onClose, assigners }) {
+function DayDialog({ open, person, day, total, today, tasks, comments, focusComment, onClose, assigners, types = [] }) {
   const [adding, setAdding] = useState(false);
   const entries = total?.entries ?? [];
   const mayChange = person?.canLead || person?.canFill;
   // Working from home is one piece of work a day.
-  const canAdd = mayChange && !(person?.workFromHome && entries.length > 0);
+  const canAdd = mayChange;
   return (
     <Dialog open={open} onClose={onClose} title={person ? `${person.name}, ${dayTitle(day.date)}` : ''} kind="modal">
       {person && (
@@ -542,7 +595,6 @@ function DayDialog({ open, person, day, total, today, tasks, comments, focusComm
               On {person.away[day.date] === 'full' ? 'leave' : 'half-day leave'} this day.
             </p>
           )}
-          {person.workFromHome && <p className="mb-1 text-sm text-muted">Works from home: one piece of work a day.</p>}
           {entries.length === 0 && !adding && <p className="py-3 text-sm text-muted">No work set for this day yet.</p>}
           {mayChange ? (
             entries.map((entry) => (
@@ -553,13 +605,14 @@ function DayDialog({ open, person, day, total, today, tasks, comments, focusComm
                 day={day}
                 today={today}
                 assigners={assigners}
+                types={types}
               />
             ))
           ) : (
             <ul className="divide-y divide-line text-sm">
               {entries.map((entry) => (
                 <li key={entry.id} className="flex justify-between gap-3 py-2">
-                  <span>{entry.task}</span>
+                  <span>{workName(entry)}</span>
                   <span className="tabular-nums text-muted">
                     {entry.achieved ?? '—'} of {entry.target}
                   </span>
@@ -567,7 +620,7 @@ function DayDialog({ open, person, day, total, today, tasks, comments, focusComm
               ))}
             </ul>
           )}
-          {adding && <WorkLine person={person} day={day} today={today} onDone={() => setAdding(false)} />}
+          {adding && <WorkLine person={person} day={day} today={today} onDone={() => setAdding(false)} types={types} />}
           {canAdd && !adding && (
             <Button variant="ghost" className="mt-2" onClick={() => setAdding(true)}>
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -598,6 +651,71 @@ function SearchField({ value, onChange, label, className = '' }) {
   );
 }
 
+/* The work types (Broken RSS, New Integration, Sourcing...), for an
+   assistant manager or manager to add to or take away from. */
+
+function WorkTypesDialog({ open, types, onClose }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const add = useMutation({
+    mutationFn: () => api.post('/work/types', { name: name.trim() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work'] });
+      toast.success('Work type added');
+      setName('');
+    },
+    onError: (issue) => setError(issue.message),
+  });
+  const remove = useMutation({
+    mutationFn: (id) => api.delete(`/work/types/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['work'] }),
+    onError: (issue) => toast.error('Could not remove it', issue.message),
+  });
+  return (
+    <Dialog open={open} onClose={onClose} title="Work types" kind="modal">
+      <p className="mb-3 text-sm text-muted">Team leads pick from these when they set targets. Work already given keeps its name.</p>
+      <ul className="divide-y divide-line rounded-lg border border-line">
+        {types.map((type) => (
+          <li key={type.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+            <span>{type.name}</span>
+            <IconButton label={`Remove ${type.name}`} onClick={() => remove.mutate(type.id)}>
+              <Trash2 className="h-4 w-4" />
+            </IconButton>
+          </li>
+        ))}
+        {types.length === 0 && <li className="px-3 py-3 text-sm text-muted">No work types yet.</li>}
+      </ul>
+      <form
+        noValidate
+        className="mt-3 flex items-start gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (name.trim().length < 2) return setError('Name the work, like Snapshot.');
+          setError('');
+          return add.mutate();
+        }}
+      >
+        <div className="min-w-0 flex-1">
+          <input
+            value={name}
+            maxLength={60}
+            aria-label="New work type"
+            placeholder="New work type"
+            onChange={(event) => setName(event.target.value)}
+            className={inputClass(Boolean(error))}
+          />
+          {error && <p className="mt-1.5 text-sm text-rejected">{error}</p>}
+        </div>
+        <Button type="submit" loading={add.isPending}>
+          Add
+        </Button>
+      </form>
+    </Dialog>
+  );
+}
+
 /* Setting a target for several people on one day. */
 
 function TargetsDialog({ open, sheet, onClose }) {
@@ -613,12 +731,7 @@ function TargetsDialog({ open, sheet, onClose }) {
   const start = sheet.today >= first && sheet.today <= lastDay ? sheet.today : (sheet.days.find((day) => !day.sunday)?.date ?? first);
   const form = useZodForm(
     z.object({
-      task: z.string().trim().min(1, 'Name the work, like Profiles.').max(60, 'Keep it under 60 characters.'),
-      target: z
-        .string()
-        .trim()
-        .min(1, 'Enter the daily target.')
-        .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0 && Number(value) <= 100000, 'Use a number from 0 to 100000.'),
+      category: z.string().min(1, 'Pick the work.'),
       date: z.string().min(1, 'Pick the day.'),
       sourceName: z.string().trim().max(80, 'Keep it under 80 characters.'),
       sourceUrl: z
@@ -627,10 +740,30 @@ function TargetsDialog({ open, sheet, onClose }) {
         .max(500, 'That link is too long.')
         .refine((value) => value === '' || /^https?:\/\/\S+$/i.test(value), 'Paste a link that starts with https://'),
     }),
-    { task: sheet.tasks[0] ?? '', target: '', date: start, sourceName: '', sourceUrl: '' },
+    { category: '', date: start, sourceName: '', sourceUrl: '' },
   );
   const { errors } = form.formState;
   const [pickError, setPickError] = useState('');
+  // The pieces of the work, each with its target. A piece without a name is
+  // the work itself.
+  const [lines, setLines] = useState([{ task: '', target: '' }]);
+  const [linesError, setLinesError] = useState('');
+  const checkLines = () => {
+    const bad = lines.find(
+      (line) => line.target === '' || Number.isNaN(Number(line.target)) || Number(line.target) < 0 || Number(line.target) > 100000,
+    );
+    if (bad) {
+      setLinesError('Give every piece a daily target from 0 to 100000.');
+      return false;
+    }
+    const names = lines.map((line) => line.task.trim().toLowerCase());
+    if (new Set(names).size !== names.length) {
+      setLinesError('Name each piece of work once.');
+      return false;
+    }
+    setLinesError('');
+    return true;
+  };
 
   const save = useMutation({
     mutationFn: ({ date, ...fields }) =>
@@ -638,7 +771,7 @@ function TargetsDialog({ open, sheet, onClose }) {
         ...fields,
         from: date,
         to: date,
-        target: Number(fields.target),
+        lines: lines.map((line) => ({ task: line.task.trim(), target: Number(line.target) })),
         users: [...picked],
       }),
     onSuccess: ({ set }) => {
@@ -647,7 +780,7 @@ function TargetsDialog({ open, sheet, onClose }) {
       else toast.success('Targets set', `${set} ${set === 1 ? 'person' : 'people'}. Anyone on leave that day was left out.`);
       onClose();
     },
-    onError: (issue) => showServerError(form, issue, ['task', 'target', 'date']),
+    onError: (issue) => showServerError(form, issue, ['category', 'date']),
   });
 
   const toggle = (id) =>
@@ -681,13 +814,17 @@ function TargetsDialog({ open, sheet, onClose }) {
         className="space-y-4"
         onSubmit={form.handleSubmit(
           (fields) => {
+            const linesOk = checkLines();
             if (picked.size === 0) {
               setPickError('Pick at least one person.');
               return;
             }
-            save.mutate(fields);
+            if (linesOk) save.mutate(fields);
           },
-          () => picked.size === 0 && setPickError('Pick at least one person.'),
+          () => {
+            checkLines();
+            if (picked.size === 0) setPickError('Pick at least one person.');
+          },
         )}
       >
         <fieldset>
@@ -734,14 +871,70 @@ function TargetsDialog({ open, sheet, onClose }) {
           {pickError && <p className="mt-1.5 text-sm text-rejected">{pickError}</p>}
         </fieldset>
         <div className="grid grid-cols-2 gap-3">
-          <TextInput label="Work" placeholder="Profiles" error={errors.task?.message} {...form.register('task')} />
-          <TextInput
-            label="Daily target"
-            inputMode="decimal"
-            placeholder="100"
-            error={errors.target?.message}
-            {...form.register('target')}
-          />
+          <div className="col-span-2">
+            <Field label="Work" error={errors.category?.message}>
+              {(id) => (
+                <SelectBox
+                  id={id}
+                  className="w-full"
+                  error={errors.category?.message}
+                  value={form.watch('category')}
+                  onChange={(event) => form.setValue('category', event.target.value, { shouldValidate: true })}
+                >
+                  <option value="">Pick the work</option>
+                  {(sheet.types ?? []).map((type) => (
+                    <option key={type.id} value={type.name}>
+                      {type.name}
+                    </option>
+                  ))}
+                </SelectBox>
+              )}
+            </Field>
+          </div>
+          <fieldset className="col-span-2">
+            <legend className="mb-1.5 text-[13px] font-medium">Pieces of it, each with a daily target</legend>
+            <ul className="space-y-2">
+              {lines.map((line, index) => (
+                // eslint-disable-next-line react/no-array-index-key
+                <li key={index} className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <input
+                      value={line.task}
+                      maxLength={60}
+                      aria-label="Piece of the work"
+                      placeholder={index === 0 ? 'Leave empty for the work itself, or e.g. Sourcing Error Report' : 'Sourcing Error Report'}
+                      onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, task: event.target.value } : item)))}
+                      className={`${inputClass(false)} h-10!`}
+                    />
+                  </div>
+                  <div className="w-28 shrink-0">
+                    <input
+                      value={line.target}
+                      inputMode="decimal"
+                      aria-label="Daily target"
+                      placeholder="Target"
+                      onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, target: event.target.value } : item)))}
+                      className={`${inputClass(linesError && (line.target === '' || Number.isNaN(Number(line.target))))} h-10! text-right tabular-nums`}
+                    />
+                  </div>
+                  {lines.length > 1 && (
+                    <IconButton label="Remove this piece" onClick={() => setLines(lines.filter((_, i) => i !== index))}>
+                      <X className="h-4 w-4" />
+                    </IconButton>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {linesError && <p className="mt-1.5 text-sm text-rejected">{linesError}</p>}
+            <button
+              type="button"
+              onClick={() => setLines([...lines, { task: '', target: '' }])}
+              className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add a piece of work
+            </button>
+          </fieldset>
           <div className="col-span-2">
             <TextInput label="Day" type="date" error={errors.date?.message} {...form.register('date')} />
           </div>
@@ -761,8 +954,7 @@ function TargetsDialog({ open, sheet, onClose }) {
           />
         </div>
         <p className="text-sm text-muted">
-          Not on a Sunday or a holiday, or for anyone on leave that day. People working from home get this as their one piece of work. The
-          link opens from their My work.
+          Not on a Sunday or a holiday, or for anyone on leave that day. The link opens from their My work.
         </p>
         <FormError>{formError(form)}</FormError>
       </form>
@@ -787,7 +979,7 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
   });
   const target = counted.reduce((sum, item) => sum + (totals[`${me.id}|${item.date}`]?.target ?? 0), 0);
   const achieved = counted.reduce((sum, item) => sum + (totals[`${me.id}|${item.date}`]?.achieved ?? 0), 0);
-  const canAdd = !(me.workFromHome && entries.length > 0);
+  const canAdd = true;
 
   return (
     <div className="grid items-start gap-4 lg:grid-cols-[2fr_1fr]">
@@ -805,10 +997,11 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
               day={day}
               today={sheet.today}
               assigners={assigners}
+              types={sheet.types ?? []}
               wide
             />
           ))}
-          {adding && <WorkLine person={me} day={day} today={sheet.today} onDone={() => setAdding(false)} wide />}
+          {adding && <WorkLine person={me} day={day} today={sheet.today} onDone={() => setAdding(false)} types={sheet.types ?? []} wide />}
           {canAdd && !adding && (
             <Button variant="ghost" className="mt-2" onClick={() => setAdding(true)}>
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -819,7 +1012,7 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
         </div>
       </Panel>
       <Panel>
-        <PanelTitle>{monthTitle(sheet.month)} so far</PanelTitle>
+        <PanelTitle>{monthTitle(sheet.month)}</PanelTitle>
         <dl className="grid grid-cols-3 gap-2 px-4 py-4 text-center sm:px-5">
           {[
             ['Target', target, 'text-ink'],
@@ -844,6 +1037,8 @@ export default function WorkTracker() {
   const [tab, setTab] = useState('mine');
   const [opened, setOpened] = useState(null);
   const [setting, setSetting] = useState(false);
+  const [typesOpen, setTypesOpen] = useState(false);
+  const [readingKey, setReading] = useState(null); // { title, user, date }
   const [search, setSearch] = useState('');
 
   const query = {
@@ -863,6 +1058,7 @@ export default function WorkTracker() {
   });
   const totals = useMemo(() => totalsOf(sheet?.entries ?? []), [sheet]);
   const notes = useMemo(() => commentsOf(sheet?.comments ?? []), [sheet]);
+  const reading = readingKey ? { title: readingKey.title, list: notes[`${readingKey.user}|${readingKey.date}`] ?? [] } : null;
 
   if (isPending) return <RowsSkeleton rows={8} />;
   if (isError) return <LoadError error={error} onRetry={refetch} />;
@@ -884,6 +1080,11 @@ export default function WorkTracker() {
           title="Work tracker"
           actions={
             <>
+              {sheet.canManageTypes && (
+                <Button variant="secondary" onClick={() => setTypesOpen(true)}>
+                  Work types
+                </Button>
+              )}
               {sheet.canLead && (
                 <Button onClick={() => setSetting(true)}>
                   <Target className="h-4 w-4" aria-hidden="true" />
@@ -911,6 +1112,7 @@ export default function WorkTracker() {
               ...(me ? [{ id: 'mine', label: 'My work' }] : []),
               { id: 'dashboard', label: 'Dashboard' },
               { id: 'sheet', label: 'Team sheet' },
+              ...(sheet.canManageTypes ? [{ id: 'report', label: 'Report' }] : []),
             ]}
             value={shownTab}
             onChange={setTab}
@@ -963,10 +1165,19 @@ export default function WorkTracker() {
         </div>
       ) : (
         <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-2">
-          {shownTab === 'mine' && me ? (
+          {shownTab === 'report' ? (
+            <WorkReport key={`${sheet.month}|${sheet.department}`} sheet={sheet} />
+          ) : shownTab === 'mine' && me ? (
             <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} notes={notes} />
           ) : (
-            <WorkDashboard key={`${sheet.month}|${sheet.department}`} sheet={sheet} me={me} notes={notes} search={search} />
+            <WorkDashboard
+              key={`${sheet.month}|${sheet.department}`}
+              sheet={sheet}
+              me={me}
+              notes={notes}
+              search={search}
+              onComments={(title, list) => setReading({ title, user: list[0]?.user, date: list[0]?.date })}
+            />
           )}
         </div>
       )}
@@ -982,9 +1193,19 @@ export default function WorkTracker() {
         comments={opened ? notes[`${opened.person.id}|${opened.day.date}`] : []}
         focusComment={Boolean(opened?.comment)}
         assigners={sheet.assigners ?? {}}
+        types={sheet.types ?? []}
         onClose={() => setOpened(null)}
       />
       {setting && <TargetsDialog open sheet={sheet} onClose={() => setSetting(false)} />}
+      {typesOpen && <WorkTypesDialog open types={sheet.types ?? []} onClose={() => setTypesOpen(false)} />}
+      <Dialog
+        open={Boolean(reading)}
+        onClose={() => setReading(null)}
+        title={reading ? `Comments, ${reading.title}` : 'Comments'}
+        kind="modal"
+      >
+        {reading && <CommentList comments={reading.list} />}
+      </Dialog>
     </div>
   );
 }

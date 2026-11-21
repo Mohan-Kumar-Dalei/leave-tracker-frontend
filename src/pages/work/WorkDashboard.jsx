@@ -24,6 +24,60 @@ const STATUS = {
   behind: ['Behind', 'bg-rejected-soft text-rejected'],
 };
 
+// What came of the work (Fixed, Working fine...), added up by label.
+const tally = (into, breakdown = []) => {
+  for (const line of breakdown) {
+    const key = line.label.trim();
+    into.set(key, (into.get(key) ?? 0) + (line.count ?? 0));
+  }
+  return into;
+};
+
+function Outcomes({ counts, className = '' }) {
+  const list = [...counts].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+  if (!list.length) return null;
+  return (
+    <ul className={`flex flex-wrap gap-1.5 ${className}`}>
+      {list.map(([label, n]) => (
+        <li key={label} className="rounded-md bg-sunken px-1.5 py-0.5 text-[11px] text-muted ring-1 ring-line">
+          {label} <span className="font-semibold text-ink tabular-nums">{n}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Where the work is done: the sheets or pages its leads gave, as links.
+function Places({ places }) {
+  if (!places.size) return null;
+  return (
+    <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-muted">
+      {[...places.values()].map((place) =>
+        place.url ? (
+          <a
+            key={place.key}
+            href={place.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(event) => event.stopPropagation()}
+            className="text-accent hover:underline"
+          >
+            {place.name || 'Sheet'} ↗
+          </a>
+        ) : (
+          <span key={place.key}>{place.name}</span>
+        ),
+      )}
+    </p>
+  );
+}
+const placeOf = (entry, places) => {
+  if (!entry.sourceName && !entry.sourceUrl) return places;
+  const key = `${entry.sourceName}|${entry.sourceUrl}`;
+  if (!places.has(key)) places.set(key, { key, name: entry.sourceName, url: entry.sourceUrl });
+  return places;
+};
+
 // A ring that fills as the work gets done.
 function Ring({ share, size = 96 }) {
   const r = size / 2 - 8;
@@ -179,8 +233,12 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
         unfilled: 0,
         days: 0,
         by: new Set(),
+        outcomes: new Map(),
+        places: new Map(),
       };
       row.target += entry.target ?? 0;
+      tally(row.outcomes, entry.breakdown);
+      placeOf(entry, row.places);
       if (entry.targetBy) row.by.add(sheet.assigners?.[entry.targetBy] ?? 'Someone');
       row.days += 1;
       if (entry.achieved === null || entry.achieved === undefined) row.unfilled += entry.date < sheet.today ? 1 : 0;
@@ -213,8 +271,17 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
   const byWork = [
     ...rows
       .reduce((map, row) => {
-        const item = map.get(row.task) ?? { task: row.task, people: new Set(), target: 0, achieved: 0 };
+        const item = map.get(row.task) ?? {
+          task: row.task,
+          people: new Set(),
+          target: 0,
+          achieved: 0,
+          outcomes: new Map(),
+          places: new Map(),
+        };
         item.people.add(row.user);
+        for (const [label, n] of row.outcomes) item.outcomes.set(label, (item.outcomes.get(label) ?? 0) + n);
+        for (const [key, place] of row.places) item.places.set(key, place);
         item.target += row.target;
         item.achieved += row.achieved;
         return map.set(row.task, item);
@@ -306,6 +373,8 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
                     <p className="mt-1 text-xs text-muted">
                       {item.people.size} {item.people.size === 1 ? 'person' : 'people'}
                     </p>
+                    <Outcomes counts={item.outcomes} className="mt-2" />
+                    <Places places={item.places} />
                   </button>
                 </li>
               ))}
@@ -323,7 +392,7 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
                     <th className="px-2 py-2 font-medium">Assigned by</th>
                     <th className="px-2 py-2 text-right font-medium">Target</th>
                     <th className="px-2 py-2 text-right font-medium">Done</th>
-                    <th className="px-2 py-2 text-right font-medium">+/−</th>
+                    <th className="px-2 py-2 text-right font-medium whitespace-nowrap">+/−</th>
                     <th className="px-4 py-2 font-medium sm:px-5">Status</th>
                   </tr>
                 </thead>
@@ -345,7 +414,10 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
                             </span>
                           )}
                         </td>
-                        <td className="px-2 py-2.5 text-muted">{row.task}</td>
+                        <td className="px-2 py-2.5 text-muted">
+                          {row.task}
+                          <Outcomes counts={row.outcomes} className="mt-1" />
+                        </td>
                         <td className="px-2 py-2.5 text-muted">{[...row.by].join(', ') || '—'}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{row.target}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{row.filled ? row.achieved : '—'}</td>
@@ -409,7 +481,18 @@ function MyDashboard({ sheet, me, notes }) {
   const byWork = [
     ...mine
       .reduce((map, entry) => {
-        const item = map.get(entry.task) ?? { task: entry.task, target: 0, due: 0, achieved: 0, days: 0, from: new Map() };
+        const item = map.get(entry.task) ?? {
+          task: entry.task,
+          target: 0,
+          due: 0,
+          achieved: 0,
+          days: 0,
+          from: new Map(),
+          outcomes: new Map(),
+          places: new Map(),
+        };
+        tally(item.outcomes, entry.breakdown);
+        placeOf(entry, item.places);
         item.target += entry.target ?? 0;
         if (counts(entry)) item.due += entry.target ?? 0;
         item.achieved += entry.achieved ?? 0;
@@ -491,6 +574,8 @@ function MyDashboard({ sheet, me, notes }) {
                     {' · '}
                     {item.days} {item.days === 1 ? 'day' : 'days'}
                   </p>
+                  <Outcomes counts={item.outcomes} className="mt-2" />
+                  <Places places={item.places} />
                 </li>
               ))}
             </ul>
@@ -507,7 +592,7 @@ function MyDashboard({ sheet, me, notes }) {
                     <th className="px-2 py-2 font-medium">Assigned by</th>
                     <th className="px-2 py-2 text-right font-medium">Target</th>
                     <th className="px-2 py-2 text-right font-medium">Done</th>
-                    <th className="px-2 py-2 text-right font-medium">+/−</th>
+                    <th className="px-2 py-2 text-right font-medium whitespace-nowrap">+/−</th>
                     <th className="px-4 py-2 font-medium sm:px-5">Status</th>
                   </tr>
                 </thead>
@@ -532,7 +617,10 @@ function MyDashboard({ sheet, me, notes }) {
                             </span>
                           )}
                         </td>
-                        <td className="px-2 py-2.5">{entry.task}</td>
+                        <td className="px-2 py-2.5">
+                          {entry.task}
+                          <Outcomes counts={tally(new Map(), entry.breakdown)} className="mt-1" />
+                        </td>
                         <td className="px-2 py-2.5 text-muted">{by(entry)}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{entry.target}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{filled ? entry.achieved : '—'}</td>

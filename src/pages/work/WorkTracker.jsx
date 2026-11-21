@@ -1,5 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Download, MessageSquare, MessageSquarePlus, Plus, Search, Target, Trash2 } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  MessageSquare,
+  MessageSquarePlus,
+  Pencil,
+  Plus,
+  Search,
+  Target,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Tabs } from '../../components/Tabs';
@@ -19,6 +32,7 @@ import {
   SelectBox,
   TextArea,
   TextInput,
+  inputClass,
 } from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
@@ -88,6 +102,42 @@ const toCount = (value) => (value === '' || value === undefined ? undefined : Nu
 /* One person's day: their pieces of work, with the target (for a lead) and
    what was achieved (for them, or a lead). */
 
+// What usually comes of the team's work, offered when counting it.
+const OUTCOMES = [
+  'Fixed',
+  'Working fine',
+  'Webpage issue',
+  "Can't be fixed",
+  'Pending (doubt)',
+  'Already existing',
+  'Integrated',
+  'Highlight to tech team',
+];
+
+// Where the work is done (a Google Sheet or a Contify admin page), as a link.
+function WorkSource({ entry }) {
+  if (!entry?.sourceName && !entry?.sourceUrl) return null;
+  const name = entry.sourceName || 'Open the sheet';
+  return (
+    <p className="col-span-full -mb-1 flex items-center gap-1.5 text-[13px] text-muted">
+      <span>Work in:</span>
+      {entry.sourceUrl ? (
+        <a
+          href={entry.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
+        >
+          {name}
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+      ) : (
+        <span className="font-medium text-ink">{name}</span>
+      )}
+    </p>
+  );
+}
+
 function WorkLine({ entry, person, day, today, onDone, wide = false, assigners = {} }) {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -97,6 +147,7 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
   const self = person.canFill && !person.canLead;
   const own = self && (!entry || !entry.targetBy || entry.targetBy === person.id);
   const mayTarget = person.canLead || own;
+  const mayFill = person.canFill && !future;
   // Who set this target, said under it.
   const setBy = !entry?.targetBy
     ? entry && own && entry.target > 0
@@ -105,6 +156,9 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
     : entry.targetBy === person.id
       ? 'Set by you'
       : `Set by ${assigners[entry.targetBy] ?? 'your lead'}`;
+  const saved = entry?.achieved ?? null;
+  // The achieved box starts empty: what was saved shows under it, and a new
+  // number replaces it.
   const form = useZodForm(
     z.object({
       task: z.string().trim().min(1, 'Name the work.').max(60, 'Keep it under 60 characters.'),
@@ -115,11 +169,17 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
     {
       task: entry?.task ?? '',
       target: entry ? String(entry.target ?? 0) : '',
-      achieved: entry?.achieved === null || entry?.achieved === undefined ? '' : String(entry.achieved),
+      achieved: '',
       overtime: entry?.overtime ? String(entry.overtime) : '',
     },
   );
   const { errors } = form.formState;
+
+  // What came of the work: lines of a label and a count.
+  const startLines = () => (entry?.breakdown ?? []).map((line) => ({ label: line.label, count: String(line.count) }));
+  const [lines, setLines] = useState(startLines);
+  const [linesError, setLinesError] = useState('');
+  const linesChanged = JSON.stringify(lines) !== JSON.stringify(startLines());
 
   const save = useMutation({
     mutationFn: (fields) =>
@@ -128,16 +188,18 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
         date: day.date,
         task: fields.task,
         ...(mayTarget && fields.target !== '' ? { target: toCount(fields.target) } : {}),
-        ...(person.canFill && !future
+        ...(mayFill
           ? {
-              achieved: fields.achieved === '' ? null : toCount(fields.achieved),
+              ...(fields.achieved !== '' ? { achieved: toCount(fields.achieved) } : {}),
               overtime: toCount(fields.overtime) ?? 0,
+              ...(linesChanged ? { breakdown: lines.map((line) => ({ label: line.label.trim(), count: Number(line.count) })) } : {}),
             }
           : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['work'] });
       toast.success('Saved');
+      form.setValue('achieved', '');
       onDone?.();
     },
     onError: (issue) => showServerError(form, issue, ['task', 'target', 'achieved', 'overtime']),
@@ -151,16 +213,28 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
     onError: (issue) => toast.error('Could not remove it', issue.message),
   });
 
-  const achieved = form.watch('achieved');
+  const typed = form.watch('achieved');
   const target = form.watch('target');
-  const difference = achieved !== '' && target !== '' ? Number(achieved) - Number(target) : null;
+  const achieved = typed !== '' ? Number(typed) : saved;
+  const difference = achieved !== null && target !== '' ? achieved - Number(target) : null;
+
+  const submit = form.handleSubmit((fields) => {
+    const bad = lines.find((line) => !line.label.trim() || line.count === '' || Number.isNaN(Number(line.count)) || Number(line.count) < 0);
+    if (bad) {
+      setLinesError('Give every line a name and a count of 0 or more.');
+      return;
+    }
+    setLinesError('');
+    save.mutate(fields);
+  });
 
   return (
     <form
       noValidate
-      onSubmit={form.handleSubmit((fields) => save.mutate(fields))}
+      onSubmit={submit}
       className={`grid grid-cols-3 gap-3 border-b border-line py-3 last:border-b-0 ${wide ? 'sm:grid-cols-[1.4fr_1fr_1fr_0.8fr_auto] sm:items-start' : ''}`}
     >
+      <WorkSource entry={entry} />
       <div className={wide ? 'col-span-3 sm:col-span-1' : 'col-span-3'}>
         <TextInput
           label="Work"
@@ -181,18 +255,13 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
       <TextInput
         label="Achieved"
         inputMode="decimal"
-        disabled={!person.canFill || future}
-        hint={future ? 'On the day' : undefined}
+        disabled={!mayFill}
+        placeholder={saved !== null ? String(saved) : undefined}
+        hint={future ? 'On the day' : saved !== null ? `Saved: ${saved}` : undefined}
         error={errors.achieved?.message}
         {...form.register('achieved')}
       />
-      <TextInput
-        label="OT"
-        inputMode="decimal"
-        disabled={!person.canFill || future}
-        error={errors.overtime?.message}
-        {...form.register('overtime')}
-      />
+      <TextInput label="OT" inputMode="decimal" disabled={!mayFill} error={errors.overtime?.message} {...form.register('overtime')} />
       <div className={`col-span-3 flex h-10 items-center justify-end gap-1.5 ${wide ? 'sm:col-span-1 sm:mt-[25px]' : ''}`}>
         <span
           className={`mr-auto min-w-12 rounded-md px-2 py-1 text-center text-sm font-semibold tabular-nums ${
@@ -213,6 +282,72 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
           )}
         </div>
       </div>
+
+      {/* What came of it: Fixed 46, Working fine 22... saved as the day's comment. */}
+      {(mayFill || lines.length > 0) && (
+        <div className="col-span-full rounded-lg border border-line bg-sunken/60 p-3">
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-[13px] font-semibold">What came of it</p>
+            {mayFill && <p className="text-xs text-muted">Saved with Save, and added to your comments for the day.</p>}
+          </div>
+          {lines.length === 0 && (
+            <p className="mb-2 text-sm text-muted">Count it here, like Fixed 46, Working fine 22, Webpage issue 49.</p>
+          )}
+          <datalist id="work-outcomes">
+            {OUTCOMES.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+          <ul className="space-y-2">
+            {lines.map((line, index) => (
+              // eslint-disable-next-line react/no-array-index-key
+              <li key={index} className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <input
+                    list="work-outcomes"
+                    value={line.label}
+                    disabled={!mayFill}
+                    maxLength={40}
+                    aria-label="What"
+                    placeholder="Fixed"
+                    onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, label: event.target.value } : item)))}
+                    className={`${inputClass(linesError && !line.label.trim())} h-9!`}
+                  />
+                </div>
+                <div className="w-24 shrink-0">
+                  <input
+                    value={line.count}
+                    disabled={!mayFill}
+                    inputMode="numeric"
+                    aria-label={`How many ${line.label || ''}`.trim()}
+                    placeholder="0"
+                    onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, count: event.target.value } : item)))}
+                    className={`${inputClass(linesError && (line.count === '' || Number.isNaN(Number(line.count))))} h-9! text-right tabular-nums`}
+                  />
+                </div>
+                {mayFill && (
+                  <IconButton label={`Remove ${line.label || 'this line'}`} onClick={() => setLines(lines.filter((_, i) => i !== index))}>
+                    <X className="h-4 w-4" />
+                  </IconButton>
+                )}
+              </li>
+            ))}
+          </ul>
+          {linesError && <p className="mt-2 text-sm text-rejected">{linesError}</p>}
+          {mayFill && (
+            <button
+              type="button"
+              onClick={() =>
+                setLines([...lines, { label: OUTCOMES.find((name) => !lines.some((line) => line.label === name)) ?? '', count: '' }])
+              }
+              className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add a line
+            </button>
+          )}
+        </div>
+      )}
       {formError(form) && (
         <div className="col-span-full">
           <FormError>{formError(form)}</FormError>
@@ -281,6 +416,16 @@ function Comments({ person, day, comments = [], tasks = [], startAdding = false 
 function CommentList({ comments }) {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const [editing, setEditing] = useState(null); // { id, text }
+  const change = useMutation({
+    mutationFn: ({ id, text }) => api.patch(`/work/comments/${id}`, { text }),
+    onSuccess: () => {
+      setEditing(null);
+      queryClient.invalidateQueries({ queryKey: ['work'] });
+      toast.success('Comment saved');
+    },
+    onError: (issue) => toast.error('Could not save it', issue.message),
+  });
   const remove = useMutation({
     mutationFn: (id) => api.delete(`/work/comments/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['work'] }),
@@ -294,15 +439,46 @@ function CommentList({ comments }) {
           <div className="flex items-start justify-between gap-2">
             <p className="text-[13px]">
               <span className="font-semibold">{comment.author.name}</span>
-              <span className="text-muted"> · {postedAt(comment.createdAt)}</span>
+              <span className="text-muted">
+                {' '}
+                · {postedAt(comment.createdAt)}
+                {comment.editedAt ? ' · edited' : ''}
+              </span>
             </p>
-            {comment.mine && (
-              <IconButton label="Remove this comment" className="-my-1 -mr-2" onClick={() => remove.mutate(comment.id)}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </IconButton>
+            {comment.mine && editing?.id !== comment.id && (
+              <div className="-my-1 -mr-2 flex">
+                <IconButton label="Edit this comment" onClick={() => setEditing({ id: comment.id, text: comment.text })}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </IconButton>
+                <IconButton label="Remove this comment" onClick={() => remove.mutate(comment.id)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </IconButton>
+              </div>
             )}
           </div>
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-5">{comment.text}</p>
+          {editing?.id === comment.id ? (
+            <div className="mt-1.5">
+              <textarea
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                rows={5}
+                value={editing.text}
+                aria-label="Edit the comment"
+                onChange={(event) => setEditing({ ...editing, text: event.target.value })}
+                className={`${inputClass(!editing.text.trim())} h-auto! resize-y py-2`}
+              />
+              <div className="mt-2 flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setEditing(null)}>
+                  Cancel
+                </Button>
+                <Button disabled={!editing.text.trim()} loading={change.isPending} onClick={() => change.mutate(editing)}>
+                  Save
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-5">{comment.text}</p>
+          )}
         </li>
       ))}
     </ul>
@@ -461,8 +637,14 @@ function TargetsDialog({ open, sheet, onClose }) {
         .min(1, 'Enter the daily target.')
         .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0 && Number(value) <= 100000, 'Use a number from 0 to 100000.'),
       date: z.string().min(1, 'Pick the day.'),
+      sourceName: z.string().trim().max(80, 'Keep it under 80 characters.'),
+      sourceUrl: z
+        .string()
+        .trim()
+        .max(500, 'That link is too long.')
+        .refine((value) => value === '' || /^https?:\/\/\S+$/i.test(value), 'Paste a link that starts with https://'),
     }),
-    { task: sheet.tasks[0] ?? '', target: '', date: start },
+    { task: sheet.tasks[0] ?? '', target: '', date: start, sourceName: '', sourceUrl: '' },
   );
   const { errors } = form.formState;
   const [pickError, setPickError] = useState('');
@@ -585,9 +767,24 @@ function TargetsDialog({ open, sheet, onClose }) {
           <div className="col-span-2">
             <TextInput label="Day" type="date" error={errors.date?.message} {...form.register('date')} />
           </div>
+          <TextInput
+            label="Where (sheet or page)"
+            placeholder="Broken RSS sheet, or Contify admin"
+            maxLength={80}
+            error={errors.sourceName?.message}
+            {...form.register('sourceName')}
+          />
+          <TextInput
+            label="Link"
+            type="url"
+            placeholder="https://docs.google.com/..."
+            error={errors.sourceUrl?.message}
+            {...form.register('sourceUrl')}
+          />
         </div>
         <p className="text-sm text-muted">
-          Not on a Sunday or a holiday, or for anyone on leave that day. People working from home get this as their one piece of work.
+          Not on a Sunday or a holiday, or for anyone on leave that day. People working from home get this as their one piece of work. The
+          link opens from their My work.
         </p>
         <FormError>{formError(form)}</FormError>
       </form>

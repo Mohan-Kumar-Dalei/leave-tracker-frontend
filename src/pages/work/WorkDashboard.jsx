@@ -1,4 +1,5 @@
 import { MessageSquare } from 'lucide-react';
+import { MandalaBackdrop, MandalaCorner } from '../../components/MandalaCorner';
 import { useState } from 'react';
 import { SegmentedTabs } from '../../components/Tabs';
 import { Empty, Panel, PanelTitle, SelectBox } from '../../components/ui';
@@ -23,9 +24,99 @@ const STATUS = {
   behind: ['Behind', 'bg-rejected-soft text-rejected'],
 };
 
+// A ring that fills as the work gets done.
+function Ring({ share, size = 96 }) {
+  const r = size / 2 - 8;
+  const length = 2 * Math.PI * r;
+  const done = Math.max(0, Math.min(1, share));
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" className="shrink-0 -rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="8" />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={share >= 1 ? '#5fd3a0' : '#f2a93b'}
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeDasharray={`${length * done} ${length}`}
+        className="transition-[stroke-dasharray] duration-700 ease-out"
+      />
+    </svg>
+  );
+}
+
+// The dashboard's banner: navy, with the Odisha jhoti mandala in its corners,
+// how much of the target is done as a ring, and the month's numbers.
+function Hero({ eyebrow, title, target, achieved, due = target, facts = [] }) {
+  const share = due > 0 ? achieved / due : achieved > 0 ? 1 : 0;
+  const difference = achieved - due;
+  return (
+    <section className="relative isolate overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#1b2654_0%,#141c42_60%,#0f1534_100%)] p-5 text-white shadow-card sm:p-6">
+      <MandalaCorner className="absolute -top-20 -right-16 -z-10 h-64 w-64 text-white opacity-[0.14]" />
+      <MandalaCorner className="absolute -bottom-24 left-[42%] -z-10 h-56 w-56 text-[#f2a93b] opacity-[0.16]" />
+      <MandalaCorner className="absolute -bottom-16 -left-14 -z-10 h-44 w-44 text-white opacity-[0.08]" />
+      <div className="flex flex-wrap items-center gap-5">
+        <div className="relative grid place-items-center">
+          <Ring share={share} />
+          <span className="absolute text-center">
+            <span className="block text-xl font-semibold tabular-nums">{Math.round(share * 100)}%</span>
+            <span className="block text-[10px] tracking-wide text-white/60 uppercase">done</span>
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium tracking-[0.14em] text-[#f5c26b] uppercase">{eyebrow}</p>
+          <h2 className="mt-1 text-xl font-semibold sm:text-2xl">{title}</h2>
+          <dl className="mt-3 grid grid-cols-3 gap-2 sm:max-w-md">
+            {[
+              ['Target', target],
+              ['Achieved', achieved],
+              ['Difference', signed(difference)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl bg-white/[0.07] px-3 py-2 ring-1 ring-white/10 backdrop-blur-sm">
+                <dt className="text-[11px] text-white/60">{label}</dt>
+                <dd
+                  className={`text-lg font-semibold tabular-nums ${
+                    label === 'Difference' ? (difference > 0 ? 'text-[#5fd3a0]' : difference < 0 ? 'text-[#ff9b8f]' : '') : ''
+                  }`}
+                >
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+        {facts.length > 0 && (
+          <ul className="flex w-full flex-wrap gap-2 text-xs sm:w-auto sm:flex-col">
+            {facts.map(([label, value, colour]) => (
+              <li key={label} className="flex items-center gap-2 rounded-full bg-white/[0.07] px-3 py-1.5 ring-1 ring-white/10">
+                <span className={`h-2 w-2 rounded-full ${colour}`} aria-hidden="true" />
+                <span className="font-semibold tabular-nums">{value}</span>
+                <span className="text-white/70">{label}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// A panel with the mandala faintly behind its title.
+function ArtPanel({ title, children }) {
+  return (
+    <section className="relative isolate overflow-hidden rounded-xl border border-line bg-surface shadow-card">
+      <MandalaBackdrop className="-top-24 -right-20 h-48 w-48 text-[#a8650b]" />
+      <h3 className="border-b border-line px-4 py-3 text-sm font-semibold sm:px-5">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
 function Status({ kind }) {
   const [label, colour] = STATUS[kind];
-  return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${colour}`}>{label}</span>;
+  return <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${colour}`}>{label}</span>;
 }
 
 function Bar({ done, of }) {
@@ -174,30 +265,17 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
         )}
       </div>
 
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          ['Assigned', `${new Set(rows.map((row) => row.user)).size} people`, 'text-ink'],
-          ['Target', total.target, 'text-ink'],
-          ['Achieved', total.achieved, 'text-ink'],
-          ['Difference', signed(total.achieved - total.target), tone(total.achieved - total.target)],
-        ].map(([label, value, colour]) => (
-          <div key={label} className="rounded-xl border border-line bg-surface px-4 py-3">
-            <dt className="text-xs text-muted">{label}</dt>
-            <dd className={`mt-1 text-xl font-semibold tabular-nums ${colour}`}>{value}</dd>
-          </div>
-        ))}
-      </dl>
-      {rows.length > 0 && (
-        <p className="text-sm text-muted">
-          <span className="font-medium text-approved">{finished} done</span> of {rows.length}
-          {missing > 0 && (
-            <>
-              {' · '}
-              <span className="font-medium text-pending">{missing} not filled in</span>
-            </>
-          )}
-        </p>
-      )}
+      <Hero
+        eyebrow={period === 'day' ? shortDay(date) : 'This month so far'}
+        title={whose === 'mine' ? 'My team at work' : 'Team at work'}
+        target={total.target}
+        achieved={total.achieved}
+        facts={[
+          ['people with work', new Set(rows.map((row) => row.user)).size, 'bg-white'],
+          ['done', finished, 'bg-[#5fd3a0]'],
+          ...(missing ? [['not filled in', missing, 'bg-[#f2a93b]']] : []),
+        ]}
+      />
 
       {rows.length === 0 ? (
         <Empty title="No work given for this">
@@ -209,8 +287,7 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
         </Empty>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
-          <Panel>
-            <PanelTitle>By work</PanelTitle>
+          <ArtPanel title="By work">
             <ul className="divide-y divide-line">
               {byWork.map((item) => (
                 <li key={item.task}>
@@ -233,7 +310,7 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
                 </li>
               ))}
             </ul>
-          </Panel>
+          </ArtPanel>
 
           <Panel>
             <PanelTitle>Who did what{period === 'day' ? `, ${shortDay(date)}` : ', this month so far'}</PanelTitle>
@@ -368,23 +445,21 @@ function MyDashboard({ sheet, me, notes }) {
         )}
       </div>
 
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          [period === 'month' ? 'Total target' : 'Target', given, 'text-ink'],
-          ['Achieved', achieved, 'text-ink'],
-          ['Difference so far', signed(achieved - dueSoFar), tone(achieved - dueSoFar)],
+      <Hero
+        eyebrow={period === 'day' ? dayLabel(date) : 'My month so far'}
+        title={`Hello, ${me.name.split(' ')[0]}`}
+        target={dueSoFar}
+        achieved={achieved}
+        facts={[
+          [`target for the ${period === 'month' ? 'month' : 'day'}`, given, 'bg-white'],
           [
-            period === 'month' ? 'Days with work' : 'Pieces of work',
+            period === 'month' ? 'days with work' : 'pieces of work',
             period === 'month' ? new Set(mine.map((entry) => entry.date)).size : mine.length,
-            'text-ink',
+            'bg-[#5fd3a0]',
           ],
-        ].map(([label, value, colour]) => (
-          <div key={label} className="rounded-xl border border-line bg-surface px-4 py-3">
-            <dt className="text-xs text-muted">{label}</dt>
-            <dd className={`mt-1 text-xl font-semibold tabular-nums ${colour}`}>{value}</dd>
-          </div>
-        ))}
-      </dl>
+          ...(unfilled ? [['not filled in', unfilled, 'bg-[#f2a93b]']] : []),
+        ]}
+      />
       {unfilled > 0 && (
         <p className="text-sm text-pending">
           {unfilled} {unfilled === 1 ? 'day is' : 'days are'} not filled in yet. Fill them in from My work or the team sheet.
@@ -397,8 +472,7 @@ function MyDashboard({ sheet, me, notes }) {
         </Empty>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
-          <Panel>
-            <PanelTitle>My work</PanelTitle>
+          <ArtPanel title="My work">
             <ul className="divide-y divide-line">
               {byWork.map((item) => (
                 <li key={item.task} className="px-4 py-3 sm:px-5">
@@ -417,7 +491,7 @@ function MyDashboard({ sheet, me, notes }) {
                 </li>
               ))}
             </ul>
-          </Panel>
+          </ArtPanel>
 
           <Panel>
             <PanelTitle>Assigned to me{period === 'day' ? `, ${dayLabel(date)}` : ''}</PanelTitle>

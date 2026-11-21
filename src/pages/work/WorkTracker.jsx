@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Download, MessageSquarePlus, Plus, Search, T
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Tabs } from '../../components/Tabs';
+import { SheetGrid } from './SheetGrid';
 import { WorkDashboard } from './WorkDashboard';
 import {
   Button,
@@ -14,7 +15,6 @@ import {
   PageHeading,
   Panel,
   PanelTitle,
-  Reveal,
   RowsSkeleton,
   SelectBox,
   TextArea,
@@ -52,16 +52,6 @@ const dayTitle = (date) =>
 // Plus for more than the target, minus for less.
 const signed = (value) => (value > 0 ? `+${value}` : String(value));
 const tone = (value) => (value > 0 ? 'text-approved' : value < 0 ? 'text-rejected' : 'text-muted');
-
-// The old sheet's colours, a little softer, and dimmed in the dark theme.
-const ROW = {
-  target: 'bg-[#e8e8e8] dark:bg-white/[0.06]',
-  set: 'bg-[#d4eee1] dark:bg-[#b7e1cd]/15',
-  achieved: 'bg-[#fbe3cf] dark:bg-[#f9cb9c]/12',
-  overtime: 'bg-[#dbe8f5] dark:bg-[#9fc5e8]/12',
-  difference: 'bg-[#e6f1e0] dark:bg-[#93c47d]/10',
-  sunday: 'bg-[#cfcfcf] dark:bg-white/[0.12]',
-};
 
 // Each person's day: the sum of their pieces of work.
 function totalsOf(entries) {
@@ -102,6 +92,11 @@ function WorkLine({ entry, person, day, today, onDone, wide = false }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const future = day.date > today;
+  // Work the person added for themselves (no lead set its target): they may
+  // set its target and remove it. Work a lead assigned is the lead's.
+  const self = person.canFill && !person.canLead;
+  const own = self && (!entry || !entry.targetBy || entry.targetBy === person.id);
+  const mayTarget = person.canLead || own;
   const form = useZodForm(
     z.object({
       task: z.string().trim().min(1, 'Name the work.').max(60, 'Keep it under 60 characters.'),
@@ -124,7 +119,7 @@ function WorkLine({ entry, person, day, today, onDone, wide = false }) {
         user: person.id,
         date: day.date,
         task: fields.task,
-        ...(person.canLead && fields.target !== '' ? { target: toCount(fields.target) } : {}),
+        ...(mayTarget && fields.target !== '' ? { target: toCount(fields.target) } : {}),
         ...(person.canFill && !future
           ? {
               achieved: fields.achieved === '' ? null : toCount(fields.achieved),
@@ -162,7 +157,7 @@ function WorkLine({ entry, person, day, today, onDone, wide = false }) {
         <TextInput
           label="Work"
           list="work-tasks"
-          disabled={!person.canLead && Boolean(entry)}
+          disabled={!mayTarget && Boolean(entry)}
           error={errors.task?.message}
           {...form.register('task')}
         />
@@ -170,7 +165,8 @@ function WorkLine({ entry, person, day, today, onDone, wide = false }) {
       <TextInput
         label="Target"
         inputMode="decimal"
-        disabled={!person.canLead}
+        disabled={!mayTarget}
+        hint={!mayTarget && entry?.targetBy ? 'Set by your lead' : undefined}
         error={errors.target?.message}
         {...form.register('target')}
       />
@@ -194,7 +190,7 @@ function WorkLine({ entry, person, day, today, onDone, wide = false }) {
           {difference === null ? '—' : signed(difference)}
         </span>
         <div className="flex items-center gap-1">
-          {entry && person.canLead && (
+          {entry && (person.canLead || own) && (
             <IconButton label={`Remove ${entry.task}`} onClick={() => remove.mutate()}>
               <Trash2 className="h-4 w-4" />
             </IconButton>
@@ -534,250 +530,6 @@ function TargetsDialog({ open, sheet, onClose }) {
   );
 }
 
-/* The sheet itself. */
-
-// Ctrl+Alt+M on a cell opens its comments, as in Google Sheets.
-const isCommentKey = (event) => event.ctrlKey && event.altKey && event.key.toLowerCase() === 'm';
-
-function Cell({ children, className = '', onClick, onComment, label, notes }) {
-  const base = `relative h-8 min-w-12 border-b border-r border-line/70 px-1.5 text-center text-[13px] tabular-nums ${className}`;
-  // A cell with comments has the sheet's little corner mark, and shows the
-  // latest one when you point at it.
-  const mark = notes?.length ? (
-    <span
-      aria-hidden="true"
-      className="pointer-events-none absolute top-0 right-0 h-0 w-0 border-t-[9px] border-l-[9px] border-t-[#f2a93b] border-l-transparent"
-    />
-  ) : null;
-  const latest = notes?.at(-1);
-  const title = latest ? `${latest.author.name}: ${latest.text}${notes.length > 1 ? `  (+${notes.length - 1} more)` : ''}` : undefined;
-  if (!onClick)
-    return (
-      <td className={base} title={title}>
-        {mark}
-        {children}
-      </td>
-    );
-  return (
-    <td className={`${base} p-0`}>
-      {mark}
-      <button
-        type="button"
-        aria-label={`${label}${notes?.length ? `, ${notes.length} comment${notes.length > 1 ? 's' : ''}` : ''}`}
-        title={title}
-        aria-keyshortcuts={onComment ? 'Control+Alt+M' : undefined}
-        onClick={onClick}
-        onKeyDown={(event) => {
-          if (onComment && isCommentKey(event)) {
-            event.preventDefault();
-            onComment();
-          }
-        }}
-        className="h-full w-full px-1.5 hover:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent"
-      >
-        {children}
-      </button>
-    </td>
-  );
-}
-
-function NameCell({ children, className = '', strong = false }) {
-  return (
-    <th
-      scope="row"
-      className={`sticky left-0 z-10 h-8 max-w-32 min-w-32 truncate border-b border-r border-line px-2 text-left text-[12px] sm:max-w-56 sm:min-w-44 sm:px-3 sm:text-[13px] ${strong ? 'font-semibold' : 'font-normal text-muted'} ${className}`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Sheet({ sheet, totals, notes, search = '', onOpen }) {
-  const { days, today } = sheet;
-  const words = search.trim().toLowerCase();
-  const people = words ? sheet.people.filter((person) => person.label.toLowerCase().includes(words)) : sheet.people;
-  const sum = (id, field) => days.reduce((total, day) => total + (day.sunday ? 0 : (totals[`${id}|${day.date}`]?.[field] ?? 0)), 0);
-  const team = (date, field) => people.reduce((total, person) => total + (totals[`${person.id}|${date}`]?.[field] ?? 0), 0);
-  const teamTotal = (field) => days.reduce((total, day) => total + (day.sunday ? 0 : team(day.date, field)), 0);
-
-  // Difference: shown once the day has come (unfilled counts as 0, as in the sheet).
-  const differenceOf = (total, day) => {
-    if (day.sunday || day.date > today) return null;
-    if (!total || (total.target === 0 && !total.filled)) return null;
-    // Today waits until it is filled in.
-    if (day.date === today && !total.filled) return null;
-    return (total.filled ? total.achieved : 0) - total.target;
-  };
-
-  return (
-    <div className="max-h-[70vh] overflow-auto rounded-xl border border-line bg-surface">
-      <table className="border-separate border-spacing-0">
-        <thead className="sticky top-0 z-20">
-          <tr>
-            <th className="sticky left-0 z-30 h-9 min-w-32 border-b border-r border-line sm:min-w-44 bg-[#fff59a] px-3 text-left text-[13px] font-semibold text-[#12141a] dark:bg-[#5c5520] dark:text-ink">
-              {monthTitle(sheet.month)}
-            </th>
-            <th className="h-9 border-b border-r border-line bg-[#fff59a] px-2 text-[13px] font-semibold text-[#12141a] dark:bg-[#5c5520] dark:text-ink">
-              Total
-            </th>
-            {days.map((day) => (
-              <th
-                key={day.date}
-                title={day.holiday ?? undefined}
-                className={`h-9 min-w-12 border-b border-r border-line px-1 text-center text-[12px] leading-tight ${
-                  day.date === today
-                    ? 'bg-accent text-on-accent'
-                    : day.holiday
-                      ? 'bg-[#fbd5a5] text-[#12141a] dark:bg-[#7a4f1d] dark:text-ink'
-                      : 'bg-[#fff59a] text-[#12141a] dark:bg-[#5c5520] dark:text-ink'
-                }`}
-              >
-                <span className="block font-semibold">{Number(day.date.slice(8))}</span>
-                <span className="block font-normal opacity-80">{day.weekday}</span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {[
-            ['Total daily target', 'target', ROW.target],
-            ['Total achieved', 'achieved', ROW.achieved],
-            ['Additional (OT)', 'overtime', ROW.overtime],
-          ].map(([label, field, colour]) => (
-            <tr key={field}>
-              <NameCell strong className={`bg-surface ${colour}`}>
-                {label}
-              </NameCell>
-              <Cell className={`font-semibold ${colour}`}>{teamTotal(field) || ''}</Cell>
-              {days.map((day) => (
-                <Cell key={day.date} className={day.sunday ? ROW.sunday : colour}>
-                  {day.sunday ? '' : team(day.date, field) || ''}
-                </Cell>
-              ))}
-            </tr>
-          ))}
-          <tr>
-            <NameCell strong className={`bg-surface ${ROW.difference}`}>
-              Difference
-            </NameCell>
-            <Cell className={`font-semibold ${ROW.difference} ${tone(teamTotal('achieved') - teamTotal('target'))}`}>
-              {signed(teamTotal('achieved') - teamTotal('target'))}
-            </Cell>
-            {days.map((day) => {
-              const waiting = day.date === today && !people.some((person) => totals[`${person.id}|${day.date}`]?.filled);
-              const value = day.sunday || day.date > today || waiting ? null : team(day.date, 'achieved') - team(day.date, 'target');
-              return (
-                <Cell
-                  key={day.date}
-                  className={`${day.sunday ? ROW.sunday : ROW.difference} ${value === null ? '' : tone(value)} font-medium`}
-                >
-                  {value === null ? '' : signed(value)}
-                </Cell>
-              );
-            })}
-          </tr>
-
-          {people.map((person) => {
-            const difference = sum(person.id, 'achieved') - sum(person.id, 'target');
-            const said = (day) => notes[`${person.id}|${day.date}`];
-            // Your own row (or your team's) opens to fill in; anyone else's
-            // opens only to read its comments.
-            const open = (day) => (day.sunday || !(person.canLead || person.canFill || said(day)) ? undefined : () => onOpen(person, day));
-            const comment = (day) => (day.sunday || !(person.canFill || said(day)) ? undefined : () => onOpen(person, day, true));
-            return [
-              <tr key={`${person.id}-gap`} aria-hidden="true">
-                <td colSpan={days.length + 2} className="h-3 border-b border-line bg-bg" />
-              </tr>,
-              <tr key={`${person.id}-target`}>
-                <NameCell strong className="bg-surface">
-                  <span className="flex items-center gap-1.5">
-                    <span className="truncate">{person.label}</span>
-                    {person.position !== 'employee' && (
-                      <span className="shrink-0 rounded bg-accent-soft px-1 text-[10px] font-semibold uppercase text-accent">
-                        {
-                          {
-                            manager: 'Mgr',
-                            assistantmanager: 'AM',
-                            teamlead: 'TL',
-                          }[person.position]
-                        }
-                      </span>
-                    )}
-                  </span>
-                </NameCell>
-                <Cell className={`font-semibold ${ROW.target}`}>{sum(person.id, 'target') || ''}</Cell>
-                {days.map((day) => {
-                  const total = totals[`${person.id}|${day.date}`];
-                  const away = person.away?.[day.date];
-                  return (
-                    <Cell
-                      key={day.date}
-                      label={`${person.name}, ${day.date}: target`}
-                      onClick={open(day)}
-                      className={day.sunday ? ROW.sunday : total?.target ? ROW.set : ROW.target}
-                    >
-                      {day.sunday ? (
-                        ''
-                      ) : away && !total?.target ? (
-                        <span className="text-[11px] font-semibold text-pending">{away === 'full' ? 'Leave' : '½'}</span>
-                      ) : (
-                        total?.target || ''
-                      )}
-                    </Cell>
-                  );
-                })}
-              </tr>,
-              <tr key={`${person.id}-achieved`}>
-                <NameCell className={`bg-surface ${ROW.achieved}`}>Daily achieved</NameCell>
-                <Cell className={`font-semibold ${ROW.achieved}`}>{sum(person.id, 'achieved') || ''}</Cell>
-                {days.map((day) => {
-                  const total = totals[`${person.id}|${day.date}`];
-                  return (
-                    <Cell
-                      key={day.date}
-                      label={`${person.name}, ${day.date}: achieved`}
-                      onClick={open(day)}
-                      onComment={comment(day)}
-                      notes={said(day)}
-                      className={day.sunday ? ROW.sunday : ROW.achieved}
-                    >
-                      {total?.filled ? total.achieved : ''}
-                    </Cell>
-                  );
-                })}
-              </tr>,
-              <tr key={`${person.id}-ot`}>
-                <NameCell className={`bg-surface ${ROW.overtime}`}>Additional (OT)</NameCell>
-                <Cell className={`font-semibold ${ROW.overtime}`}>{sum(person.id, 'overtime') || ''}</Cell>
-                {days.map((day) => (
-                  <Cell key={day.date} className={day.sunday ? ROW.sunday : ROW.overtime}>
-                    {totals[`${person.id}|${day.date}`]?.overtime || ''}
-                  </Cell>
-                ))}
-              </tr>,
-              <tr key={`${person.id}-difference`}>
-                <NameCell className={`bg-surface ${ROW.difference}`}>Difference</NameCell>
-                <Cell className={`font-semibold ${ROW.difference} ${tone(difference)}`}>{signed(difference)}</Cell>
-                {days.map((day) => {
-                  const value = differenceOf(totals[`${person.id}|${day.date}`], day);
-                  return (
-                    <Cell
-                      key={day.date}
-                      className={`${day.sunday ? ROW.sunday : ROW.difference} ${value === null ? '' : tone(value)} font-medium`}
-                    >
-                      {value === null ? '' : signed(value)}
-                    </Cell>
-                  );
-                })}
-              </tr>,
-            ];
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 /* My work: today's work for the person signed in, to fill in quickly. */
 
 function MyDay({ sheet, me, totals, tasks, notes }) {
@@ -879,93 +631,101 @@ export default function WorkTracker() {
   const openedTotal = opened ? totals[`${opened.person.id}|${opened.day.date}`] : null;
   const openedPerson = opened ? sheet.people.find((person) => person.id === opened.person.id) : null;
 
+  // The page fills the screen: its top stays put and only the part below
+  // scrolls (the sheet scrolls inside itself, like the Google Sheet).
   return (
-    <div>
-      <PageHeading
-        title="Work tracker"
-        actions={
-          <>
-            {sheet.canLead && (
-              <Button onClick={() => setSetting(true)}>
-                <Target className="h-4 w-4" aria-hidden="true" />
-                Set targets
-              </Button>
-            )}
-            <a
-              href={exportHref}
-              download
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium hover:bg-sunken"
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              Export sheet
-            </a>
-          </>
-        }
-      >
-        Daily targets and what everyone achieved, like the team sheet. Plus means more than the target, minus means less.
-      </PageHeading>
+    <div className="flex h-[calc(100dvh-233px)] min-h-[440px] flex-col lg:h-[calc(100dvh-129px)]">
+      <div className="shrink-0">
+        <PageHeading
+          title="Work tracker"
+          actions={
+            <>
+              {sheet.canLead && (
+                <Button onClick={() => setSetting(true)}>
+                  <Target className="h-4 w-4" aria-hidden="true" />
+                  Set targets
+                </Button>
+              )}
+              <a
+                href={exportHref}
+                download
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium hover:bg-sunken"
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Export sheet
+              </a>
+            </>
+          }
+        >
+          Daily targets and what everyone achieved, like the team sheet. Plus means more than the target, minus means less.
+        </PageHeading>
 
-      <Reveal delay={0.06} className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Tabs
-          label="Work tracker views"
-          tabs={[
-            ...(me ? [{ id: 'mine', label: 'My work' }] : []),
-            { id: 'dashboard', label: 'Dashboard' },
-            { id: 'sheet', label: 'Team sheet' },
-          ]}
-          value={shownTab}
-          onChange={setTab}
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          {(shownTab === 'sheet' ||
-            (shownTab === 'dashboard' &&
-              (!me || me.position !== 'employee' || sheet.people.some((person) => person.reportsTo === me.id)))) && (
-            <SearchField value={search} onChange={setSearch} label="Search people" className="w-full sm:w-56" />
-          )}
-          {sheet.departments.length > 1 && (
-            <SelectBox aria-label="Department" value={sheet.department} onChange={(event) => setDepartment(event.target.value)}>
-              {sheet.departments.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </SelectBox>
-          )}
-          <div className="flex items-center gap-1">
-            <IconButton label="Previous month" onClick={() => setMonth(shiftMonth(sheet.month, -1))}>
-              <ChevronLeft className="h-4 w-4" />
-            </IconButton>
-            <h2 className="min-w-36 text-center text-base font-semibold tabular-nums">{monthTitle(sheet.month)}</h2>
-            <IconButton label="Next month" onClick={() => setMonth(shiftMonth(sheet.month, 1))}>
-              <ChevronRight className="h-4 w-4" />
-            </IconButton>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <Tabs
+            label="Work tracker views"
+            tabs={[
+              ...(me ? [{ id: 'mine', label: 'My work' }] : []),
+              { id: 'dashboard', label: 'Dashboard' },
+              { id: 'sheet', label: 'Team sheet' },
+            ]}
+            value={shownTab}
+            onChange={setTab}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            {(shownTab === 'sheet' ||
+              (shownTab === 'dashboard' &&
+                (!me || me.position !== 'employee' || sheet.people.some((person) => person.reportsTo === me.id)))) && (
+              <SearchField value={search} onChange={setSearch} label="Search people" className="w-full sm:w-56" />
+            )}
+            {sheet.departments.length > 1 && (
+              <SelectBox aria-label="Department" value={sheet.department} onChange={(event) => setDepartment(event.target.value)}>
+                {sheet.departments.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </SelectBox>
+            )}
+            {shownTab !== 'sheet' && (
+              <div className="flex items-center gap-1">
+                <IconButton label="Previous month" onClick={() => setMonth(shiftMonth(sheet.month, -1))}>
+                  <ChevronLeft className="h-4 w-4" />
+                </IconButton>
+                <h2 className="min-w-36 text-center text-base font-semibold tabular-nums">{monthTitle(sheet.month)}</h2>
+                <IconButton label="Next month" onClick={() => setMonth(shiftMonth(sheet.month, 1))}>
+                  <ChevronRight className="h-4 w-4" />
+                </IconButton>
+              </div>
+            )}
           </div>
         </div>
-      </Reveal>
+      </div>
 
-      <Reveal delay={0.1}>
-        {shownTab === 'mine' && me ? (
-          <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} notes={notes} />
-        ) : shownTab === 'dashboard' ? (
-          <WorkDashboard key={`${sheet.month}|${sheet.department}`} sheet={sheet} me={me} notes={notes} search={search} />
-        ) : sheet.people.length === 0 ? (
-          <Empty title="Nobody here yet">People in this department appear here.</Empty>
-        ) : (
-          <>
-            <Sheet
+      {shownTab === 'sheet' ? (
+        <div className="min-h-0 flex-1">
+          {sheet.people.length === 0 ? (
+            <Empty title="Nobody here yet">People in this department appear here.</Empty>
+          ) : (
+            <SheetGrid
+              key={`${sheet.month}|${sheet.department}`}
               sheet={sheet}
               totals={totals}
               notes={notes}
               search={search}
-              onOpen={(person, day, comment = false) => setOpened({ person, day, comment })}
+              onOpenDay={(person, day) => setOpened({ person, day })}
+              onMonth={setMonth}
             />
-            <p className="mt-2 text-xs text-muted">
-              Tap a day to set a target or fill in work. A corner mark means a comment: point at it to read it, or select a day and press
-              Ctrl+Alt+M to add one. Today is highlighted; holidays are orange; Sundays are grey.
-            </p>
-          </>
-        )}
-      </Reveal>
+          )}
+        </div>
+      ) : (
+        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-2">
+          {shownTab === 'mine' && me ? (
+            <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} notes={notes} />
+          ) : (
+            <WorkDashboard key={`${sheet.month}|${sheet.department}`} sheet={sheet} me={me} notes={notes} search={search} />
+          )}
+        </div>
+      )}
 
       <DayDialog
         key={opened ? `${opened.person.id}|${opened.day.date}` : 'none'}

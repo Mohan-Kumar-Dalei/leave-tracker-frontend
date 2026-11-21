@@ -95,7 +95,7 @@ const FLAKES = Array.from({ length: 30 }, () => ({ x: rand() * 340, delay: -rand
 // How each kind of weather looks: how grey the sky is, whether the sun or
 // moon shows, how many clouds and how dark, and what falls.
 const SCENES = {
-  clear: { grey: 0, body: 1, clouds: 1, tone: 'white', drops: 0 },
+  clear: { grey: 0, body: 1, clouds: 2, tone: 'white', drops: 0 },
   partly: { grey: 0, body: 1, clouds: 3, tone: 'white', drops: 0 },
   cloudy: { grey: 0.5, body: 0.35, clouds: 5, tone: 'grey', drops: 0 },
   fog: { grey: 0.45, body: 0.25, clouds: 2, tone: 'grey', drops: 0, fog: true },
@@ -124,9 +124,9 @@ const CLOUD_COLOURS = {
 const CLOUD_PLACES = [
   { y: 2, scale: 0.8, duration: 24, delay: -4, shape: 0 },
   { y: 22, scale: 0.65, duration: 30, delay: -17, opacity: 0.95, shape: 1 },
-  { y: 36, scale: 0.55, duration: 21, delay: -11, opacity: 0.9, shape: 0 },
-  { y: -4, scale: 1, duration: 36, delay: -26, shape: 1 },
-  { y: 12, scale: 0.9, duration: 27, delay: -9, shape: 0 },
+  { y: 36, scale: 0.55, duration: 21, delay: -11, opacity: 0.9, shape: 2 },
+  { y: -4, scale: 1, duration: 36, delay: -26, shape: 2 },
+  { y: 12, scale: 0.9, duration: 27, delay: -9, shape: 1 },
 ];
 
 function Glint({ x, y, size, delay }) {
@@ -144,61 +144,72 @@ function Glint({ x, y, size, delay }) {
   );
 }
 
-// Clouds: one soft shape each (a domed top on a flat base, like a real
-// cumulus), lit from above, light on top and shaded underneath, with a bright
-// patch where the sun catches it, soft edges, and a faint shadow below. Two
-// shapes, so they do not all look alike.
+// Volumetric clouds. Each cloud is a heap of puffs drawn from the back to the
+// front, and every puff is lit on its own: bright where the light falls (top
+// left), deepening to shadow underneath. Where a front puff overlaps the ones
+// behind, its edge shows against their shade, so the billows read in depth.
+// A darker flat base, softened edges and a faint shadow below finish it.
+// Three shapes, so no two clouds look alike.
 const CLOUD_SHAPES = [
   {
     width: 64,
-    lobes: [
-      [14, 24, 10],
-      [26, 16, 13],
+    base: [6, 25, 54, 8],
+    // [x, y, radius], back first.
+    puffs: [
       [40, 13, 12],
-      [52, 20, 10],
-      [33, 23, 12],
-      [58, 26, 6],
+      [26, 15, 13],
+      [52, 20, 9.5],
+      [14, 22, 9.5],
+      [33, 23, 11],
+      [21, 26, 7.5],
+      [46, 26, 8],
     ],
-    base: [6, 22, 54, 10],
   },
   {
     width: 52,
-    lobes: [
-      [11, 22, 8],
+    base: [4, 22, 46, 7],
+    puffs: [
       [23, 14, 11],
       [35, 16, 9.5],
-      [45, 22, 7],
-      [29, 22, 9],
+      [11, 21, 8],
+      [45, 21, 7],
+      [29, 23, 9],
+      [17, 25, 6],
     ],
-    base: [4, 20, 46, 9],
+  },
+  {
+    width: 72,
+    base: [8, 26, 60, 8],
+    puffs: [
+      [30, 12, 12],
+      [45, 10, 13],
+      [58, 17, 10],
+      [18, 19, 10],
+      [38, 22, 12],
+      [52, 25, 9],
+      [26, 27, 8],
+      [64, 26, 6],
+    ],
   },
 ];
 
-// The shapes and their light, defined once per sky.
+// The light and shade, defined once per sky.
 function CloudDefs({ id, light, shade, night }) {
   return (
     <>
-      {CLOUD_SHAPES.map((shape, index) => (
-        <mask key={index} id={`${id}-cloud${index}`} maskUnits="userSpaceOnUse" x="-4" y="-4" width={shape.width + 8} height="44">
-          <g fill="white">
-            {shape.lobes.map(([cx, cy, r]) => (
-              <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} />
-            ))}
-            <rect x={shape.base[0]} y={shape.base[1]} width={shape.base[2]} height={shape.base[3]} rx={shape.base[3] / 2} />
-          </g>
-        </mask>
-      ))}
-      <linearGradient id={`${id}-cloudfill`} x1="0" y1="0" x2="0" y2="34" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stopColor={light} />
+      {/* One puff: the light catches its top left, the underside is in shade. */}
+      <radialGradient id={`${id}-puff`} cx="0.38" cy="0.3" r="0.95" fx="0.34" fy="0.22">
+        <stop offset="0" stopColor={night ? light : '#ffffff'} />
         <stop offset="0.55" stopColor={light} />
         <stop offset="1" stopColor={shade} />
-      </linearGradient>
-      <radialGradient id={`${id}-cloudlit`} cx="22" cy="8" r="22" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stopColor="#ffffff" stopOpacity={night ? 0.18 : 0.75} />
-        <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
       </radialGradient>
+      {/* The flat base, darker, as the light does not reach under the cloud. */}
+      <linearGradient id={`${id}-cloudbase`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor={light} />
+        <stop offset="1" stopColor={shade} />
+      </linearGradient>
       <filter id={`${id}-cloudsoft`} x="-10%" y="-20%" width="120%" height="140%">
-        <feGaussianBlur stdDeviation="0.45" />
+        <feGaussianBlur stdDeviation="0.6" />
       </filter>
       <filter id={`${id}-cloudshadow`} x="-20%" y="-200%" width="140%" height="500%">
         <feGaussianBlur stdDeviation="1.6" />
@@ -208,15 +219,17 @@ function CloudDefs({ id, light, shade, night }) {
 }
 
 function Cloud({ id, shape = 0, opacity = 1, scale = 1, y, duration, delay, night }) {
-  const { width } = CLOUD_SHAPES[shape];
+  const { width, base, puffs } = CLOUD_SHAPES[shape];
   return (
     <g transform={`translate(0 ${y})`} opacity={opacity}>
       <g className="animate-drift-near" style={{ animationDuration: `${duration}s`, animationDelay: `${delay}s` }}>
         <g transform={`scale(${scale * 0.78})`}>
-          <ellipse cx={width / 2} cy="34" rx={width * 0.42} ry="2.6" fill="#0b1433" opacity={night ? 0.25 : 0.1} filter={`url(#${id}-cloudshadow)`} />
+          <ellipse cx={width / 2} cy={base[1] + base[3] + 2} rx={width * 0.42} ry="2.6" fill="#0b1433" opacity={night ? 0.25 : 0.1} filter={`url(#${id}-cloudshadow)`} />
           <g filter={`url(#${id}-cloudsoft)`}>
-            <rect x="-4" y="-4" width={width + 8} height="44" fill={`url(#${id}-cloudfill)`} mask={`url(#${id}-cloud${shape})`} />
-            <rect x="-4" y="-4" width={width + 8} height="44" fill={`url(#${id}-cloudlit)`} mask={`url(#${id}-cloud${shape})`} />
+            <rect x={base[0]} y={base[1]} width={base[2]} height={base[3]} rx={base[3] / 2} fill={`url(#${id}-cloudbase)`} />
+            {puffs.map(([cx, cy, r]) => (
+              <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} fill={`url(#${id}-puff)`} />
+            ))}
           </g>
         </g>
       </g>

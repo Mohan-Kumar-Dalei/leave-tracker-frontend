@@ -107,13 +107,16 @@ const toCount = (value) => (value === '' || value === undefined ? undefined : Nu
 // What usually comes of the team's work, offered when counting it.
 const OUTCOMES = [
   'Fixed',
+  'Unique',
+  'Not Unique',
+  'Integration Fixed',
+  'Highlight to tech team',
   'Working fine',
   'Webpage issue',
   "Can't be fixed",
   'Pending (doubt)',
   'Already existing',
   'Integrated',
-  'Highlight to tech team',
 ];
 
 // Where the work is done (a Google Sheet or a Contify admin page), as a link.
@@ -410,7 +413,8 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
    Sheet with Ctrl+Alt+M: what they did ("Total no. of URLs inspected 120,
    fixed 46..."), and their lead's answer. */
 
-const EXAMPLE = 'Date 22.04.2026\nTask broken RSS\nTotal no. of URLs inspected 120\nNo. of Integrated/fixed RSS 46\nPending (doubt) 24';
+const EXAMPLE =
+  'Sourcing Error Report:- 53\n----------------------------\nFixed :- 46\n----------------------------\nHighlight to tech team :- 5\n----------------------------';
 
 // The comments of each day, by person and date.
 function commentsOf(comments) {
@@ -532,7 +536,7 @@ function CommentList({ comments }) {
 function CommentForm({ person, day, tasks = [], onDone }) {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const form = useZodForm(z.object({ text: z.string().trim().min(1, 'Write the comment.').max(2000, 'Keep it under 2000 characters.') }), {
+  const form = useZodForm(z.object({ text: z.string().trim().min(1, 'Write the comment.').max(4000, 'Keep it under 4000 characters.') }), {
     text: '',
   });
   const { errors } = form.formState;

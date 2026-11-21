@@ -1033,11 +1033,7 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
             ))}
           </dl>
         </Panel>
-        <MyOutcomes
-          entries={sheet.entries.filter((entry) => entry.user === me.id && entry.date <= sheet.today)}
-          title={`${me.name}: what came of it`}
-          when={monthTitle(sheet.month)}
-        />
+        <MyOutcomes entries={sheet.entries.filter((entry) => entry.date <= sheet.today)} me={me} when={monthTitle(sheet.month)} />
       </div>
     </div>
   );
@@ -1045,8 +1041,13 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
 
 // What came of my work this month (Fixed, Working fine...): in all, then by
 // each piece of work, and a chart of it, as a circle or as bars.
-function MyOutcomes({ entries, title, when }) {
+function MyOutcomes({ entries: all, me, when }) {
   const [style, setStyle] = useChartStyle();
+  const [whose, setWhose] = useState('mine');
+  const entries = whose === 'mine' ? all.filter((entry) => entry.user === me.id) : all;
+  const title = `${whose === 'mine' ? me.name : 'Everyone'}: what came of it`;
+  // Counted out of what was done: my 135 achieved, not the sum of the counts.
+  const done = entries.reduce((sum, entry) => sum + (entry.achieved ?? 0), 0);
   const items = outcomesOf(entries);
   const byWork = new Map();
   for (const entry of entries) {
@@ -1058,10 +1059,33 @@ function MyOutcomes({ entries, title, when }) {
     <Panel>
       <div className="flex min-h-12 items-center justify-between gap-2 border-b border-line px-4 py-2 sm:px-5">
         <h2 className="text-sm font-semibold">What came of it</h2>
-        {items.length > 0 && <ChartSwitch value={style} onChange={setStyle} picture={{ title, subtitle: when, items }} />}
+        {items.length > 0 && <ChartSwitch value={style} onChange={setStyle} picture={{ title, subtitle: when, items, done }} compact />}
+      </div>
+      <div className="flex items-center justify-between gap-2 px-4 pt-3 sm:px-5">
+        <div role="group" aria-label="Whose work" className="inline-flex rounded-lg border border-line bg-surface p-0.5">
+          {[
+            ['mine', 'Mine'],
+            ['all', 'Everyone'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={whose === key}
+              onClick={() => setWhose(key)}
+              className={`h-7 rounded-md px-3 text-xs font-medium ${whose === key ? 'bg-accent-soft text-accent' : 'text-muted hover:text-ink'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted tabular-nums">
+          Done <span className="font-semibold text-ink">{done}</span>
+        </p>
       </div>
       {items.length === 0 ? (
-        <p className="px-4 py-5 text-sm text-muted sm:px-5">Nothing counted yet. Save counts under your work, like Fixed 46.</p>
+        <p className="px-4 py-5 text-sm text-muted sm:px-5">
+          {whose === 'mine' ? 'Nothing counted yet. Save counts under your work, like Fixed 46.' : 'Nobody has counted anything yet.'}
+        </p>
       ) : (
         <div className="space-y-4 px-4 py-4 sm:px-5">
           <dl className="grid grid-cols-2 gap-2">
@@ -1087,7 +1111,7 @@ function MyOutcomes({ entries, title, when }) {
             </ul>
           )}
           <div className="border-t border-line pt-4">
-            <OutcomeChart items={items} style={style} size={150} stacked />
+            <OutcomeChart items={items} style={style} size={150} stacked done={done} />
           </div>
         </div>
       )}

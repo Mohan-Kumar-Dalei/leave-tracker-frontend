@@ -42,7 +42,7 @@ function Bar({ done, of }) {
 function below(people, id) {
   const found = [];
   const seen = new Set([id]);
-  for (let layer = [id]; layer.length; ) {
+  for (let layer = [id]; layer.length;) {
     const next = people.filter((person) => layer.includes(person.reportsTo) && !seen.has(person.id));
     for (const person of next) seen.add(person.id);
     found.push(...next);
@@ -55,7 +55,7 @@ function below(people, id) {
 // in a month gone by, none in a month to come.
 const countedDays = (sheet) => sheet.days.filter((day) => !day.sunday && day.date <= sheet.today).map((day) => day.date);
 
-export function WorkDashboard({ sheet, me, notes, search = '' }) {
+function TeamDashboard({ sheet, me, notes, search = '' }) {
   const workingDays = sheet.days.filter((day) => !day.sunday);
   const inMonth = sheet.today >= sheet.days[0].date && sheet.today <= sheet.days.at(-1).date;
   const firstDay = inMonth ? sheet.today : (countedDays(sheet).at(-1) ?? workingDays[0]?.date);
@@ -79,8 +79,18 @@ export function WorkDashboard({ sheet, me, notes, search = '' }) {
       if (!ids.has(entry.user) || !days.has(entry.date)) continue;
       if (work !== 'all' && entry.task !== work) continue;
       const key = `${entry.user}|${entry.task}`;
-      const row = groups.get(key) ?? { user: entry.user, task: entry.task, target: 0, achieved: 0, filled: 0, unfilled: 0, days: 0 };
+      const row = groups.get(key) ?? {
+        user: entry.user,
+        task: entry.task,
+        target: 0,
+        achieved: 0,
+        filled: 0,
+        unfilled: 0,
+        days: 0,
+        by: new Set(),
+      };
       row.target += entry.target ?? 0;
+      if (entry.targetBy) row.by.add(sheet.assigners?.[entry.targetBy] ?? 'Someone');
       row.days += 1;
       if (entry.achieved === null || entry.achieved === undefined) row.unfilled += entry.date < sheet.today ? 1 : 0;
       else {
@@ -101,18 +111,25 @@ export function WorkDashboard({ sheet, me, notes, search = '' }) {
       .sort((a, b) => order.get(a.user) - order.get(b.user) || a.task.localeCompare(b.task));
   })();
 
-  const total = rows.reduce((sum, row) => ({ target: sum.target + row.target, achieved: sum.achieved + row.achieved }), { target: 0, achieved: 0 });
+  const total = rows.reduce((sum, row) => ({ target: sum.target + row.target, achieved: sum.achieved + row.achieved }), {
+    target: 0,
+    achieved: 0,
+  });
   const finished = rows.filter((row) => ['done', 'over', 'ahead'].includes(row.status)).length;
   const missing = rows.filter((row) => row.status === 'missing' || row.unfilled > 0).length;
 
   // Each piece of work: how many people, and how much of it is done.
-  const byWork = [...rows.reduce((map, row) => {
-    const item = map.get(row.task) ?? { task: row.task, people: new Set(), target: 0, achieved: 0 };
-    item.people.add(row.user);
-    item.target += row.target;
-    item.achieved += row.achieved;
-    return map.set(row.task, item);
-  }, new Map()).values()].sort((a, b) => b.target - a.target);
+  const byWork = [
+    ...rows
+      .reduce((map, row) => {
+        const item = map.get(row.task) ?? { task: row.task, people: new Set(), target: 0, achieved: 0 };
+        item.people.add(row.user);
+        item.target += row.target;
+        item.achieved += row.achieved;
+        return map.set(row.task, item);
+      }, new Map())
+      .values(),
+  ].sort((a, b) => b.target - a.target);
 
   return (
     <div className="space-y-4">
@@ -219,15 +236,14 @@ export function WorkDashboard({ sheet, me, notes, search = '' }) {
           </Panel>
 
           <Panel>
-            <PanelTitle>
-              Who did what{period === 'day' ? `, ${shortDay(date)}` : ', this month so far'}
-            </PanelTitle>
+            <PanelTitle>Who did what{period === 'day' ? `, ${shortDay(date)}` : ', this month so far'}</PanelTitle>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line text-left text-xs text-muted">
                     <th className="px-4 py-2 font-medium sm:px-5">Person</th>
                     <th className="px-2 py-2 font-medium">Work</th>
+                    <th className="px-2 py-2 font-medium">Assigned by</th>
                     <th className="px-2 py-2 text-right font-medium">Target</th>
                     <th className="px-2 py-2 text-right font-medium">Done</th>
                     <th className="px-2 py-2 text-right font-medium">+/−</th>
@@ -253,9 +269,12 @@ export function WorkDashboard({ sheet, me, notes, search = '' }) {
                           )}
                         </td>
                         <td className="px-2 py-2.5 text-muted">{row.task}</td>
+                        <td className="px-2 py-2.5 text-muted">{[...row.by].join(', ') || '—'}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{row.target}</td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{row.filled ? row.achieved : '—'}</td>
-                        <td className={`px-2 py-2.5 text-right tabular-nums ${row.filled ? tone(row.achieved - row.target) : 'text-muted'}`}>
+                        <td
+                          className={`px-2 py-2.5 text-right tabular-nums ${row.filled ? tone(row.achieved - row.target) : 'text-muted'}`}
+                        >
                           {row.filled ? signed(row.achieved - row.target) : ''}
                         </td>
                         <td className="px-4 py-2.5 sm:px-5">
@@ -277,4 +296,194 @@ export function WorkDashboard({ sheet, me, notes, search = '' }) {
       )}
     </div>
   );
+}
+
+/* An employee's own dashboard: only their work. What they were given, by
+   whom and how much, and how much of it they have done. */
+
+const dayLabel = (date) =>
+  new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+function MyDashboard({ sheet, me, notes }) {
+  const workingDays = sheet.days.filter((day) => !day.sunday);
+  const inMonth = sheet.today >= sheet.days[0].date && sheet.today <= sheet.days.at(-1).date;
+  const [period, setPeriod] = useState('month');
+  const [date, setDate] = useState(inMonth ? sheet.today : (workingDays.at(-1)?.date ?? sheet.days[0].date));
+
+  const mine = sheet.entries
+    .filter((entry) => entry.user === me.id && (period === 'month' || entry.date === date))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.task.localeCompare(b.task));
+  const by = (entry) => (entry.targetBy ? (sheet.assigners?.[entry.targetBy] ?? 'Someone') : '—');
+  // What counts so far: days gone by, and today once filled in.
+  const counts = (entry) =>
+    entry.date < sheet.today || (entry.date === sheet.today && entry.achieved !== null && entry.achieved !== undefined);
+  const statusOf = (entry) => {
+    if (entry.achieved === null || entry.achieved === undefined) return entry.date < sheet.today ? 'missing' : 'waiting';
+    return entry.achieved > entry.target ? 'over' : entry.achieved === entry.target ? 'done' : 'short';
+  };
+
+  const given = mine.reduce((sum, entry) => sum + (entry.target ?? 0), 0);
+  const soFar = mine.filter(counts);
+  const dueSoFar = soFar.reduce((sum, entry) => sum + (entry.target ?? 0), 0);
+  const achieved = mine.reduce((sum, entry) => sum + (entry.achieved ?? 0), 0);
+  const unfilled = mine.filter((entry) => statusOf(entry) === 'missing').length;
+
+  // Each piece of work: the total given, by whom, and how much is done.
+  const byWork = [
+    ...mine
+      .reduce((map, entry) => {
+        const item = map.get(entry.task) ?? { task: entry.task, target: 0, due: 0, achieved: 0, days: 0, from: new Map() };
+        item.target += entry.target ?? 0;
+        if (counts(entry)) item.due += entry.target ?? 0;
+        item.achieved += entry.achieved ?? 0;
+        item.days += 1;
+        const name = by(entry);
+        item.from.set(name, (item.from.get(name) ?? 0) + (entry.target ?? 0));
+        return map.set(entry.task, item);
+      }, new Map())
+      .values(),
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <SegmentedTabs
+          label="Period"
+          tabs={[
+            ['month', 'Whole month'],
+            ['day', 'One day'],
+          ]}
+          value={period}
+          onChange={setPeriod}
+        />
+        {period === 'day' && (
+          <SelectBox aria-label="Day" value={date} onChange={(event) => setDate(event.target.value)}>
+            {workingDays.map((day) => (
+              <option key={day.date} value={day.date}>
+                {dayLabel(day.date)}
+                {day.date === sheet.today ? ' (today)' : ''}
+              </option>
+            ))}
+          </SelectBox>
+        )}
+      </div>
+
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          [period === 'month' ? 'Total target' : 'Target', given, 'text-ink'],
+          ['Achieved', achieved, 'text-ink'],
+          ['Difference so far', signed(achieved - dueSoFar), tone(achieved - dueSoFar)],
+          [
+            period === 'month' ? 'Days with work' : 'Pieces of work',
+            period === 'month' ? new Set(mine.map((entry) => entry.date)).size : mine.length,
+            'text-ink',
+          ],
+        ].map(([label, value, colour]) => (
+          <div key={label} className="rounded-xl border border-line bg-surface px-4 py-3">
+            <dt className="text-xs text-muted">{label}</dt>
+            <dd className={`mt-1 text-xl font-semibold tabular-nums ${colour}`}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {unfilled > 0 && (
+        <p className="text-sm text-pending">
+          {unfilled} {unfilled === 1 ? 'day is' : 'days are'} not filled in yet. Fill them in from My work or the team sheet.
+        </p>
+      )}
+
+      {mine.length === 0 ? (
+        <Empty title="No work assigned">
+          {period === 'day' ? 'Nobody has given you a target for this day yet.' : 'Nobody has given you a target this month yet.'}
+        </Empty>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
+          <Panel>
+            <PanelTitle>My work</PanelTitle>
+            <ul className="divide-y divide-line">
+              {byWork.map((item) => (
+                <li key={item.task} className="px-4 py-3 sm:px-5">
+                  <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
+                    <span className="font-medium">{item.task}</span>
+                    <span className="tabular-nums text-muted">
+                      {item.achieved} / {item.target}
+                    </span>
+                  </div>
+                  <Bar done={item.achieved} of={item.due || item.target} />
+                  <p className="mt-1.5 text-xs text-muted">
+                    {[...item.from].map(([name, amount]) => `${amount} from ${name}`).join(' · ')}
+                    {' · '}
+                    {item.days} {item.days === 1 ? 'day' : 'days'}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+
+          <Panel>
+            <PanelTitle>Assigned to me{period === 'day' ? `, ${dayLabel(date)}` : ''}</PanelTitle>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-xs text-muted">
+                    <th className="px-4 py-2 font-medium sm:px-5">Day</th>
+                    <th className="px-2 py-2 font-medium">Work</th>
+                    <th className="px-2 py-2 font-medium">Assigned by</th>
+                    <th className="px-2 py-2 text-right font-medium">Target</th>
+                    <th className="px-2 py-2 text-right font-medium">Done</th>
+                    <th className="px-2 py-2 text-right font-medium">+/−</th>
+                    <th className="px-4 py-2 font-medium sm:px-5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mine.map((entry) => {
+                    const filled = entry.achieved !== null && entry.achieved !== undefined;
+                    const said = notes[`${me.id}|${entry.date}`];
+                    return (
+                      <tr
+                        key={entry.id}
+                        className={`border-b border-line last:border-b-0 ${entry.date === sheet.today ? 'bg-accent-soft/50' : ''}`}
+                      >
+                        <td className="px-4 py-2.5 whitespace-nowrap sm:px-5">
+                          {dayLabel(entry.date)}
+                          {said?.length > 0 && (
+                            <span
+                              className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-xs text-[#a8650b]"
+                              title={said.map((comment) => `${comment.author.name}: ${comment.text}`).join('\n\n')}
+                            >
+                              <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                              {said.length}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2.5">{entry.task}</td>
+                        <td className="px-2 py-2.5 text-muted">{by(entry)}</td>
+                        <td className="px-2 py-2.5 text-right tabular-nums">{entry.target}</td>
+                        <td className="px-2 py-2.5 text-right tabular-nums">{filled ? entry.achieved : '—'}</td>
+                        <td
+                          className={`px-2 py-2.5 text-right tabular-nums ${filled ? tone(entry.achieved - entry.target) : 'text-muted'}`}
+                        >
+                          {filled ? signed(entry.achieved - entry.target) : ''}
+                        </td>
+                        <td className="px-4 py-2.5 sm:px-5">
+                          <Status kind={statusOf(entry)} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Someone with nobody under them sees only their own work; a team lead, an
+// assistant manager or a manager sees the team's.
+export function WorkDashboard({ sheet, me, notes, search }) {
+  const leads = me && (me.position !== 'employee' || sheet.people.some((person) => person.reportsTo === me.id));
+  if (me && !leads) return <MyDashboard sheet={sheet} me={me} notes={notes} />;
+  return <TeamDashboard sheet={sheet} me={me} notes={notes} search={search} />;
 }

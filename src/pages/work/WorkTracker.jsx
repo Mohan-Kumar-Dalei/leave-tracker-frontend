@@ -226,8 +226,7 @@ function commentsOf(comments) {
   return byDay;
 }
 
-const postedAt = (value) =>
-  new Date(value).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const postedAt = (value) => new Date(value).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 function Comments({ person, day, comments = [], focus = false, tasks = [] }) {
   const queryClient = useQueryClient();
@@ -393,19 +392,15 @@ function TargetsDialog({ open, sheet, onClose }) {
   const lastDay = sheet.days[sheet.days.length - 1].date;
   const start = sheet.today >= first && sheet.today <= lastDay ? sheet.today : (sheet.days.find((day) => !day.sunday)?.date ?? first);
   const form = useZodForm(
-    z
-      .object({
-        task: z.string().trim().min(1, 'Name the work, like Profiles.').max(60, 'Keep it under 60 characters.'),
-        target: z
-          .string()
-          .trim()
-          .min(1, 'Enter the daily target.')
-          .refine(
-            (value) => !Number.isNaN(Number(value)) && Number(value) >= 0 && Number(value) <= 100000,
-            'Use a number from 0 to 100000.',
-          ),
-        date: z.string().min(1, 'Pick the day.'),
-      }),
+    z.object({
+      task: z.string().trim().min(1, 'Name the work, like Profiles.').max(60, 'Keep it under 60 characters.'),
+      target: z
+        .string()
+        .trim()
+        .min(1, 'Enter the daily target.')
+        .refine((value) => !Number.isNaN(Number(value)) && Number(value) >= 0 && Number(value) <= 100000, 'Use a number from 0 to 100000.'),
+      date: z.string().min(1, 'Pick the day.'),
+    }),
     { task: sheet.tasks[0] ?? '', target: '', date: start },
   );
   const { errors } = form.formState;
@@ -922,7 +917,11 @@ export default function WorkTracker() {
           onChange={setTab}
         />
         <div className="flex flex-wrap items-center gap-2">
-          {shownTab !== 'mine' && <SearchField value={search} onChange={setSearch} label="Search people" className="w-full sm:w-56" />}
+          {(shownTab === 'sheet' ||
+            (shownTab === 'dashboard' &&
+              (!me || me.position !== 'employee' || sheet.people.some((person) => person.reportsTo === me.id)))) && (
+            <SearchField value={search} onChange={setSearch} label="Search people" className="w-full sm:w-56" />
+          )}
           {sheet.departments.length > 1 && (
             <SelectBox aria-label="Department" value={sheet.department} onChange={(event) => setDepartment(event.target.value)}>
               {sheet.departments.map((name) => (
@@ -953,7 +952,13 @@ export default function WorkTracker() {
           <Empty title="Nobody here yet">People in this department appear here.</Empty>
         ) : (
           <>
-            <Sheet sheet={sheet} totals={totals} notes={notes} search={search} onOpen={(person, day, comment = false) => setOpened({ person, day, comment })} />
+            <Sheet
+              sheet={sheet}
+              totals={totals}
+              notes={notes}
+              search={search}
+              onOpen={(person, day, comment = false) => setOpened({ person, day, comment })}
+            />
             <p className="mt-2 text-xs text-muted">
               Tap a day to set a target or fill in work. A corner mark means a comment: point at it to read it, or select a day and press
               Ctrl+Alt+M to add one. Today is highlighted; holidays are orange; Sundays are grey.

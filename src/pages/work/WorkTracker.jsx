@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Download, Plus, Target, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, MessageSquarePlus, Plus, Target, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Tabs } from '../../components/Tabs';
@@ -16,6 +16,7 @@ import {
   Reveal,
   RowsSkeleton,
   SelectBox,
+  TextArea,
   TextInput,
 } from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
@@ -211,11 +212,109 @@ function WorkLine({ entry, person, day, today, onDone, wide = false }) {
   );
 }
 
-function DayDialog({ open, person, day, total, today, tasks, onClose }) {
+/* Comments on a day, like the comments people put on a cell in the Google
+   Sheet with Ctrl+Alt+M: what they did ("Total no. of URLs inspected 120,
+   fixed 46..."), and their lead's answer. */
+
+const EXAMPLE = 'Date 22.04.2026\nTask broken RSS\nTotal no. of URLs inspected 120\nNo. of Integrated/fixed RSS 46\nPending (doubt) 24';
+
+// The comments of each day, by person and date.
+function commentsOf(comments) {
+  const byDay = {};
+  for (const comment of comments) (byDay[`${comment.user}|${comment.date}`] ??= []).push(comment);
+  return byDay;
+}
+
+const postedAt = (value) =>
+  new Date(value).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+function Comments({ person, day, comments = [], focus = false, tasks = [] }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const form = useZodForm(z.object({ text: z.string().trim().min(1, 'Write the comment.').max(2000, 'Keep it under 2000 characters.') }), {
+    text: '',
+  });
+  const { errors } = form.formState;
+  const post = useMutation({
+    mutationFn: ({ text }) => api.post('/work/comments', { user: person.id, date: day.date, text }),
+    onSuccess: () => {
+      form.reset({ text: '' });
+      queryClient.invalidateQueries({ queryKey: ['work'] });
+    },
+    onError: (issue) => showServerError(form, issue, ['text']),
+  });
+  const remove = useMutation({
+    mutationFn: (id) => api.delete(`/work/comments/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['work'] }),
+    onError: (issue) => toast.error('Could not remove it', issue.message),
+  });
+  // The usual format, filled in with the day and the work.
+  const fillFormat = () => {
+    const [year, month, date] = day.date.split('-');
+    form.setValue('text', `Date ${date}.${month}.${year}\nTask ${tasks[0] ?? ''}\n`, { shouldFocus: true });
+  };
+  const submit = form.handleSubmit((fields) => post.mutate(fields));
+
+  return (
+    <section aria-label="Comments" className="mt-4 border-t border-line pt-4">
+      <h3 className="mb-2 text-sm font-semibold">
+        Comments {comments.length > 0 && <span className="font-normal text-muted">({comments.length})</span>}
+      </h3>
+      {comments.length === 0 && !person.canFill && <p className="text-sm text-muted">No comments on this day.</p>}
+      <ul className="space-y-2">
+        {comments.map((comment) => (
+          <li key={comment.id} className="rounded-lg border-l-4 border-[#f2a93b] bg-sunken px-3 py-2">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[13px]">
+                <span className="font-semibold">{comment.author.name}</span>
+                <span className="text-muted"> · {postedAt(comment.createdAt)}</span>
+              </p>
+              {comment.mine && (
+                <IconButton label="Remove this comment" className="-my-1 -mr-2" onClick={() => remove.mutate(comment.id)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </IconButton>
+              )}
+            </div>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm">{comment.text}</p>
+          </li>
+        ))}
+      </ul>
+      {person.canFill && (
+        <form noValidate onSubmit={submit} className="mt-3">
+          <TextArea
+            label="Add a comment"
+            rows={4}
+            data-autofocus={focus ? true : undefined}
+            placeholder={EXAMPLE}
+            hint="Ctrl+Enter posts it. It goes into the exported sheet as the cell's note."
+            error={errors.text?.message}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) submit(event);
+            }}
+            {...form.register('text')}
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <button type="button" className="text-sm text-accent hover:underline" onClick={fillFormat}>
+              Use the usual format
+            </button>
+            <Button type="submit" variant="secondary" loading={post.isPending}>
+              <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
+              Comment
+            </Button>
+          </div>
+          <FormError>{formError(form)}</FormError>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function DayDialog({ open, person, day, total, today, tasks, comments, focusComment, onClose }) {
   const [adding, setAdding] = useState(false);
   const entries = total?.entries ?? [];
+  const mayChange = person?.canLead || person?.canFill;
   // Working from home is one piece of work a day.
-  const canAdd = (person?.canLead || person?.canFill) && !(person?.workFromHome && entries.length > 0);
+  const canAdd = mayChange && !(person?.workFromHome && entries.length > 0);
   return (
     <Dialog open={open} onClose={onClose} title={person ? `${person.name}, ${dayTitle(day.date)}` : ''} kind="modal">
       {person && (
@@ -232,9 +331,22 @@ function DayDialog({ open, person, day, total, today, tasks, onClose }) {
           )}
           {person.workFromHome && <p className="mb-1 text-sm text-muted">Works from home: one piece of work a day.</p>}
           {entries.length === 0 && !adding && <p className="py-3 text-sm text-muted">No work set for this day yet.</p>}
-          {entries.map((entry) => (
-            <WorkLine key={`${entry.id}-${entry.updatedAt}`} entry={entry} person={person} day={day} today={today} />
-          ))}
+          {mayChange ? (
+            entries.map((entry) => (
+              <WorkLine key={`${entry.id}-${entry.updatedAt}`} entry={entry} person={person} day={day} today={today} />
+            ))
+          ) : (
+            <ul className="divide-y divide-line text-sm">
+              {entries.map((entry) => (
+                <li key={entry.id} className="flex justify-between gap-3 py-2">
+                  <span>{entry.task}</span>
+                  <span className="tabular-nums text-muted">
+                    {entry.achieved ?? '—'} of {entry.target}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
           {adding && <WorkLine person={person} day={day} today={today} onDone={() => setAdding(false)} />}
           {canAdd && !adding && (
             <Button variant="ghost" className="mt-2" onClick={() => setAdding(true)}>
@@ -242,6 +354,7 @@ function DayDialog({ open, person, day, total, today, tasks, onClose }) {
               {entries.length ? 'Add other work' : 'Add work'}
             </Button>
           )}
+          <Comments person={person} day={day} comments={comments} focus={focusComment} tasks={entries.map((entry) => entry.task)} />
         </div>
       )}
     </Dialog>
@@ -394,15 +507,43 @@ function TargetsDialog({ open, sheet, onClose }) {
 
 /* The sheet itself. */
 
-function Cell({ children, className = '', onClick, label }) {
-  const base = `h-8 min-w-12 border-b border-r border-line/70 px-1.5 text-center text-[13px] tabular-nums ${className}`;
-  if (!onClick) return <td className={base}>{children}</td>;
+// Ctrl+Alt+M on a cell opens its comments, as in Google Sheets.
+const isCommentKey = (event) => event.ctrlKey && event.altKey && event.key.toLowerCase() === 'm';
+
+function Cell({ children, className = '', onClick, onComment, label, notes }) {
+  const base = `relative h-8 min-w-12 border-b border-r border-line/70 px-1.5 text-center text-[13px] tabular-nums ${className}`;
+  // A cell with comments has the sheet's little corner mark, and shows the
+  // latest one when you point at it.
+  const mark = notes?.length ? (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute top-0 right-0 h-0 w-0 border-t-[9px] border-l-[9px] border-t-[#f2a93b] border-l-transparent"
+    />
+  ) : null;
+  const latest = notes?.at(-1);
+  const title = latest ? `${latest.author.name}: ${latest.text}${notes.length > 1 ? `  (+${notes.length - 1} more)` : ''}` : undefined;
+  if (!onClick)
+    return (
+      <td className={base} title={title}>
+        {mark}
+        {children}
+      </td>
+    );
   return (
     <td className={`${base} p-0`}>
+      {mark}
       <button
         type="button"
-        aria-label={label}
+        aria-label={`${label}${notes?.length ? `, ${notes.length} comment${notes.length > 1 ? 's' : ''}` : ''}`}
+        title={title}
+        aria-keyshortcuts={onComment ? 'Control+Alt+M' : undefined}
         onClick={onClick}
+        onKeyDown={(event) => {
+          if (onComment && isCommentKey(event)) {
+            event.preventDefault();
+            onComment();
+          }
+        }}
         className="h-full w-full px-1.5 hover:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent"
       >
         {children}
@@ -422,7 +563,7 @@ function NameCell({ children, className = '', strong = false }) {
   );
 }
 
-function Sheet({ sheet, totals, onOpen }) {
+function Sheet({ sheet, totals, notes, onOpen }) {
   const { days, people, today } = sheet;
   const sum = (id, field) => days.reduce((total, day) => total + (day.sunday ? 0 : (totals[`${id}|${day.date}`]?.[field] ?? 0)), 0);
   const team = (date, field) => people.reduce((total, person) => total + (totals[`${person.id}|${date}`]?.[field] ?? 0), 0);
@@ -507,7 +648,11 @@ function Sheet({ sheet, totals, onOpen }) {
 
           {people.map((person) => {
             const difference = sum(person.id, 'achieved') - sum(person.id, 'target');
-            const open = (day) => (day.sunday || !(person.canLead || person.canFill) ? undefined : () => onOpen(person, day));
+            const said = (day) => notes[`${person.id}|${day.date}`];
+            // Your own row (or your team's) opens to fill in; anyone else's
+            // opens only to read its comments.
+            const open = (day) => (day.sunday || !(person.canLead || person.canFill || said(day)) ? undefined : () => onOpen(person, day));
+            const comment = (day) => (day.sunday || !(person.canFill || said(day)) ? undefined : () => onOpen(person, day, true));
             return [
               <tr key={`${person.id}-gap`} aria-hidden="true">
                 <td colSpan={days.length + 2} className="h-3 border-b border-line bg-bg" />
@@ -561,6 +706,8 @@ function Sheet({ sheet, totals, onOpen }) {
                       key={day.date}
                       label={`${person.name}, ${day.date}: achieved`}
                       onClick={open(day)}
+                      onComment={comment(day)}
+                      notes={said(day)}
                       className={day.sunday ? ROW.sunday : ROW.achieved}
                     >
                       {total?.filled ? total.achieved : ''}
@@ -602,7 +749,7 @@ function Sheet({ sheet, totals, onOpen }) {
 
 /* My day: today's work for the person signed in, to fill in quickly. */
 
-function MyDay({ sheet, me, totals, tasks }) {
+function MyDay({ sheet, me, totals, tasks, notes }) {
   const day = sheet.days.find((item) => item.date === sheet.today);
   const [adding, setAdding] = useState(false);
   if (!day) return <Empty title="This is not this month">Go to this month to fill in today's work.</Empty>;
@@ -641,6 +788,7 @@ function MyDay({ sheet, me, totals, tasks }) {
               {entries.length ? 'Add other work' : 'Add work'}
             </Button>
           )}
+          <Comments person={me} day={day} comments={notes[`${me.id}|${day.date}`]} tasks={entries.map((entry) => entry.task)} />
         </div>
       </Panel>
       <Panel>
@@ -686,6 +834,7 @@ export default function WorkTracker() {
     placeholderData: (previous) => previous,
   });
   const totals = useMemo(() => totalsOf(sheet?.entries ?? []), [sheet]);
+  const notes = useMemo(() => commentsOf(sheet?.comments ?? []), [sheet]);
 
   if (isPending) return <RowsSkeleton rows={8} />;
   if (isError) return <LoadError error={error} onRetry={refetch} />;
@@ -760,14 +909,15 @@ export default function WorkTracker() {
 
       <Reveal delay={0.1}>
         {shownTab === 'mine' && me ? (
-          <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} />
+          <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} notes={notes} />
         ) : sheet.people.length === 0 ? (
           <Empty title="Nobody here yet">People in this department appear here.</Empty>
         ) : (
           <>
-            <Sheet sheet={sheet} totals={totals} onOpen={(person, day) => setOpened({ person, day })} />
+            <Sheet sheet={sheet} totals={totals} notes={notes} onOpen={(person, day, comment = false) => setOpened({ person, day, comment })} />
             <p className="mt-2 text-xs text-muted">
-              Tap a day to set a target or fill in work. Today is highlighted; holidays are orange; Sundays are grey.
+              Tap a day to set a target or fill in work. A corner mark means a comment: point at it to read it, or select a day and press
+              Ctrl+Alt+M to add one. Today is highlighted; holidays are orange; Sundays are grey.
             </p>
           </>
         )}
@@ -781,6 +931,8 @@ export default function WorkTracker() {
         total={openedTotal}
         today={sheet.today}
         tasks={sheet.tasks}
+        comments={opened ? notes[`${opened.person.id}|${opened.day.date}`] : []}
+        focusComment={Boolean(opened?.comment)}
         onClose={() => setOpened(null)}
       />
       {setting && <TargetsDialog open sheet={sheet} onClose={() => setSetting(false)} />}

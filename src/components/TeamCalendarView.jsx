@@ -1,10 +1,10 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { dayWord, monthKey, monthLabel, shortRange } from '../lib/dates';
 import { CalendarGrid } from './CalendarGrid';
 import { StatusBadge } from './StatusBadge';
-import { LoadError, LoadingBar, Panel, PanelTitle, RowsSkeleton } from './ui';
+import { LoadError, LoadingBar, Panel, PanelTitle, RowsSkeleton, SelectBox } from './ui';
 
 const shortName = (name = '') => {
   const [first, last] = name.split(' ');
@@ -57,66 +57,91 @@ function toEvents(data) {
   return byDay;
 }
 
-function MonthLeaves({ leaves, title, loading }) {
+function MonthLeaves({ leaves, title, loading, showDepartment = false }) {
   return (
     <Panel>
       <PanelTitle>{title}</PanelTitle>
       {loading && <RowsSkeleton rows={3} />}
       {!loading && leaves.length === 0 && <p className="px-4 py-4 text-sm text-muted">Nobody has applied for leave this month.</p>}
       <ul className="max-h-[32rem] overflow-y-auto">
-        {!loading && leaves.map((leave) => (
-          <li key={leave.id} className="border-b border-line px-4 py-2.5 last:border-b-0">
-            <div className="flex items-center justify-between gap-3">
-              <p className="min-w-0 truncate text-sm font-medium">{leave.name}</p>
-              <StatusBadge status={leave.status} />
-            </div>
-            <p className="mt-0.5 text-[13px] tabular-nums text-muted">
-              {shortRange(leave.from, leave.to)}, {leave.days} {dayWord(leave.days)}
-            </p>
-            {leave.leaveType && <p className="text-[13px] text-muted">{leave.leaveType}</p>}
-          </li>
-        ))}
+        {!loading &&
+          leaves.map((leave) => (
+            <li key={leave.id} className="border-b border-line px-4 py-2.5 last:border-b-0">
+              <div className="flex items-center justify-between gap-3">
+                <p className="min-w-0 truncate text-sm font-medium">{leave.name}</p>
+                <StatusBadge status={leave.status} />
+              </div>
+              <p className="mt-0.5 text-[13px] tabular-nums text-muted">
+                {shortRange(leave.from, leave.to)}, {leave.days} {dayWord(leave.days)}
+              </p>
+              {(leave.leaveType || (showDepartment && leave.department)) && (
+                <p className="text-[13px] text-muted">
+                  {[showDepartment && leave.department, leave.leaveType].filter(Boolean).join(' · ')}
+                </p>
+              )}
+            </li>
+          ))}
       </ul>
     </Panel>
   );
 }
 
 // The whole team's leave for a month. Admins see it on the Team calendar page and
-// employees in the calendar view of My leave.
+// employees in the calendar view of My leave. Someone over several departments
+// (a manager) picks one, or sees them all.
 export function TeamCalendarView({ year, month, onMonthChange, minMonth, maxMonth }) {
+  const [department, setDepartment] = useState('');
   const { data, isError, error, refetch, isPlaceholderData, isFetching } = useQuery({
-    queryKey: ['team-calendar', year, month],
-    queryFn: () => api.get(`/team-calendar?month=${monthKey(year, month)}`),
+    queryKey: ['team-calendar', year, month, ...(department ? [department] : [])],
+    queryFn: () =>
+      api.get(`/team-calendar?month=${monthKey(year, month)}${department ? `&department=${encodeURIComponent(department)}` : ''}`),
     placeholderData: keepPreviousData,
   });
+  const departments = data?.departments ?? [];
 
   const events = useMemo(() => toEvents(data), [data]);
   const today = data?.today ?? new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="grid items-start gap-4 xl:grid-cols-[1fr_320px]">
-      <Panel>
-        <LoadingBar show={isFetching && (!data || isPlaceholderData)} />
-        {isError ? (
-          <LoadError error={error} onRetry={refetch} />
-        ) : (
-          <CalendarGrid
-            year={year}
-            month={month}
-            today={today}
-            eventsByDay={events}
-            weekendDays={data?.weekendDays}
-            minMonth={minMonth}
-            maxMonth={maxMonth}
-            onMonthChange={onMonthChange}
-          />
-        )}
-      </Panel>
-      <MonthLeaves
-        leaves={data?.leaves ?? []}
-        loading={!data || isPlaceholderData}
-        title={`Leave in ${monthLabel(year, month)}`}
-      />
+    <div className="space-y-4">
+      {departments.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted">Department</span>
+          <SelectBox aria-label="Department" value={department} onChange={(event) => setDepartment(event.target.value)}>
+            <option value="">All departments</option>
+            {departments.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </SelectBox>
+        </div>
+      )}
+      <div className="grid items-start gap-4 xl:grid-cols-[1fr_320px]">
+        <Panel>
+          <LoadingBar show={isFetching && (!data || isPlaceholderData)} />
+          {isError ? (
+            <LoadError error={error} onRetry={refetch} />
+          ) : (
+            <CalendarGrid
+              year={year}
+              month={month}
+              today={today}
+              eventsByDay={events}
+              weekendDays={data?.weekendDays}
+              minMonth={minMonth}
+              maxMonth={maxMonth}
+              onMonthChange={onMonthChange}
+            />
+          )}
+        </Panel>
+        <MonthLeaves
+          leaves={data?.leaves ?? []}
+          loading={!data || isPlaceholderData}
+          title={`Leave in ${monthLabel(year, month)}${department ? `, ${department}` : ''}`}
+          showDepartment={!department}
+        />
+      </div>
     </div>
   );
 }

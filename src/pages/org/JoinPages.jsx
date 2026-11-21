@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { EmployeeIdField } from '../../components/EmployeeIdField';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Button, ButtonLink, PasswordInput, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
 import { AuthLayout, authLink, FormError } from '../auth/AuthPages';
+import { z } from 'zod';
+import { formError, rules, showServerError, useZodForm } from '../../lib/forms';
 
 // Pages opened before anyone has an account:
 //   AcceptInvite    the owner's invitation to a department's manager or
@@ -42,7 +44,6 @@ function Done({ title, children }) {
   );
 }
 
-const looksLikeAppPassword = (value) => /^[a-z]{16}$/i.test(String(value ?? '').replace(/\s+/g, ''));
 const aboutAppPassword = (message = '') => /app password|gmail/i.test(message);
 
 // Where the person is: step 1 (Gmail App Password) or step 2 (the account).
@@ -69,56 +70,64 @@ function StepBar({ step, onBack }) {
   );
 }
 
-// Step 1 for anyone invited by mail: their Gmail App Password, so leave mails
-// go from their own Gmail. Google checks it when they finish; it then shows as
-// connected on their Profile.
-function AppPasswordStep({ email, onEmail, value, onChange, onNext, problem }) {
+// Step 1 for anyone invited by mail: how to make a Gmail App Password, so
+// leave mails go from their own Gmail. Google checks it when they finish; it
+// then shows as connected on their Profile.
+function AppPasswordHelp({ email }) {
   return (
-    <form
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onNext();
-      }}
-    >
-      <StepBar step={0} />
-      <ol className="list-decimal space-y-1.5 rounded-lg bg-sunken py-3 pl-8 pr-3 text-[13px] leading-relaxed">
-        <li>Turn on 2-Step Verification for {email || 'your Gmail'}.</li>
-        <li>
-          Open{' '}
-          <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer noopener" className={authLink}>
-            myaccount.google.com/apppasswords
-          </a>{' '}
-          and make one called Leave Tracker.
-        </li>
-        <li>Paste the 16 letters below.</li>
-      </ol>
-      {onEmail && (
-        <TextInput label="Work email (Gmail)" type="email" autoComplete="username" required maxLength={160} value={email} onChange={onEmail} />
-      )}
-      <PasswordInput
-        label="Gmail App Password"
-        placeholder="abcd efgh ijkl mnop"
-        autoComplete="off"
-        required
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        hint="Checked with Google when you finish. Your leave mails then go from this Gmail."
-      />
-      <FormError message={problem} />
-      <Button type="submit" className="h-10! w-full">
-        Next
-      </Button>
-    </form>
+    <ol className="list-decimal space-y-1.5 rounded-lg bg-sunken py-3 pl-8 pr-3 text-[13px] leading-relaxed">
+      <li>Turn on 2-Step Verification for {email || 'your Gmail'}.</li>
+      <li>
+        Open{' '}
+        <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer noopener" className={authLink}>
+          myaccount.google.com/apppasswords
+        </a>{' '}
+        and make one called Leave Tracker.
+      </li>
+      <li>Paste the 16 letters below.</li>
+    </ol>
   );
 }
 
-// Checks the two passwords match before sending.
-function usePasswords() {
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const mismatch = confirm && password !== confirm ? 'The two passwords are not the same.' : '';
-  return { password, setPassword, confirm, setConfirm, mismatch };
+const APP_PASSWORD_HINT = 'Checked with Google when you finish. Your leave mails then go from this Gmail.';
+const passwordsMatch = (values) => values.password === values.confirm;
+const MISMATCH = { path: ['confirm'], message: 'The two passwords are not the same.' };
+
+// The rules for each page; the App Password only when the server uses them.
+const inviteRules = (withAppPassword) =>
+  z
+    .object({
+      appPassword: withAppPassword ? rules.appPassword : z.string().optional(),
+      name: rules.name,
+      phone: rules.phone,
+      password: rules.newPassword,
+      confirm: rules.password,
+    })
+    .refine(passwordsMatch, MISMATCH);
+
+const joinRules = (withAppPassword) =>
+  z
+    .object({
+      email: rules.email,
+      appPassword: withAppPassword ? rules.appPassword : z.string().optional(),
+      name: rules.name,
+      phone: rules.phone,
+      designation: rules.text(80, 'The designation'),
+      password: rules.newPassword,
+      confirm: rules.password,
+    })
+    .refine(passwordsMatch, MISMATCH);
+
+// After sending, a problem goes back to the step with its box.
+function placeServerError(form, issue, stepFields, setStep) {
+  const field = issue.field ?? (aboutAppPassword(issue.message) ? 'appPassword' : /email|account/i.test(issue.message) ? 'email' : null);
+  const at = stepFields.findIndex((names) => names.includes(field));
+  if (at >= 0) {
+    setStep(at);
+    setTimeout(() => form.setError(field, { type: 'server', message: issue.message }, { shouldFocus: true }));
+  } else {
+    showServerError(form, issue);
+  }
 }
 
 export function AcceptInvite() {
@@ -128,13 +137,16 @@ export function AcceptInvite() {
     queryFn: () => api.get(`/join/invite/${token}`),
     retry: false,
   });
-  const [form, setForm] = useState({ name: '', employeeId: '', phone: '' });
-  const passwords = usePasswords();
-  const [problem, setProblem] = useState('');
-  const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
-  const [appPassword, setAppPassword] = useState('');
   const [step, setStep] = useState(0);
+  const withAppPassword = Boolean(data?.appPassword);
+  const form = useZodForm(() => inviteRules(withAppPassword), { appPassword: '', name: '', phone: '', password: '', confirm: '' });
+  const { register, handleSubmit, trigger, formState, getValues, setValue } = form;
+  const { errors, isSubmitting } = formState;
+  // The invitation's name fills the box once it has loaded.
+  useEffect(() => {
+    if (data?.name && !getValues('name')) setValue('name', data.name);
+  }, [data, getValues, setValue]);
 
   if (isPending) return <AuthLayout title="Opening your invitation"><Loading /></AuthLayout>;
   if (error) return <Problem error={error} />;
@@ -146,76 +158,66 @@ export function AcceptInvite() {
     );
   }
 
-  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
-  const submit = async (event) => {
+  const stepFields = withAppPassword ? [['appPassword'], ['name', 'phone', 'password', 'confirm']] : [[], ['name', 'phone', 'password', 'confirm']];
+  const showing = withAppPassword ? step : 1;
+
+  const next = async (event) => {
     event.preventDefault();
-    if (passwords.mismatch) return;
-    setProblem('');
-    setBusy(true);
-    try {
-      const body = { name: form.name || data.name, password: passwords.password };
-      if (form.phone) body.phone = form.phone;
-      if (data.appPassword) body.appPassword = appPassword;
-      setDone(await api.post(`/join/invite/${token}`, body));
-    } catch (issue) {
-      setProblem(issue.message);
-      if (data.appPassword && aboutAppPassword(issue.message)) setStep(0);
-    } finally {
-      setBusy(false);
-    }
+    if (await trigger(stepFields[0], { shouldFocus: true })) setStep(1);
   };
+
+  const submit = handleSubmit(
+    async (values) => {
+      try {
+        const body = { name: values.name, password: values.password };
+        if (values.phone) body.phone = values.phone;
+        if (withAppPassword) body.appPassword = values.appPassword;
+        setDone(await api.post(`/join/invite/${token}`, body));
+      } catch (issue) {
+        placeServerError(form, issue, stepFields, setStep);
+      }
+    },
+    (problems) => {
+      if (withAppPassword && problems.appPassword) setStep(0);
+    },
+  );
 
   return (
     <AuthLayout
       title={`Join ${data.department} as ${data.roleName}`}
-      intro={`${data.company} has invited you. ${data.appPassword ? 'First connect your Gmail, then create your account.' : 'Create your account to start.'}`}
+      intro={`${data.company} has invited you. ${withAppPassword ? 'First connect your Gmail, then create your account.' : 'Create your account to start.'}`}
     >
-      {data.appPassword && step === 0 ? (
-        <AppPasswordStep
-          email={data.email}
-          value={appPassword}
-          onChange={setAppPassword}
-          problem={problem}
-          onNext={() => {
-            if (!looksLikeAppPassword(appPassword)) {
-              setProblem('An App Password is 16 letters, shown by Google in four groups of four.');
-              return;
-            }
-            setProblem('');
-            setStep(1);
-          }}
-        />
-      ) : (
-      <form onSubmit={submit} className="space-y-4">
-        {data.appPassword && <StepBar step={1} onBack={() => setStep(0)} />}
-        <TextInput label="Work email" value={data.email} disabled readOnly />
-        <TextInput label="Full name" required minLength={2} maxLength={80} defaultValue={data.name} onChange={set('name')} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <EmployeeIdField />
-          <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
-        </div>
-        <PasswordInput
-          label="Choose a password"
-          hint={PASSWORD_HINT}
-          autoComplete="new-password"
-          required
-          value={passwords.password}
-          onChange={(event) => passwords.setPassword(event.target.value)}
-        />
-        <PasswordInput
-          label="Type it again"
-          autoComplete="new-password"
-          required
-          error={passwords.mismatch}
-          value={passwords.confirm}
-          onChange={(event) => passwords.setConfirm(event.target.value)}
-        />
-        <FormError message={problem} />
-        <Button type="submit" loading={busy} className="h-10! w-full">
-          Create my account
+      <form onSubmit={showing === 0 ? next : submit} noValidate className="space-y-4">
+        {withAppPassword && <StepBar step={showing} onBack={showing > 0 ? () => setStep(0) : undefined} />}
+        {showing === 0 ? (
+          <>
+            <AppPasswordHelp email={data.email} />
+            <PasswordInput
+              label="Gmail App Password"
+              placeholder="abcd efgh ijkl mnop"
+              autoComplete="off"
+              hint={APP_PASSWORD_HINT}
+              error={errors.appPassword?.message}
+              {...register('appPassword')}
+            />
+          </>
+        ) : (
+          <>
+            <TextInput label="Work email" value={data.email} disabled readOnly />
+            <TextInput label="Full name" maxLength={80} error={errors.name?.message} {...register('name')} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <EmployeeIdField />
+              <TextInput label="Phone" maxLength={20} error={errors.phone?.message} {...register('phone')} />
+            </div>
+            <PasswordInput label="Choose a password" hint={PASSWORD_HINT} autoComplete="new-password" error={errors.password?.message} {...register('password')} />
+            <PasswordInput label="Type it again" autoComplete="new-password" error={errors.confirm?.message} {...register('confirm')} />
+          </>
+        )}
+        <FormError message={formError(form)} />
+        <Button type="submit" loading={isSubmitting} className="h-10! w-full">
+          {showing === 0 ? 'Next' : 'Create my account'}
         </Button>
       </form>
-      )}
     </AuthLayout>
   );
 }
@@ -227,13 +229,21 @@ export function JoinDepartment() {
     queryFn: () => api.get(`/join/${code}`),
     retry: false,
   });
-  const [form, setForm] = useState({ name: '', email: '', employeeId: '', phone: '', designation: '' });
-  const passwords = usePasswords();
-  const [problem, setProblem] = useState('');
-  const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  const [appPassword, setAppPassword] = useState('');
   const [step, setStep] = useState(0);
+  const withAppPassword = Boolean(data?.appPassword);
+  const form = useZodForm(() => joinRules(withAppPassword), {
+    email: '',
+    appPassword: '',
+    name: '',
+    phone: '',
+    designation: '',
+    password: '',
+    confirm: '',
+  });
+  const { register, handleSubmit, trigger, formState, watch } = form;
+  const { errors, isSubmitting } = formState;
+  const email = watch('email');
 
   if (isPending) return <AuthLayout title="Opening the link"><Loading /></AuthLayout>;
   if (error) return <Problem error={error} />;
@@ -246,90 +256,76 @@ export function JoinDepartment() {
     );
   }
 
-  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
-  const submit = async (event) => {
+  // With App Passwords the email is asked on step 1, with the App Password.
+  const stepFields = withAppPassword
+    ? [['email', 'appPassword'], ['name', 'phone', 'designation', 'password', 'confirm']]
+    : [[], ['name', 'email', 'phone', 'designation', 'password', 'confirm']];
+  const showing = withAppPassword ? step : 1;
+
+  const next = async (event) => {
     event.preventDefault();
-    if (passwords.mismatch) return;
-    setProblem('');
-    setBusy(true);
-    try {
-      const body = Object.fromEntries(Object.entries(form).filter(([, value]) => value.trim() !== ''));
-      await api.post(`/join/${code}`, { ...body, password: passwords.password, ...(data.appPassword ? { appPassword } : {}) });
-      setDone(true);
-    } catch (issue) {
-      setProblem(issue.message);
-      if (data.appPassword && aboutAppPassword(issue.message)) setStep(0);
-    } finally {
-      setBusy(false);
-    }
+    if (await trigger(stepFields[0], { shouldFocus: true })) setStep(1);
   };
+
+  const submit = handleSubmit(
+    async ({ confirm: _confirm, appPassword, ...values }) => {
+      try {
+        const body = Object.fromEntries(Object.entries(values).filter(([, value]) => value !== ''));
+        await api.post(`/join/${code}`, { ...body, ...(withAppPassword ? { appPassword } : {}) });
+        setDone(true);
+      } catch (issue) {
+        placeServerError(form, issue, stepFields, setStep);
+      }
+    },
+    (problems) => {
+      if (withAppPassword && (problems.appPassword || problems.email)) setStep(0);
+    },
+  );
 
   return (
     <AuthLayout title={`Join ${data.department}`} intro={`${data.company}${data.location ? `, ${data.location}` : ''}. Fill in your details; your manager will approve you.`}>
-      {data.appPassword && step === 0 ? (
-        <AppPasswordStep
-          email={form.email}
-          onEmail={set('email')}
-          value={appPassword}
-          onChange={setAppPassword}
-          problem={problem}
-          onNext={() => {
-            if (!looksLikeAppPassword(appPassword)) {
-              setProblem('An App Password is 16 letters, shown by Google in four groups of four.');
-              return;
-            }
-            setProblem('');
-            setStep(1);
-          }}
-        />
-      ) : (
-      <form onSubmit={submit} className="space-y-4">
-        {data.appPassword && <StepBar step={1} onBack={() => setStep(0)} />}
-        <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} />
-        <TextInput
-          label="Work email"
-          type="email"
-          autoComplete="username"
-          required
-          maxLength={160}
-          value={form.email}
-          onChange={set('email')}
-          disabled={Boolean(data.appPassword)}
-          hint={data.appPassword ? 'The Gmail from step 1.' : undefined}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <EmployeeIdField hint="Yours once approved" />
-          <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
-        </div>
-        <TextInput
-          label="Designation"
-          maxLength={80}
-          placeholder="For example, Analyst"
-          value={form.designation}
-          onChange={set('designation')}
-        />
-        <PasswordInput
-          label="Choose a password"
-          hint={PASSWORD_HINT}
-          autoComplete="new-password"
-          required
-          value={passwords.password}
-          onChange={(event) => passwords.setPassword(event.target.value)}
-        />
-        <PasswordInput
-          label="Type it again"
-          autoComplete="new-password"
-          required
-          error={passwords.mismatch}
-          value={passwords.confirm}
-          onChange={(event) => passwords.setConfirm(event.target.value)}
-        />
-        <FormError message={problem} />
-        <Button type="submit" loading={busy} className="h-10! w-full">
-          Ask to join
+      <form onSubmit={showing === 0 ? next : submit} noValidate className="space-y-4">
+        {withAppPassword && <StepBar step={showing} onBack={showing > 0 ? () => setStep(0) : undefined} />}
+        {showing === 0 ? (
+          <>
+            <AppPasswordHelp email={email} />
+            <TextInput label="Work email (Gmail)" type="email" autoComplete="username" maxLength={160} error={errors.email?.message} {...register('email')} />
+            <PasswordInput
+              label="Gmail App Password"
+              placeholder="abcd efgh ijkl mnop"
+              autoComplete="off"
+              hint={APP_PASSWORD_HINT}
+              error={errors.appPassword?.message}
+              {...register('appPassword')}
+            />
+          </>
+        ) : (
+          <>
+            <TextInput label="Full name" maxLength={80} error={errors.name?.message} {...register('name')} />
+            <TextInput
+              label="Work email"
+              type="email"
+              autoComplete="username"
+              maxLength={160}
+              readOnly={withAppPassword}
+              hint={withAppPassword ? 'The Gmail from step 1.' : undefined}
+              error={errors.email?.message}
+              {...register('email')}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <EmployeeIdField hint="Yours once approved" />
+              <TextInput label="Phone" maxLength={20} error={errors.phone?.message} {...register('phone')} />
+            </div>
+            <TextInput label="Designation" maxLength={80} placeholder="For example, Analyst" error={errors.designation?.message} {...register('designation')} />
+            <PasswordInput label="Choose a password" hint={PASSWORD_HINT} autoComplete="new-password" error={errors.password?.message} {...register('password')} />
+            <PasswordInput label="Type it again" autoComplete="new-password" error={errors.confirm?.message} {...register('confirm')} />
+          </>
+        )}
+        <FormError message={formError(form)} />
+        <Button type="submit" loading={isSubmitting} className="h-10! w-full">
+          {showing === 0 ? 'Next' : 'Ask to join'}
         </Button>
       </form>
-      )}
       <div className="mt-4 text-center">
         <Link to="/login" className={authLink}>
           Already have an account? Sign in

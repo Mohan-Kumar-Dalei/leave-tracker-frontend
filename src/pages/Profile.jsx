@@ -3,15 +3,36 @@ import { useState } from 'react';
 import { GmailPanel } from '../components/GmailConnect';
 import { SignatureSettings } from '../components/MailParts';
 import { ProfilePhotoPanel } from '../components/ProfilePhoto';
-import { Button, PageHeading, Panel, PanelTitle, PasswordInput, Reveal, TextInput } from '../components/ui';
+import { z } from 'zod';
+import { Button, FormError, PageHeading, Panel, PanelTitle, PasswordInput, Reveal, TextInput } from '../components/ui';
 import { api } from '../lib/api';
+import { formError, rules, showServerError, useZodForm } from '../lib/forms';
 import { useAuth } from '../lib/auth';
 import { isoFromCreatedAt, slashDate } from '../lib/dates';
 import { useToast } from '../lib/toast';
 
 const EDITABLE = ['name', 'email', 'phone', 'designation'];
 
-const pick = (user) => Object.fromEntries(EDITABLE.map((key) => [key, user[key] ?? '']));
+const pick = (user) => ({ ...Object.fromEntries(EDITABLE.map((key) => [key, user[key] ?? ''])), currentPassword: '' });
+
+// The current password is needed only when the email changes.
+const detailsRules = (currentEmail) =>
+  z
+    .object({
+      name: rules.name,
+      email: rules.email,
+      currentPassword: z.string().max(200),
+      phone: rules.phone,
+      designation: rules.text(80, 'The designation'),
+    })
+    .refine((values) => values.email.toLowerCase() === currentEmail.toLowerCase() || values.currentPassword.length > 0, {
+      path: ['currentPassword'],
+      message: 'Enter your current password to change your email.',
+    });
+
+const passwordRules = z
+  .object({ currentPassword: rules.password, newPassword: rules.newPassword, repeat: rules.password })
+  .refine((values) => values.newPassword === values.repeat, { path: ['repeat'], message: 'The two new passwords do not match.' });
 
 // The person's own details. Name, email, phone and designation are
 // theirs to change (a new email asks for the current password); the employee
@@ -21,13 +42,14 @@ function ProfileDetails() {
   const { user, setUser } = useAuth();
   const toast = useToast();
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState(() => pick(user));
-  const [error, setError] = useState('');
+  const form = useZodForm(() => detailsRules(user.email ?? ''), pick(user));
+  const { register, handleSubmit, formState, watch, reset } = form;
+  const { errors } = formState;
+  const email = watch('email') ?? '';
 
   const save = useMutation({
-    mutationFn: () => {
-      const { currentPassword, ...fields } = form;
-      const changingEmail = fields.email.trim().toLowerCase() !== (user.email ?? '').toLowerCase();
+    mutationFn: ({ currentPassword, ...fields }) => {
+      const changingEmail = fields.email.toLowerCase() !== (user.email ?? '').toLowerCase();
       return api.patch('/me/profile', changingEmail ? { ...fields, currentPassword } : { ...fields, email: user.email });
     },
     onSuccess: ({ user: saved }) => {
@@ -35,10 +57,9 @@ function ProfileDetails() {
       setEditing(false);
       toast.success('Details saved');
     },
-    onError: (issue) => setError(issue.message),
+    onError: (issue) =>
+      showServerError(form, /current password/i.test(issue.message) ? { field: 'currentPassword', message: issue.message } : issue, [...EDITABLE, 'currentPassword']),
   });
-
-  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
   const joined = user.createdAt ? slashDate(isoFromCreatedAt(user.createdAt)) : 'Not known';
   const designation = user.designation || (user.role === 'admin' ? 'Not set' : 'Analyst');
 
@@ -60,8 +81,7 @@ function ProfileDetails() {
             <Button
               variant="ghost"
               onClick={() => {
-                setForm(pick(user));
-                setError('');
+                reset(pick(user));
                 setEditing(true);
               }}
             >
@@ -74,57 +94,31 @@ function ProfileDetails() {
       </PanelTitle>
 
       {editing ? (
-        <form
-          className="space-y-4 p-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setError('');
-            save.mutate();
-          }}
-        >
-          <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} />
+        <form className="space-y-4 p-5" noValidate onSubmit={handleSubmit((fields) => save.mutate(fields))}>
+          <TextInput label="Full name" maxLength={80} error={errors.name?.message} {...register('name')} />
           <TextInput
             label="Email"
             type="email"
-            required
             maxLength={160}
-            value={form.email}
-            onChange={set('email')}
             hint="Your sign-in and the Gmail your leave mails go from."
+            error={errors.email?.message}
+            {...register('email')}
           />
-          {form.email.trim().toLowerCase() !== (user.email ?? '').toLowerCase() && (
+          {email.trim().toLowerCase() !== (user.email ?? '').toLowerCase() && (
             <PasswordInput
               label="Current password"
               autoComplete="current-password"
-              required
-              value={form.currentPassword ?? ''}
-              onChange={set('currentPassword')}
               hint="Needed to change your email. Add your Gmail App Password again afterwards."
+              error={errors.currentPassword?.message}
+              {...register('currentPassword')}
             />
           )}
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextInput
-              label="Phone"
-              type="tel"
-              maxLength={20}
-              placeholder="+91 98765 43210"
-              value={form.phone}
-              onChange={set('phone')}
-            />
-            <TextInput
-              label="Designation"
-              maxLength={80}
-              placeholder="Analyst"
-              value={form.designation}
-              onChange={set('designation')}
-            />
+            <TextInput label="Phone" type="tel" maxLength={20} placeholder="+91 98765 43210" error={errors.phone?.message} {...register('phone')} />
+            <TextInput label="Designation" maxLength={80} placeholder="Analyst" error={errors.designation?.message} {...register('designation')} />
           </div>
           <p className="text-[13px] text-muted">Your employee ID and department are set by your manager.</p>
-          {error && (
-            <p role="alert" className="text-sm text-rejected">
-              {error}
-            </p>
-          )}
+          <FormError>{formError(form)}</FormError>
           <div className="flex gap-2">
             <Button type="submit" loading={save.isPending}>
               Save details
@@ -153,18 +147,21 @@ function ProfileDetails() {
 
 export default function Profile() {
   const toast = useToast();
-  const [form, setForm] = useState({ currentPassword: '', newPassword: '' });
-  const [repeat, setRepeat] = useState('');
-  const [error, setError] = useState('');
+  const passwordForm = useZodForm(passwordRules, { currentPassword: '', newPassword: '', repeat: '' });
+  const passwordErrors = passwordForm.formState.errors;
 
   const change = useMutation({
-    mutationFn: () => api.post('/auth/change-password', form),
+    mutationFn: ({ currentPassword, newPassword }) => api.post('/auth/change-password', { currentPassword, newPassword }),
     onSuccess: (data) => {
       toast.success('Password changed', data.message);
-      setForm({ currentPassword: '', newPassword: '' });
-      setRepeat('');
+      passwordForm.reset();
     },
-    onError: (issue) => setError(issue.message),
+    onError: (issue) =>
+      showServerError(
+        passwordForm,
+        /current password/i.test(issue.message) ? { field: 'currentPassword', message: issue.message } : issue,
+        ['currentPassword', 'newPassword'],
+      ),
   });
 
   return (
@@ -188,46 +185,27 @@ export default function Profile() {
         <div className="space-y-4">
           <Panel className="p-5">
             <h2 className="mb-4 text-base font-semibold">Change password</h2>
-            <form
-              className="space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                setError('');
-                if (form.newPassword !== repeat) {
-                  setError('The two new passwords do not match.');
-                  return;
-                }
-                change.mutate();
-              }}
-            >
+            <form className="space-y-4" noValidate onSubmit={passwordForm.handleSubmit((fields) => change.mutate(fields))}>
               <PasswordInput
                 label="Current password"
                 autoComplete="current-password"
-                required
-                value={form.currentPassword}
-                onChange={(event) => setForm({ ...form, currentPassword: event.target.value })}
+                error={passwordErrors.currentPassword?.message}
+                {...passwordForm.register('currentPassword')}
               />
               <PasswordInput
                 label="New password"
                 autoComplete="new-password"
-                required
-                minLength={10}
                 hint="At least 10 characters, with a letter and a number."
-                value={form.newPassword}
-                onChange={(event) => setForm({ ...form, newPassword: event.target.value })}
+                error={passwordErrors.newPassword?.message}
+                {...passwordForm.register('newPassword')}
               />
               <PasswordInput
                 label="Repeat new password"
                 autoComplete="new-password"
-                required
-                value={repeat}
-                onChange={(event) => setRepeat(event.target.value)}
+                error={passwordErrors.repeat?.message}
+                {...passwordForm.register('repeat')}
               />
-              {error && (
-                <p role="alert" className="text-sm text-rejected">
-                  {error}
-                </p>
-              )}
+              <FormError>{formError(passwordForm)}</FormError>
               <Button type="submit" loading={change.isPending}>
                 Save password
               </Button>

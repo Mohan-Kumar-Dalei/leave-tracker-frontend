@@ -1,13 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
+import { Controller } from 'react-hook-form';
 import { Link, useSearchParams } from 'react-router-dom';
+import { z } from 'zod';
 import { Avatar } from '../../components/ProfilePhoto';
 import {
   Button,
   ConfirmDialog,
   Dialog,
   Empty,
+  FormError,
   LoadError,
   PageHeading,
   Panel,
@@ -22,6 +25,7 @@ import { AddEmployeeDialog } from '../../components/AddEmployeeDialog';
 import { SegmentedTabs } from '../../components/Tabs';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
+import { formError, rules, showServerError, useZodForm } from '../../lib/forms';
 import { useAppPath } from '../../hooks/useAppPath';
 
 // The organisation, run by the managers (HR is turned off for now), kept simple like
@@ -97,25 +101,40 @@ const STEPS = ['Department', 'Manager', 'Assistant Manager', 'Invitation'];
 // My department. The manager is only a name on the department.
 // A manager adding a department runs it themselves, so their own name is the
 // manager and nobody else is invited for that step.
+const optionalEmail = z.string().trim().max(160).refine((value) => !value || z.string().email().safeParse(value).success, 'Enter a valid email address, like name@company.com.');
+const wizardRules = (owner) =>
+  z.object({
+    name: z.string().trim().min(2, 'Write the department name.').max(60, 'Keep it under 60 characters.'),
+    location: rules.text(60, 'The location'),
+    managerName: owner ? rules.name : z.string(),
+    managerEmail: owner ? optionalEmail : z.string(),
+    assistantName: rules.name,
+    assistantEmail: rules.email,
+  });
+// The boxes on each step, checked before moving on.
+const WIZARD_FIELDS = [['name', 'location'], ['managerName', 'managerEmail'], ['assistantName'], ['assistantEmail']];
+
 function AddDepartmentWizard({ company, you, onClose }) {
   const owner = you?.owner !== false;
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState({
+  const form = useZodForm(wizardRules(owner), {
     name: '',
     location: '',
     managerName: owner ? '' : you.name,
+    managerEmail: '',
     assistantName: '',
     assistantEmail: '',
   });
-  const [error, setError] = useState('');
+  const { register, trigger, handleSubmit, formState, watch } = form;
+  const { errors } = formState;
+  const values = watch();
   const [result, setResult] = useState(null);
   const [copied, setCopied] = useState('');
   const queryClient = useQueryClient();
-  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
 
   const create = useMutation({
-    mutationFn: () => {
-      const body = Object.fromEntries(Object.entries(form).filter(([, value]) => value.trim() !== ''));
+    mutationFn: (fields) => {
+      const body = Object.fromEntries(Object.entries(fields).filter(([, value]) => value.trim() !== ''));
       if (!owner) {
         delete body.managerName;
         delete body.managerEmail;
@@ -126,7 +145,17 @@ function AddDepartmentWizard({ company, you, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['organisation'] });
       setResult(data);
     },
-    onError: (issue) => setError(issue.message),
+    onError: (issue) => {
+      // Back to the step with the box the problem is about.
+      const field = issue.field ?? (/assistant/i.test(issue.message) && /email/i.test(issue.message) ? 'assistantEmail' : /email|account/i.test(issue.message) ? 'assistantEmail' : /department/i.test(issue.message) ? 'name' : null);
+      const at = WIZARD_FIELDS.findIndex((names) => names.includes(field));
+      if (at >= 0) {
+        setStep(at);
+        setTimeout(() => form.setError(field, { type: 'server', message: issue.message }, { shouldFocus: true }));
+      } else {
+        showServerError(form, issue);
+      }
+    },
   });
 
   const copy = async (link) => {
@@ -176,11 +205,11 @@ function AddDepartmentWizard({ company, you, onClose }) {
   }
 
   const last = step === STEPS.length - 1;
-  const next = (event) => {
+  const next = async (event) => {
     event.preventDefault();
-    setError('');
-    if (last) create.mutate();
-    else setStep(step + 1);
+    if (last) return handleSubmit((fields) => create.mutate(fields))(event);
+    if (await trigger(WIZARD_FIELDS[step], { shouldFocus: true })) setStep(step + 1);
+    return undefined;
   };
 
   return (
@@ -223,21 +252,19 @@ function AddDepartmentWizard({ company, you, onClose }) {
         Step {step + 1} of {STEPS.length}: {STEPS[step]}
       </p>
 
-      <form id="department-wizard" className="space-y-4" onSubmit={next}>
+      <form id="department-wizard" className="space-y-4" noValidate onSubmit={next}>
         {step === 0 && (
           <>
             <TextInput
               key="name"
               label="Department name"
-              required
-              minLength={2}
               maxLength={60}
               placeholder="For example, 3PP"
-              value={form.name}
-              onChange={set('name')}
+              error={errors.name?.message}
+              {...register('name')}
               data-autofocus
             />
-            <TextInput label="Location" maxLength={60} placeholder={company.location} value={form.location} onChange={set('location')} />
+            <TextInput label="Location" maxLength={60} placeholder={company.location} error={errors.location?.message} {...register('location')} />
           </>
         )}
         {step === 1 && !owner && (
@@ -249,19 +276,17 @@ function AddDepartmentWizard({ company, you, onClose }) {
               key="manager"
               label="Manager's full name"
               hint="The manager approves the assistant manager's leave."
-              required
-              minLength={2}
               maxLength={80}
-              value={form.managerName}
-              onChange={set('managerName')}
+              error={errors.managerName?.message}
+              {...register('managerName')}
             />
             <TextInput
               label="Manager's email"
               hint="Optional. With an email they get an invitation and their own admin panel; you can also invite them later."
               type="email"
               maxLength={160}
-              value={form.managerEmail ?? ''}
-              onChange={set('managerEmail')}
+              error={errors.managerEmail?.message}
+              {...register('managerEmail')}
             />
           </>
         )}
@@ -270,11 +295,9 @@ function AddDepartmentWizard({ company, you, onClose }) {
             key="assistant"
             label="Assistant manager's full name"
             hint="They register first, run the department and bring in the team."
-            required
-            minLength={2}
             maxLength={80}
-            value={form.assistantName}
-            onChange={set('assistantName')}
+            error={errors.assistantName?.message}
+            {...register('assistantName')}
           />
         )}
         {step === 3 && (
@@ -282,18 +305,17 @@ function AddDepartmentWizard({ company, you, onClose }) {
             <TextInput
               key="email"
               label="Assistant manager's email"
-              hint={`The invitation for ${form.assistantName || 'the assistant manager'} goes here.`}
+              hint={`The invitation for ${values.assistantName || 'the assistant manager'} goes here.`}
               type="email"
-              required
               maxLength={160}
-              value={form.assistantEmail}
-              onChange={set('assistantEmail')}
+              error={errors.assistantEmail?.message}
+              {...register('assistantEmail')}
             />
             <dl className="space-y-1.5 rounded-lg bg-sunken p-3 text-[13px]">
               {[
-                ['Department', `${form.name}${form.location ? `, ${form.location}` : ''}`],
-                ['Manager', form.managerName],
-                ['Assistant manager', form.assistantName],
+                ['Department', `${values.name}${values.location ? `, ${values.location}` : ''}`],
+                ['Manager', values.managerName],
+                ['Assistant manager', values.assistantName],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between gap-3">
                   <dt className="text-muted">{label}</dt>
@@ -303,7 +325,7 @@ function AddDepartmentWizard({ company, you, onClose }) {
             </dl>
           </>
         )}
-        {error && <p className="text-sm text-rejected">{error}</p>}
+        <FormError>{formError(form)}</FormError>
       </form>
     </Dialog>
   );
@@ -374,15 +396,23 @@ const managerChoices = (people) =>
         Number(/manager/i.test(a.designation) && !/assistant/i.test(a.designation)) || a.name.localeCompare(b.name),
   );
 
+const departmentRules = z.object({
+  name: z.string().trim().min(2, 'Write the department name.').max(60, 'Keep it under 60 characters.'),
+  location: rules.text(60, 'The location'),
+  lead: z.string(),
+  manager: z.string(),
+});
+
 function DepartmentForm({ department, people, company, onClose }) {
   const editing = Boolean(department.id);
-  const [form, setForm] = useState({
+  const form = useZodForm(departmentRules, {
     name: department.name ?? '',
     location: department.location ?? '',
     lead: department.lead?.id ?? '',
     manager: department.manager?.id ?? '',
   });
-  const [error, setError] = useState('');
+  const { register, control, handleSubmit, formState } = form;
+  const { errors } = formState;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -394,26 +424,26 @@ function DepartmentForm({ department, people, company, onClose }) {
     onClose();
   };
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: (fields) => {
       const body = {
-        name: form.name,
-        location: form.location || company.location,
-        lead: form.lead || null,
+        name: fields.name,
+        location: fields.location || company.location,
+        lead: fields.lead || null,
         // The manager is one of the people, like Rajesh Sir for Content
         // Integration; sent only when it changes.
-        ...((department.manager?.id ?? '') !== form.manager ? { manager: form.manager || null } : {}),
+        ...((department.manager?.id ?? '') !== fields.manager ? { manager: fields.manager || null } : {}),
       };
       return editing ? api.patch(`/org/departments/${department.id}`, body) : api.post('/org/departments', body);
     },
     onSuccess: () => done(editing ? 'Department saved' : 'Department added'),
-    onError: (issue) => setError(issue.message),
+    onError: (issue) => showServerError(form, issue, ['name', 'location', 'lead', 'manager']),
   });
   const remove = useMutation({
     mutationFn: () => api.delete(`/org/departments/${department.id}`),
     onSuccess: () => done('Department removed'),
     onError: (issue) => {
       setConfirmDelete(false);
-      setError(issue.message);
+      showServerError(form, issue);
     },
   });
 
@@ -445,66 +475,59 @@ function DepartmentForm({ department, people, company, onClose }) {
         </>
       }
     >
-      <form
-        id="department-form"
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError('');
-          save.mutate();
-        }}
-      >
+      <form id="department-form" className="space-y-4" noValidate onSubmit={handleSubmit((fields) => save.mutate(fields))}>
         <TextInput
           label="Department name"
-          required
-          minLength={2}
           maxLength={60}
           placeholder="For example, Sales"
-          value={form.name}
-          onChange={(event) => setForm({ ...form, name: event.target.value })}
+          error={errors.name?.message}
+          {...register('name')}
           data-autofocus
         />
-        <SelectField
-          label="Manager"
-          hint="Shown above the assistant manager in the tree, and approves their leave."
-          value={form.manager}
-          onChange={(event) => setForm({ ...form, manager: event.target.value })}
-        >
-          <option value="">{department.managerName ? `No account yet (${department.managerName})` : 'No manager'}</option>
-          {managerChoices(people).map((person) => (
-            <option key={person.id} value={person.id}>
-              {`${person.name} · ${person.designation}${person.employeeId ? ` (${person.employeeId})` : ''}`}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField
-          label="Assistant manager"
-          value={form.lead}
-          onChange={(event) => setForm({ ...form, lead: event.target.value })}
-        >
-          <option value="">{department.invited?.assistant ? `Invited: ${department.invited.assistant.name}` : 'No assistant manager'}</option>
-          {leadChoices(people).map((person) => (
-            <option key={person.id} value={person.id}>
-              {`${person.name} · ${person.designation}${person.employeeId ? ` (${person.employeeId})` : ''}`}
-            </option>
-          ))}
-        </SelectField>
+        <Controller
+          control={control}
+          name="manager"
+          render={({ field, fieldState }) => (
+            <SelectField
+              label="Manager"
+              hint="Shown above the assistant manager in the tree, and approves their leave."
+              value={field.value}
+              onChange={(event) => field.onChange(event.target.value)}
+              error={fieldState.error?.message}
+            >
+              <option value="">{department.managerName ? `No account yet (${department.managerName})` : 'No manager'}</option>
+              {managerChoices(people).map((person) => (
+                <option key={person.id} value={person.id}>
+                  {`${person.name} · ${person.designation}${person.employeeId ? ` (${person.employeeId})` : ''}`}
+                </option>
+              ))}
+            </SelectField>
+          )}
+        />
+        <Controller
+          control={control}
+          name="lead"
+          render={({ field, fieldState }) => (
+            <SelectField label="Assistant manager" value={field.value} onChange={(event) => field.onChange(event.target.value)} error={fieldState.error?.message}>
+              <option value="">{department.invited?.assistant ? `Invited: ${department.invited.assistant.name}` : 'No assistant manager'}</option>
+              {leadChoices(people).map((person) => (
+                <option key={person.id} value={person.id}>
+                  {`${person.name} · ${person.designation}${person.employeeId ? ` (${person.employeeId})` : ''}`}
+                </option>
+              ))}
+            </SelectField>
+          )}
+        />
         <p className="-mt-2 text-[13px] text-muted">
           Managers are at the top. The assistant manager runs the department and approves the team.
         </p>
-        <TextInput
-          label="Location"
-          maxLength={60}
-          placeholder={company.location}
-          value={form.location}
-          onChange={(event) => setForm({ ...form, location: event.target.value })}
-        />
+        <TextInput label="Location" maxLength={60} placeholder={company.location} error={errors.location?.message} {...register('location')} />
         {editing && department.people > 0 && (
           <p className="text-[13px] text-muted">
             A department can be deleted once it has no employees. Move them from the Employees tab.
           </p>
         )}
-        {error && <p className="text-sm text-rejected">{error}</p>}
+        <FormError>{formError(form)}</FormError>
       </form>
 
       <ConfirmDialog

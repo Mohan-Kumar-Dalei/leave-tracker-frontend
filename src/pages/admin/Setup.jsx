@@ -2,8 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Tabs } from '../../components/Tabs';
-import { Button, ConfirmDialog, Dialog, Empty, IconButton, LoadError, PageHeading, Panel, Reveal, RowsSkeleton, TextInput } from '../../components/ui';
+import { z } from 'zod';
+import { Button, ConfirmDialog, Dialog, Empty, FormError, IconButton, LoadError, PageHeading, Panel, Reveal, RowsSkeleton, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
+import { formError, rules, showServerError, useZodForm } from '../../lib/forms';
 import { slashDate, weekday } from '../../lib/dates';
 import { useToast } from '../../lib/toast';
 import { useAuth } from '../../lib/auth';
@@ -11,20 +13,48 @@ import { positionOf } from '../../lib/home';
 
 const DATE_NOTE = 'Subject to change depending on the actual holiday date (as per past experience)';
 
+const typeRules = z.object({
+  name: z.string().trim().min(2, 'Write the name.').max(60, 'Keep the name under 60 characters.'),
+  annualQuota: z
+    .string()
+    .trim()
+    .min(1, 'Enter the days per year.')
+    .refine((value) => !Number.isNaN(Number(value)), 'Enter a number.')
+    .refine((value) => Number(value) >= 0 && Number(value) <= 365, 'Use a number from 0 to 365.')
+    .refine((value) => Number.isInteger(Number(value) * 2), 'Use whole or half days.'),
+  description: rules.text(240, 'The description'),
+});
+
+const holidayRules = z.object({
+  name: z.string().trim().min(2, 'Write the holiday name.').max(80, 'Keep the name under 80 characters.'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick the date.'),
+  note: rules.text(200, 'The note'),
+  restricted: z.boolean(),
+});
+
 function LeaveTypeDialog({ item, onClose }) {
-  const [form, setForm] = useState({ annualQuota: item?.annualQuota ?? 0, name: item?.name ?? '', description: item?.description ?? '' });
-  const [error, setError] = useState('');
+  const form = useZodForm(typeRules, {
+    annualQuota: String(item?.annualQuota ?? 0),
+    name: item?.name ?? '',
+    description: item?.description ?? '',
+  });
+  const { errors } = form.formState;
   const queryClient = useQueryClient();
   const toast = useToast();
 
   const save = useMutation({
-    mutationFn: () => api.patch(`/leave-types/${item.id}`, { ...form, annualQuota: Number(form.annualQuota) }),
+    mutationFn: (fields) =>
+      api.patch(`/leave-types/${item.id}`, {
+        name: fields.name,
+        description: fields.description,
+        ...(item?.tracksBalance ? { annualQuota: Number(fields.annualQuota) } : {}),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries();
       toast.success('Leave type saved');
       onClose();
     },
-    onError: (issue) => setError(issue.message),
+    onError: (issue) => showServerError(form, issue, ['name', 'annualQuota', 'description']),
   });
 
   return (
@@ -44,35 +74,20 @@ function LeaveTypeDialog({ item, onClose }) {
         </>
       }
     >
-      <form
-        id="type-form"
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError('');
-          save.mutate();
-        }}
-      >
-        <TextInput label="Name" required maxLength={60} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+      <form id="type-form" className="space-y-4" noValidate onSubmit={form.handleSubmit((fields) => save.mutate(fields))}>
+        <TextInput label="Name" maxLength={60} error={errors.name?.message} {...form.register('name')} />
         {item?.tracksBalance && (
           <TextInput
             label="Days per year"
             type="number"
-            min="0"
-            max="365"
             step="0.5"
-            required
-            value={form.annualQuota}
             hint="Applies to everyone. Use a balance adjustment for one person."
-            onChange={(event) => setForm({ ...form, annualQuota: event.target.value })}
+            error={errors.annualQuota?.message}
+            {...form.register('annualQuota')}
           />
         )}
-        <TextInput label="Description" maxLength={240} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
-        {error && (
-          <p role="alert" className="text-sm text-rejected">
-            {error}
-          </p>
-        )}
+        <TextInput label="Description" maxLength={240} error={errors.description?.message} {...form.register('description')} />
+        <FormError>{formError(form)}</FormError>
       </form>
     </Dialog>
   );
@@ -112,24 +127,24 @@ function LeaveTypes({ canEdit }) {
 }
 
 function HolidayDialog({ open, item, year, onClose }) {
-  const [form, setForm] = useState({
+  const form = useZodForm(holidayRules, {
     name: item?.name ?? '',
     date: item?.date ?? `${year}-01-01`,
     restricted: item?.restricted ?? false,
     note: item?.note ?? DATE_NOTE,
   });
-  const [error, setError] = useState('');
+  const { errors } = form.formState;
   const queryClient = useQueryClient();
   const toast = useToast();
 
   const save = useMutation({
-    mutationFn: () => (item ? api.patch(`/holidays/${item.id}`, form) : api.post('/holidays', form)),
+    mutationFn: (fields) => (item ? api.patch(`/holidays/${item.id}`, fields) : api.post('/holidays', fields)),
     onSuccess: () => {
       queryClient.invalidateQueries();
       toast.success('Holiday saved');
       onClose();
     },
-    onError: (issue) => setError(issue.message),
+    onError: (issue) => showServerError(form, issue, ['name', 'date', 'note']),
   });
 
   return (
@@ -149,32 +164,15 @@ function HolidayDialog({ open, item, year, onClose }) {
         </>
       }
     >
-      <form
-        id="holiday-form"
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError('');
-          save.mutate();
-        }}
-      >
-        <TextInput label="Name" required maxLength={80} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-        <TextInput label="Date" type="date" required value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} />
-        <TextInput label="Note" maxLength={200} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
+      <form id="holiday-form" className="space-y-4" noValidate onSubmit={form.handleSubmit((fields) => save.mutate(fields))}>
+        <TextInput label="Name" maxLength={80} error={errors.name?.message} {...form.register('name')} />
+        <TextInput label="Date" type="date" error={errors.date?.message} {...form.register('date')} />
+        <TextInput label="Note" maxLength={200} error={errors.note?.message} {...form.register('note')} />
         <label className="flex min-h-11 items-center gap-3 text-sm">
-          <input
-            type="checkbox"
-            checked={form.restricted}
-            onChange={(event) => setForm({ ...form, restricted: event.target.checked })}
-            className="h-5 w-5 accent-accent"
-          />
+          <input type="checkbox" {...form.register('restricted')} className="h-5 w-5 accent-accent" />
           Restricted holiday, employees choose to avail it
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-rejected">
-            {error}
-          </p>
-        )}
+        <FormError>{formError(form)}</FormError>
       </form>
     </Dialog>
   );

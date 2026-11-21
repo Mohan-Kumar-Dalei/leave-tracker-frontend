@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Pencil, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Controller } from 'react-hook-form';
+import { z } from 'zod';
 import { Link, useParams } from 'react-router-dom';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useTeam } from '../../components/TeamPeople';
@@ -9,6 +11,7 @@ import {
   Button,
   ConfirmDialog,
   Dialog,
+  FormError,
   IconButton,
   LoadError,
   Panel,
@@ -22,6 +25,7 @@ import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { dayRange, dayWord, slashDate, isoFromCreatedAt } from '../../lib/dates';
 import { useToast } from '../../lib/toast';
+import { formError, rules, showServerError, useZodForm } from '../../lib/forms';
 import { useAppPath } from '../../hooks/useAppPath';
 
 const SESSIONS = [
@@ -37,27 +41,68 @@ const localToday = () => new Intl.DateTimeFormat('en-CA').format(new Date());
 // leave on those dates and comes off what is available. Restricted Holidays
 // are recorded too: one day picked from the restricted holiday list. Older
 // day changes, made before this, can still be edited.
+// The rules: a leave needs its type and dates (or, for a restricted holiday,
+// one from the list); an older change needs whole or half days and a reason.
+const adjustRules = (mode, restricted) =>
+  mode === 'leave'
+    ? z
+        .object({
+          leaveTypeId: rules.required('Pick a leave type.'),
+          from: z.string().min(1, restricted ? 'Pick a restricted holiday.' : 'Pick the first day.'),
+          to: z.string().min(1, 'Pick the last day.'),
+          session: z.string(),
+          note: rules.text(300, 'The note'),
+          days: z.any(),
+          reason: z.any(),
+        })
+        .refine((values) => !values.from || !values.to || values.to >= values.from, {
+          path: ['to'],
+          message: 'The last day cannot be before the first.',
+        })
+    : z.object({
+        days: z
+          .string()
+          .trim()
+          .min(1, 'Enter the days.')
+          .refine((value) => !Number.isNaN(Number(value)), 'Enter a number, like 1 or -0.5.')
+          .refine((value) => Number(value) !== 0, 'Use a number other than 0.')
+          .refine((value) => Math.abs(Number(value)) <= 365, 'Use at most 365 days.')
+          .refine((value) => Number.isInteger(Number(value) * 2), 'Use whole or half days.'),
+        reason: z.string().trim().min(3, 'Add a short reason.').max(240, 'Keep the reason under 240 characters.'),
+        leaveTypeId: z.any(),
+        from: z.any(),
+        to: z.any(),
+        session: z.any(),
+        note: z.any(),
+      });
+
 function AdjustBalance({ item, onClose, employeeId, balances }) {
   const leaveOptions = balances;
   const mode = item ? 'days' : 'leave';
-  const [form, setForm] = useState({
-    days: item?.days ?? '',
-    reason: item?.reason ?? '',
-  });
-  const [taken, setTaken] = useState({
-    leaveTypeId: '',
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  // The form, checked with react-hook-form; the rules depend on the kind of
+  // leave picked, so they are worked out each time it is checked.
+  const restrictedRef = useRef(false);
+  const form = useZodForm(() => adjustRules(mode, restrictedRef.current), {
+    leaveTypeId: leaveOptions[0]?.leaveType.id ?? '',
     from: localToday(),
     to: localToday(),
     session: 'full',
     note: '',
+    days: item ? String(item.days) : '',
+    reason: item?.reason ?? '',
   });
-  const [error, setError] = useState('');
-  const queryClient = useQueryClient();
-  const toast = useToast();
+  const { register, handleSubmit, setValue, watch, formState } = form;
+  const { errors } = formState;
+  const taken = watch();
+  const pick = (name, value) => setValue(name, value, { shouldValidate: formState.isSubmitted, shouldDirty: true });
 
   const takenTypeId = taken.leaveTypeId || leaveOptions[0]?.leaveType.id;
   const takenBalance = leaveOptions.find((balance) => balance.leaveType.id === takenTypeId);
   const restricted = Boolean(takenBalance?.leaveType.restrictedHolidayOnly);
+  restrictedRef.current = restricted;
   const year = (taken.from || localToday()).slice(0, 4);
   const { data: holidayData } = useQuery({
     queryKey: ['holidays', year],
@@ -74,7 +119,7 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
   const [preview, setPreview] = useState(null);
   useEffect(() => {
     setPreview(null);
-    if (mode !== 'leave' || !takenTypeId || !taken.from || !taken.to) return undefined;
+    if (mode !== 'leave' || !takenTypeId || !taken.from || !taken.to || taken.to < taken.from) return undefined;
     let active = true;
     const timer = setTimeout(() => {
       api
@@ -94,19 +139,19 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
   }, [mode, employeeId, takenTypeId, taken.from, taken.to, session]);
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: (values) => {
       if (mode === 'leave') {
         return api.post(`/admin/employees/${employeeId}/leaves`, {
           leaveTypeId: takenTypeId,
-          from: taken.from,
-          to: taken.to,
+          from: values.from,
+          to: values.to,
           session,
-          note: taken.note.trim() || undefined,
+          note: values.note.trim() || undefined,
         });
       }
       return api.patch(`/admin/employees/${employeeId}/adjustments/${item.id}`, {
-        days: Number(form.days),
-        reason: form.reason.trim(),
+        days: Number(values.days),
+        reason: values.reason.trim(),
       });
     },
     onSuccess: () => {
@@ -116,8 +161,9 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
       else toast.success('Balance updated', 'The employee has been notified.');
       onClose();
     },
-    onError: (issue) => setError(issue.message),
+    onError: (issue) => showServerError(form, issue, ['from', 'to', 'note', 'days', 'reason']),
   });
+  const error = formError(form);
 
   return (
     <Dialog
@@ -134,22 +180,14 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
             type="submit"
             form="adjust-form"
             loading={save.isPending}
-            disabled={mode === 'leave' && !preview?.days}
+            disabled={mode === 'leave' && Boolean(preview) && !preview.days}
           >
             {mode === 'leave' ? 'Record leave' : 'Save change'}
           </Button>
         </>
       }
     >
-      <form
-        id="adjust-form"
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError('');
-          save.mutate();
-        }}
-      >
+      <form id="adjust-form" className="space-y-4" noValidate onSubmit={handleSubmit((values) => save.mutate(values))}>
         {mode === 'leave' && (
           <>
             <p className="text-[13px] text-muted">
@@ -158,15 +196,20 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
             <SelectField
               label="Leave type"
               value={takenTypeId}
+              error={errors.leaveTypeId?.message}
               hint={takenBalance?.available != null ? `${takenBalance.available} available now` : undefined}
               onChange={(event) => {
                 const next = leaveOptions.find((balance) => balance.leaveType.id === event.target.value);
+                pick('leaveTypeId', event.target.value);
                 // A restricted holiday starts unpicked and is always one full day.
-                setTaken(
-                  next?.leaveType.restrictedHolidayOnly
-                    ? { ...taken, leaveTypeId: event.target.value, from: '', to: '', session: 'full' }
-                    : { ...taken, leaveTypeId: event.target.value, from: taken.from || localToday(), to: taken.to || localToday() },
-                );
+                if (next?.leaveType.restrictedHolidayOnly) {
+                  pick('from', '');
+                  pick('to', '');
+                  pick('session', 'full');
+                } else {
+                  pick('from', taken.from || localToday());
+                  pick('to', taken.to || localToday());
+                }
               }}
             >
               {leaveOptions.map((balance) => (
@@ -179,8 +222,13 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
               <SelectField
                 label="Restricted holiday"
                 value={taken.from}
+                error={errors.from?.message}
                 hint="A restricted holiday is taken as one full day."
-                onChange={(event) => setTaken({ ...taken, from: event.target.value, to: event.target.value, session: 'full' })}
+                onChange={(event) => {
+                  pick('from', event.target.value);
+                  pick('to', event.target.value);
+                  pick('session', 'full');
+                }}
               >
                 <option value="">Pick a holiday</option>
                 {restrictedHolidays.map((holiday) => (
@@ -190,70 +238,63 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
                 ))}
               </SelectField>
             ) : (
-            <>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextInput
-                label="From"
-                type="date"
-                required
-                value={taken.from}
-                onChange={(event) => {
-                  const from = event.target.value;
-                  setTaken({
-                    ...taken,
-                    from,
-                    to: taken.to < from ? from : taken.to,
-                  });
-                }}
-              />
-              <TextInput
-                label="To"
-                type="date"
-                required
-                min={taken.from}
-                value={taken.to}
-                onChange={(event) => setTaken({ ...taken, to: event.target.value })}
-              />
-            </div>
-            {/* Always shown, so the form keeps its height. Half days are for
-                one date only, so they are off for a range. */}
-            <fieldset>
-              <legend className="mb-1.5 text-[13px] font-medium">Duration</legend>
-              <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-line bg-line">
-                {SESSIONS.map(([value, label]) => {
-                  const off = !singleDay && value !== 'full';
-                  return (
-                    <label
-                      key={value}
-                      title={off ? 'Half days are for one date only' : undefined}
-                      className={`grid min-h-10 place-items-center px-2 text-sm transition-colors has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-accent ${
-                        off
-                          ? 'cursor-not-allowed bg-surface text-muted/50'
-                          : session === value
-                            ? 'cursor-pointer bg-accent-soft font-medium text-accent'
-                            : 'cursor-pointer bg-surface text-ink hover:bg-bg'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="taken-session"
-                        value={value}
-                        disabled={off}
-                        checked={session === value}
-                        onChange={() => setTaken({ ...taken, session: value })}
-                        className="sr-only"
-                      />
-                      {label}
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
-            </>
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <TextInput
+                    label="From"
+                    type="date"
+                    error={errors.from?.message}
+                    {...register('from', {
+                      onChange: (event) => {
+                        const from = event.target.value;
+                        if (from && taken.to && taken.to < from) pick('to', from);
+                      },
+                    })}
+                  />
+                  <TextInput label="To" type="date" min={taken.from || undefined} error={errors.to?.message} {...register('to')} />
+                </div>
+                {/* Always shown, so the form keeps its height. Half days are for
+                    one date only, so they are off for a range. */}
+                <fieldset>
+                  <legend className="mb-1.5 text-[13px] font-medium">Duration</legend>
+                  <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-line bg-line">
+                    {SESSIONS.map(([value, label]) => {
+                      const off = !singleDay && value !== 'full';
+                      return (
+                        <label
+                          key={value}
+                          title={off ? 'Half days are for one date only' : undefined}
+                          className={`grid min-h-10 place-items-center px-2 text-sm transition-colors has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-accent ${
+                            off
+                              ? 'cursor-not-allowed bg-surface text-muted/50'
+                              : session === value
+                                ? 'cursor-pointer bg-accent-soft font-medium text-accent'
+                                : 'cursor-pointer bg-surface text-ink hover:bg-bg'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="taken-session"
+                            value={value}
+                            disabled={off}
+                            checked={session === value}
+                            onChange={() => pick('session', value)}
+                            className="sr-only"
+                          />
+                          {label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              </>
             )}
             {/* One fixed line for the count, problems and save errors, so the
                 form does not grow as it is filled in. */}
-            <div aria-live="polite" className="flex min-h-11 items-center rounded-lg bg-bg px-3 py-2 text-sm">
+            <div
+              aria-live="polite"
+              className={`flex min-h-11 items-center rounded-lg px-3 py-2 text-sm ${error || preview?.error ? 'bg-rejected-soft' : 'bg-bg'}`}
+            >
               {error && (
                 <p role="alert" className="line-clamp-2 text-rejected">
                   {error}
@@ -273,13 +314,10 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
             <TextInput
               label="Note"
               maxLength={300}
-              value={taken.note}
               placeholder="Forgot to apply"
               hint="Optional. The employee can see this."
-              onChange={(event) => {
-                setTaken({ ...taken, note: event.target.value });
-                setError('');
-              }}
+              error={errors.note?.message}
+              {...register('note')}
             />
           </>
         )}
@@ -294,25 +332,13 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
               label="Days"
               type="number"
               step="0.5"
-              required
-              value={form.days}
               hint="Use a minus to take days away, for example -1."
-              onChange={(event) => setForm({ ...form, days: event.target.value })}
+              error={errors.days?.message}
+              {...register('days')}
             />
-            <TextInput
-              label="Reason"
-              required
-              maxLength={240}
-              value={form.reason}
-              hint="The employee can see this."
-              onChange={(event) => setForm({ ...form, reason: event.target.value })}
-            />
+            <TextInput label="Reason" maxLength={240} hint="The employee can see this." error={errors.reason?.message} {...register('reason')} />
+            <FormError>{error}</FormError>
           </>
-        )}
-        {mode === 'days' && error && (
-          <p role="alert" className="text-sm text-rejected">
-            {error}
-          </p>
         )}
       </form>
     </Dialog>
@@ -321,26 +347,34 @@ function AdjustBalance({ item, onClose, employeeId, balances }) {
 
 // Department, designation and phone. Designation and phone go into the
 // signature of the leave mails this person sends.
+const detailsRules = z.object({
+  email: rules.email,
+  department: rules.text(60, 'The department'),
+  designation: rules.text(80, 'The designation'),
+  phone: rules.phone,
+  reportsTo: z.string(),
+  workFromHome: z.boolean(),
+});
+
 function EditDetails({ user, onClose }) {
-  const [form, setForm] = useState({
+  const form = useZodForm(detailsRules, {
     email: user.email ?? '',
     department: user.department ?? '',
     designation: user.designation ?? '',
     phone: user.phone ?? '',
-    reportsTo: user.reportsTo ?? null,
+    reportsTo: user.reportsTo ?? '',
     workFromHome: Boolean(user.workFromHome),
   });
+  const { register, handleSubmit, control, formState } = form;
+  const { errors } = formState;
   // Everyone they could report to: active, visible people other than them.
   const { data: team } = useTeam();
   const managers = (team?.members ?? []).filter((member) => member.id !== user.id);
-  const [error, setError] = useState('');
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
-
   const save = useMutation({
-    mutationFn: () => api.patch(`/admin/employees/${user.id}`, form),
+    mutationFn: (fields) => api.patch(`/admin/employees/${user.id}`, { ...fields, reportsTo: fields.reportsTo || null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee', user.id] });
       queryClient.invalidateQueries({ queryKey: ['employees'] });
@@ -348,7 +382,7 @@ function EditDetails({ user, onClose }) {
       toast.success('Details saved');
       onClose();
     },
-    onError: (issue) => setError(issue.message),
+    onError: (issue) => showServerError(form, issue, ['email', 'department', 'designation', 'phone', 'reportsTo']),
   });
 
   return (
@@ -368,68 +402,49 @@ function EditDetails({ user, onClose }) {
         </>
       }
     >
-      <form
-        id="details-form"
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError('');
-          save.mutate();
-        }}
-      >
+      <form id="details-form" className="space-y-4" noValidate onSubmit={handleSubmit((fields) => save.mutate(fields))}>
         <TextInput
           label="Email"
           type="email"
-          required
           maxLength={160}
-          value={form.email}
-          onChange={set('email')}
           hint="Their sign-in. A new email needs a new Gmail App Password."
+          error={errors.email?.message}
+          {...register('email')}
         />
-        <TextInput label="Department" maxLength={60} value={form.department} onChange={set('department')} />
+        <TextInput label="Department" maxLength={60} error={errors.department?.message} {...register('department')} />
         <TextInput
           label="Designation"
           maxLength={80}
-          value={form.designation}
-          onChange={set('designation')}
           hint="Empty means Analyst in mails."
+          error={errors.designation?.message}
+          {...register('designation')}
         />
-        <TextInput
-          label="Phone"
-          type="tel"
-          maxLength={20}
-          value={form.phone}
-          onChange={set('phone')}
-          hint="Shown in their mail signature."
+        <TextInput label="Phone" type="tel" maxLength={20} hint="Shown in their mail signature." error={errors.phone?.message} {...register('phone')} />
+        <Controller
+          control={control}
+          name="reportsTo"
+          render={({ field, fieldState }) => (
+            <SelectField
+              label="Reports to"
+              value={field.value}
+              onChange={(event) => field.onChange(event.target.value)}
+              error={fieldState.error?.message}
+              hint="Places them under this person in the department tree."
+            >
+              <option value="">Nobody (top of the department)</option>
+              {managers.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}, {member.designation}
+                </option>
+              ))}
+            </SelectField>
+          )}
         />
-        <SelectField
-          label="Reports to"
-          value={form.reportsTo ?? ''}
-          onChange={(event) => setForm({ ...form, reportsTo: event.target.value || null })}
-          hint="Places them under this person in the department tree."
-        >
-          <option value="">Nobody (top of the department)</option>
-          {managers.map((member) => (
-            <option key={member.id} value={member.id}>
-              {member.name}, {member.designation}
-            </option>
-          ))}
-        </SelectField>
         <label className="flex items-center gap-2.5 text-sm">
-          <input
-            id="details-wfh"
-            type="checkbox"
-            checked={form.workFromHome}
-            onChange={(event) => setForm({ ...form, workFromHome: event.target.checked })}
-            className="h-4 w-4 accent-accent"
-          />
+          <input id="details-wfh" type="checkbox" {...register('workFromHome')} className="h-4 w-4 accent-accent" />
           Works from home
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-rejected">
-            {error}
-          </p>
-        )}
+        <FormError>{formError(form)}</FormError>
       </form>
     </Dialog>
   );

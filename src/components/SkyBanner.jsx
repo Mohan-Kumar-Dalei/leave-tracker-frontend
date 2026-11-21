@@ -122,11 +122,11 @@ const CLOUD_COLOURS = {
 
 // Where the clouds sit, most important first, so fewer clouds keep the best.
 const CLOUD_PLACES = [
-  { y: 2, scale: 0.8, duration: 24, delay: -4 },
-  { y: 22, scale: 0.65, duration: 30, delay: -17, opacity: 0.95 },
-  { y: 36, scale: 0.55, duration: 21, delay: -11, opacity: 0.9 },
-  { y: -4, scale: 1, duration: 36, delay: -26 },
-  { y: 12, scale: 0.9, duration: 27, delay: -9 },
+  { y: 2, scale: 0.8, duration: 24, delay: -4, shape: 0 },
+  { y: 22, scale: 0.65, duration: 30, delay: -17, opacity: 0.95, shape: 1 },
+  { y: 36, scale: 0.55, duration: 21, delay: -11, opacity: 0.9, shape: 0 },
+  { y: -4, scale: 1, duration: 36, delay: -26, shape: 1 },
+  { y: 12, scale: 0.9, duration: 27, delay: -9, shape: 0 },
 ];
 
 function Glint({ x, y, size, delay }) {
@@ -144,24 +144,79 @@ function Glint({ x, y, size, delay }) {
   );
 }
 
-// A puffy cloud with a soft shadow under it, drifting past the corner.
-function Cloud({ light, shade, opacity = 1, scale = 1, y, duration, delay }) {
+// Clouds: one soft shape each (a domed top on a flat base, like a real
+// cumulus), lit from above, light on top and shaded underneath, with a bright
+// patch where the sun catches it, soft edges, and a faint shadow below. Two
+// shapes, so they do not all look alike.
+const CLOUD_SHAPES = [
+  {
+    width: 64,
+    lobes: [
+      [14, 24, 10],
+      [26, 16, 13],
+      [40, 13, 12],
+      [52, 20, 10],
+      [33, 23, 12],
+      [58, 26, 6],
+    ],
+    base: [6, 22, 54, 10],
+  },
+  {
+    width: 52,
+    lobes: [
+      [11, 22, 8],
+      [23, 14, 11],
+      [35, 16, 9.5],
+      [45, 22, 7],
+      [29, 22, 9],
+    ],
+    base: [4, 20, 46, 9],
+  },
+];
+
+// The shapes and their light, defined once per sky.
+function CloudDefs({ id, light, shade, night }) {
+  return (
+    <>
+      {CLOUD_SHAPES.map((shape, index) => (
+        <mask key={index} id={`${id}-cloud${index}`} maskUnits="userSpaceOnUse" x="-4" y="-4" width={shape.width + 8} height="44">
+          <g fill="white">
+            {shape.lobes.map(([cx, cy, r]) => (
+              <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} />
+            ))}
+            <rect x={shape.base[0]} y={shape.base[1]} width={shape.base[2]} height={shape.base[3]} rx={shape.base[3] / 2} />
+          </g>
+        </mask>
+      ))}
+      <linearGradient id={`${id}-cloudfill`} x1="0" y1="0" x2="0" y2="34" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor={light} />
+        <stop offset="0.55" stopColor={light} />
+        <stop offset="1" stopColor={shade} />
+      </linearGradient>
+      <radialGradient id={`${id}-cloudlit`} cx="22" cy="8" r="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="#ffffff" stopOpacity={night ? 0.18 : 0.75} />
+        <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+      </radialGradient>
+      <filter id={`${id}-cloudsoft`} x="-10%" y="-20%" width="120%" height="140%">
+        <feGaussianBlur stdDeviation="0.45" />
+      </filter>
+      <filter id={`${id}-cloudshadow`} x="-20%" y="-200%" width="140%" height="500%">
+        <feGaussianBlur stdDeviation="1.6" />
+      </filter>
+    </>
+  );
+}
+
+function Cloud({ id, shape = 0, opacity = 1, scale = 1, y, duration, delay, night }) {
+  const { width } = CLOUD_SHAPES[shape];
   return (
     <g transform={`translate(0 ${y})`} opacity={opacity}>
       <g className="animate-drift-near" style={{ animationDuration: `${duration}s`, animationDelay: `${delay}s` }}>
-        <g transform={`scale(${scale})`}>
-          <g fill={shade} transform="translate(0 2)">
-            <circle cx="12" cy="18" r="8" />
-            <circle cx="25" cy="12" r="11" />
-            <circle cx="39" cy="17" r="8.5" />
-            <rect x="4" y="16" width="44" height="10" rx="5" />
-          </g>
-          <g fill={light}>
-            <circle cx="12" cy="18" r="8" />
-            <circle cx="25" cy="12" r="11" />
-            <circle cx="39" cy="17" r="8.5" />
-            <circle cx="31" cy="9" r="7" />
-            <rect x="4" y="16" width="44" height="9" rx="4.5" />
+        <g transform={`scale(${scale * 0.78})`}>
+          <ellipse cx={width / 2} cy="34" rx={width * 0.42} ry="2.6" fill="#0b1433" opacity={night ? 0.25 : 0.1} filter={`url(#${id}-cloudshadow)`} />
+          <g filter={`url(#${id}-cloudsoft)`}>
+            <rect x="-4" y="-4" width={width + 8} height="44" fill={`url(#${id}-cloudfill)`} mask={`url(#${id}-cloud${shape})`} />
+            <rect x="-4" y="-4" width={width + 8} height="44" fill={`url(#${id}-cloudlit)`} mask={`url(#${id}-cloud${shape})`} />
           </g>
         </g>
       </g>
@@ -502,12 +557,12 @@ export function SkyBanner({ className = '', preview = null }) {
         {/* The sun sets and the moon rises; behind thick cloud they fade. */}
         <g opacity={scene.body} className="transition-opacity duration-700">
           <g transform="translate(286 22)">
-            <g className={`transition-transform duration-1000 ease-in ${night ? 'translate-y-[90px]' : 'translate-y-0'}`}>
+            <g className={`transition-[transform,opacity] duration-1000 ease-in ${night ? 'translate-y-[90px] opacity-0' : 'translate-y-0 opacity-100'}`}>
               <Sun id={id} />
             </g>
           </g>
           <g transform="translate(284 26)">
-            <g className={`transition-transform delay-200 duration-1000 ease-out ${night ? 'translate-y-0' : 'translate-y-[90px]'}`}>
+            <g className={`transition-[transform,opacity] delay-200 duration-1000 ease-out ${night ? 'translate-y-0 opacity-100' : 'translate-y-[90px] opacity-0'}`}>
               <Moon id={id} />
             </g>
           </g>
@@ -515,8 +570,11 @@ export function SkyBanner({ className = '', preview = null }) {
 
         {/* Cloud cover */}
         {scene.grey > 0 && <rect width="320" height="80" fill={`url(#${id}-overcast)`} opacity={scene.grey} />}
+        <defs>
+          <CloudDefs id={id} light={light} shade={shade} night={night} />
+        </defs>
         {CLOUD_PLACES.slice(0, scene.clouds).map((place) => (
-          <Cloud key={`${place.y}-${place.duration}`} light={light} shade={shade} {...place} />
+          <Cloud key={`${place.y}-${place.duration}`} id={id} night={night} {...place} />
         ))}
         {scene.fog && <Fog id={id} night={night} />}
         {scene.drops > 0 && <Rain count={scene.drops} night={night} />}

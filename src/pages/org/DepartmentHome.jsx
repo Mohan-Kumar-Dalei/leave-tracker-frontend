@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, Link2, Mail, RefreshCw, Search } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { z } from 'zod';
 import { Avatar } from '../../components/ProfilePhoto';
 import {
   Button,
   ConfirmDialog,
   Empty,
+  FormError,
   LoadError,
   PageHeading,
   Panel,
@@ -22,6 +24,7 @@ import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { homeOf } from '../../lib/home';
 import { useToast } from '../../lib/toast';
+import { formError, rules, showServerError, useZodForm } from '../../lib/forms';
 
 // A department's own page, for its assistant manager (who runs it) and the
 // owner: share the join link and approve the people who ask to join. Everyone
@@ -31,35 +34,45 @@ import { useToast } from '../../lib/toast';
 const PLACE = { manager: 'Manager', assistant: 'Assistant Manager' };
 const looksLikeAssistant = (person) => /assistant\s*manager/i.test(person.designation ?? '');
 
+const inviteRules = z.object({ name: rules.name, email: rules.email });
+
+// One or more emails, separated by commas, spaces or new lines; each checked.
+const splitEmails = (value) => value.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean);
+const mailRules = z.object({
+  emails: z
+    .string()
+    .refine((value) => splitEmails(value).length > 0, 'Add at least one email.')
+    .refine((value) => splitEmails(value).length <= 50, 'Send to at most 50 people at a time.')
+    .superRefine((value, ctx) => {
+      const wrong = splitEmails(value).filter((item) => !z.string().email().safeParse(item).success);
+      if (wrong.length) {
+        ctx.addIssue({ code: 'custom', message: `Not a valid email: ${wrong.slice(0, 3).join(', ')}${wrong.length > 3 ? '…' : ''}` });
+      }
+    }),
+});
+
 // The manager's first step: invite the assistant manager, who registers with
 // the mailed link and becomes the department's admin.
 function InviteAssistant({ id, pending }) {
-  const [form, setForm] = useState({ name: '', email: '' });
-  const [error, setError] = useState('');
+  const form = useZodForm(inviteRules, { name: '', email: '' });
+  const { errors } = form.formState;
   const [sentLink, setSentLink] = useState('');
   const queryClient = useQueryClient();
   const toast = useToast();
   const send = useMutation({
-    mutationFn: () => api.post(`/departments/${id}/assistant-invite`, form),
+    mutationFn: (fields) => api.post(`/departments/${id}/assistant-invite`, fields),
     onSuccess: ({ invite }) => {
       setSentLink(invite.link);
       queryClient.invalidateQueries({ queryKey: ['department', id] });
       toast.success('Invitation sent', `${invite.name} gets a mail to join as assistant manager.`);
     },
-    onError: (issue) => setError(issue.message),
+    onError: (issue) => showServerError(form, issue, ['name', 'email']),
   });
 
   return (
     <Panel>
       <PanelTitle>Invite your assistant manager</PanelTitle>
-      <form
-        className="space-y-3 p-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError('');
-          send.mutate();
-        }}
-      >
+      <form className="space-y-3 p-4" noValidate onSubmit={form.handleSubmit((fields) => send.mutate(fields))}>
         {pending && !sentLink && (
           <p className="rounded-lg bg-pending-soft px-3 py-2 text-[13px] text-pending">
             Invited {pending.name} ({pending.email}). Sending again makes a new link.
@@ -69,10 +82,10 @@ function InviteAssistant({ id, pending }) {
           They register with the link, become this department&apos;s admin and bring in the team.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <TextInput label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-          <TextInput label="Email" type="email" required maxLength={160} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+          <TextInput label="Full name" maxLength={80} error={errors.name?.message} {...form.register('name')} />
+          <TextInput label="Email" type="email" maxLength={160} error={errors.email?.message} {...form.register('email')} />
         </div>
-        {error && <p className="text-sm text-rejected">{error}</p>}
+        <FormError>{formError(form)}</FormError>
         {sentLink && (
           <input
             readOnly
@@ -93,7 +106,7 @@ function InviteAssistant({ id, pending }) {
 
 function InviteTeam({ id, joinLink }) {
   const [copied, setCopied] = useState(false);
-  const [emails, setEmails] = useState('');
+  const mailForm = useZodForm(mailRules, { emails: '' });
   const [error, setError] = useState('');
   const [confirmNew, setConfirmNew] = useState(false);
   const [mailing, setMailing] = useState(false);
@@ -103,10 +116,10 @@ function InviteTeam({ id, joinLink }) {
   const send = useMutation({
     mutationFn: (list) => api.post(`/departments/${id}/join-link/mail`, { emails: list }),
     onSuccess: ({ sent, failed }) => {
-      setEmails('');
+      mailForm.reset();
       toast.success('Invitations sent', `${sent} sent${failed ? `, ${failed} could not be sent` : ''}.`);
     },
-    onError: (issue) => setError(issue.message),
+    onError: (issue) => showServerError(mailForm, { field: 'emails', message: issue.message }, ['emails']),
   });
   const fresh = useMutation({
     mutationFn: () => api.post(`/departments/${id}/join-link`),
@@ -158,25 +171,15 @@ function InviteTeam({ id, joinLink }) {
 
         {/* Mailing the link is a second way in, so it stays folded until wanted. */}
         {mailing ? (
-          <form
-            className="space-y-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setError('');
-              const list = emails.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean);
-              if (!list.length) return setError('Add at least one email.');
-              return send.mutate(list);
-            }}
-          >
+          <form className="space-y-2" noValidate onSubmit={mailForm.handleSubmit(({ emails }) => send.mutate(splitEmails(emails)))}>
             <TextArea
               label="Mail the link"
               hint="Emails separated by commas or new lines. It goes from your Gmail."
               rows={2}
-              value={emails}
-              onChange={(event) => setEmails(event.target.value)}
               placeholder="asha@contify.com, ravi@contify.com"
+              error={mailForm.formState.errors.emails?.message}
+              {...mailForm.register('emails')}
             />
-            {error && <p className="text-sm text-rejected">{error}</p>}
             <div className="flex gap-2">
               <Button type="submit" variant="secondary" loading={send.isPending}>
                 <Mail className="h-4 w-4" aria-hidden="true" />

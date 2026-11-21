@@ -40,9 +40,11 @@ const clean = (html) => DOMPurify.sanitize(html, { ...PURIFY, ADD_ATTR: ['target
 
 // Addresses as removable chips, with a box to type more. Enter, comma or
 // leaving the box adds what was typed.
-export function AddressField({ label, value, onChange, names = {} }) {
+export function AddressField({ label, value, onChange, names = {}, error: formError = '' }) {
   const [draft, setDraft] = useState('');
-  const [error, setError] = useState('');
+  const [typedError, setError] = useState('');
+  // A wrong address being typed, or the form's own problem (nobody in To).
+  const error = typedError || formError;
   const id = useId();
 
   const add = () => {
@@ -63,8 +65,8 @@ export function AddressField({ label, value, onChange, names = {} }) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1.5 py-1 text-sm">
-        <label htmlFor={id} className="w-8 shrink-0 text-[13px] font-medium text-muted">
+      <div className={`-mx-1.5 flex flex-wrap items-center gap-1.5 rounded-md px-1.5 py-1 text-sm ${error ? 'bg-rejected-soft/50 ring-1 ring-rejected' : ''}`}>
+        <label htmlFor={id} className={`w-8 shrink-0 text-[13px] font-medium ${error ? 'text-rejected' : 'text-muted'}`}>
           {label}
         </label>
         {value.map((email) => (
@@ -87,6 +89,7 @@ export function AddressField({ label, value, onChange, names = {} }) {
           value={draft}
           placeholder="Type an email and press Enter"
           aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => {
             setDraft(event.target.value);
             setError('');
@@ -103,7 +106,7 @@ export function AddressField({ label, value, onChange, names = {} }) {
         />
       </div>
       {error && (
-        <p role="alert" className="pb-1 pl-10 text-[13px] text-rejected">
+        <p id={`${id}-error`} role="alert" className="pb-1 pl-10 pt-1 text-[13px] font-medium text-rejected">
           {error}
         </p>
       )}

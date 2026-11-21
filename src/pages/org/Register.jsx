@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 import { Button, ButtonLink, PasswordInput, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
 import { AuthLayout, authLink, FormError } from '../auth/AuthPages';
+import { z } from 'zod';
+import { formError, rules, showServerError, useZodForm } from '../../lib/forms';
 
 // Register on your own, as a manager, with the department you will run. The
 // account is ready at once: sign in, invite your assistant manager (who brings
@@ -16,28 +18,20 @@ const STEPS = ['About you', 'Your department', 'Password'];
 
 const PASSWORD_HINT = 'At least 10 characters, with a letter and a number.';
 
-function Passwords({ value, onChange, mismatch }) {
-  return (
-    <>
-      <PasswordInput
-        label="Choose a password"
-        hint={PASSWORD_HINT}
-        autoComplete="new-password"
-        required
-        value={value.password}
-        onChange={(event) => onChange({ ...value, password: event.target.value })}
-      />
-      <PasswordInput
-        label="Type it again"
-        autoComplete="new-password"
-        required
-        error={mismatch}
-        value={value.confirm}
-        onChange={(event) => onChange({ ...value, confirm: event.target.value })}
-      />
-    </>
-  );
-}
+const schema = z
+  .object({
+    name: rules.name,
+    email: rules.email,
+    phone: rules.phone,
+    department: z.string().trim().min(2, 'Write the department name.').max(60, 'Keep it under 60 characters.'),
+    location: rules.text(60, 'The location'),
+    password: rules.newPassword,
+    confirm: rules.password,
+  })
+  .refine((values) => values.password === values.confirm, { path: ['confirm'], message: 'The two passwords are not the same.' });
+
+// The boxes on each step, checked before moving on.
+const STEP_FIELDS = [['name', 'email', 'phone'], ['department', 'location'], ['password', 'confirm']];
 
 function Done({ title, children }) {
   return (
@@ -54,10 +48,9 @@ function Done({ title, children }) {
 
 export default function Register() {
   const { data, isPending } = useQuery({ queryKey: ['setup'], queryFn: () => api.get('/join/setup'), retry: false });
-  const [form, setForm] = useState({ name: '', email: '', employeeId: '', phone: '', department: '', location: '' });
-  const [passwords, setPasswords] = useState({ password: '', confirm: '' });
-  const [problem, setProblem] = useState('');
-  const [busy, setBusy] = useState(false);
+  const form = useZodForm(schema, { name: '', email: '', phone: '', department: '', location: '', password: '', confirm: '' });
+  const { register, handleSubmit, trigger, formState } = form;
+  const { errors, isSubmitting } = formState;
   const [done, setDone] = useState(null);
   const [step, setStep] = useState(0);
 
@@ -68,9 +61,6 @@ export default function Register() {
       </AuthLayout>
     );
   }
-
-  const mismatch = passwords.confirm && passwords.password !== passwords.confirm ? 'The two passwords are not the same.' : '';
-  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
 
   if (done?.pending) {
     return (
@@ -88,29 +78,34 @@ export default function Register() {
     );
   }
 
-  const next = (event) => {
+  const next = async (event) => {
     event.preventDefault();
-    setProblem('');
-    setStep(step + 1);
+    if (await trigger(STEP_FIELDS[step], { shouldFocus: true })) setStep(step + 1);
   };
 
-  const submit = async (event) => {
-    event.preventDefault();
-    if (mismatch) return;
-    setProblem('');
-    setBusy(true);
-    try {
-      const fields = Object.fromEntries(Object.entries(form).filter(([, value]) => value.trim() !== ''));
-      setDone(await api.post('/join/manager', { ...fields, password: passwords.password }));
-    } catch (issue) {
-      setProblem(issue.message);
-      // Send them back to the step the problem is about.
-      if (/email|account/i.test(issue.message)) setStep(0);
-      else if (/department|manager/i.test(issue.message)) setStep(1);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const submit = handleSubmit(
+    async ({ confirm: _confirm, password, ...fields }) => {
+      try {
+        const filled = Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== ''));
+        setDone(await api.post('/join/manager', { ...filled, password }));
+      } catch (issue) {
+        // Back to the step the problem is about, with the message under its box.
+        const field = issue.field ?? (/email|account/i.test(issue.message) ? 'email' : /department|manager/i.test(issue.message) ? 'department' : null);
+        const at = STEP_FIELDS.findIndex((names) => names.includes(field));
+        if (at >= 0) {
+          setStep(at);
+          setTimeout(() => form.setError(field, { type: 'server', message: issue.message }, { shouldFocus: true }));
+        } else {
+          showServerError(form, issue);
+        }
+      }
+    },
+    // Anything wrong on an earlier step: go back to it.
+    (problems) => {
+      const at = STEP_FIELDS.findIndex((names) => names.some((name) => problems[name]));
+      if (at >= 0 && at !== step) setStep(at);
+    },
+  );
 
   return (
     <AuthLayout
@@ -135,14 +130,14 @@ export default function Register() {
           )}
         </p>
       </div>
-      <form onSubmit={step === STEPS.length - 1 ? submit : next} className="space-y-4">
+      <form onSubmit={step === STEPS.length - 1 ? submit : next} noValidate className="space-y-4">
         {step === 0 && (
           <>
-            <TextInput key="name" label="Full name" required minLength={2} maxLength={80} value={form.name} onChange={set('name')} data-autofocus />
-            <TextInput label="Work email" type="email" autoComplete="username" required maxLength={160} value={form.email} onChange={set('email')} />
+            <TextInput key="name" label="Full name" maxLength={80} error={errors.name?.message} {...register('name')} data-autofocus />
+            <TextInput label="Work email" type="email" autoComplete="username" maxLength={160} error={errors.email?.message} {...register('email')} />
             <div className="grid gap-4 sm:grid-cols-2">
               <EmployeeIdField hint="Yours once you register" />
-              <TextInput label="Phone" maxLength={20} value={form.phone} onChange={set('phone')} />
+              <TextInput label="Phone" maxLength={20} error={errors.phone?.message} {...register('phone')} />
             </div>
           </>
         )}
@@ -151,20 +146,29 @@ export default function Register() {
             <TextInput
               key="department"
               label="Your department"
-              required
-              minLength={2}
               maxLength={60}
               placeholder="For example, 3PP"
-              value={form.department}
-              onChange={set('department')}
               hint="A new department, or one that has no manager yet."
+              error={errors.department?.message}
+              {...register('department')}
             />
-            <TextInput label="Location" maxLength={60} placeholder={data?.location} value={form.location} onChange={set('location')} />
+            <TextInput label="Location" maxLength={60} placeholder={data?.location} error={errors.location?.message} {...register('location')} />
           </>
         )}
-        {step === 2 && <Passwords value={passwords} onChange={setPasswords} mismatch={mismatch} />}
-        <FormError message={problem} />
-        <Button type="submit" loading={busy} className="h-12! w-full rounded-xl! text-[15px]!">
+        {step === 2 && (
+          <>
+            <PasswordInput
+              label="Choose a password"
+              hint={PASSWORD_HINT}
+              autoComplete="new-password"
+              error={errors.password?.message}
+              {...register('password')}
+            />
+            <PasswordInput label="Type it again" autoComplete="new-password" error={errors.confirm?.message} {...register('confirm')} />
+          </>
+        )}
+        <FormError message={formError(form)} />
+        <Button type="submit" loading={isSubmitting} className="h-12! w-full rounded-xl! text-[15px]!">
           {step === STEPS.length - 1 ? 'Register' : 'Next'}
         </Button>
       </form>

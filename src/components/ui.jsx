@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleAlert, Eye, EyeOff, X } from 'lucide-react';
 import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Select } from './Select';
@@ -63,21 +63,37 @@ export function IconButton({ label, className = '', children, ...props }) {
   );
 }
 
-const INPUT =
-  'w-full h-10 rounded-lg border border-line bg-surface px-3 text-base text-ink transition-shadow placeholder:text-muted hover:border-muted/40 focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15 sm:text-sm max-sm:h-11';
+// Inputs: a quiet border, or a red one (and a red focus ring) while the field
+// has an error, with the message in red underneath.
+const INPUT_BASE =
+  'w-full h-10 rounded-lg border bg-surface px-3 text-base text-ink transition-[border-color,box-shadow] placeholder:text-muted focus:outline-none focus:ring-3 sm:text-sm max-sm:h-11';
+const INPUT_OK = 'border-line hover:border-muted/40 focus:border-accent focus:ring-accent/15';
+const INPUT_BAD = 'border-rejected bg-rejected-soft/30 hover:border-rejected focus:border-rejected focus:ring-rejected/15';
+const INPUT = `${INPUT_BASE} ${INPUT_OK}`;
+export const inputClass = (error) => `${INPUT_BASE} ${error ? INPUT_BAD : INPUT_OK}`;
 
+// A label, the control, and under it either a hint or, in red, what is wrong.
+// The control gets aria-invalid and points at the message, so screen readers
+// read it out too.
 export function Field({ label, hint, error, children }) {
   const id = useId();
+  const messageId = `${id}-message`;
+  const describedBy = error || hint ? messageId : undefined;
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-ink">
+      <label htmlFor={id} className={`mb-1.5 block text-[13px] font-medium ${error ? 'text-rejected' : 'text-ink'}`}>
         {label}
       </label>
-      {children(id)}
-      {hint && !error && <p className="mt-1.5 text-[13px] text-muted">{hint}</p>}
+      {children(id, { 'aria-invalid': error ? true : undefined, 'aria-describedby': describedBy })}
+      {hint && !error && (
+        <p id={messageId} className="mt-1.5 text-[13px] text-muted">
+          {hint}
+        </p>
+      )}
       {error && (
-        <p role="alert" className="mt-1.5 text-[13px] text-rejected">
-          {error}
+        <p id={messageId} role="alert" className="mt-1.5 flex items-start gap-1.5 text-[13px] font-medium text-rejected">
+          <CircleAlert className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>{error}</span>
         </p>
       )}
     </div>
@@ -87,7 +103,7 @@ export function Field({ label, hint, error, children }) {
 export function TextInput({ label, hint, error, ...props }) {
   return (
     <Field label={label} hint={hint} error={error}>
-      {(id) => <input id={id} className={INPUT} {...props} />}
+      {(id, a11y) => <input id={id} className={inputClass(error)} {...a11y} {...props} />}
     </Field>
   );
 }
@@ -98,9 +114,15 @@ export function PasswordInput({ label, hint, error, ...props }) {
 
   return (
     <Field label={label} hint={hint} error={error}>
-      {(id) => (
+      {(id, a11y) => (
         <span className="relative block">
-          <input id={id} type={visible ? 'text' : 'password'} className={`${INPUT} pr-10 [&::-ms-reveal]:hidden`} {...props} />
+          <input
+            id={id}
+            type={visible ? 'text' : 'password'}
+            className={`${inputClass(error)} pr-10 [&::-ms-reveal]:hidden`}
+            {...a11y}
+            {...props}
+          />
           <button
             type="button"
             aria-label={visible ? 'Hide password' : 'Show password'}
@@ -120,24 +142,35 @@ export function PasswordInput({ label, hint, error, ...props }) {
 export function TextArea({ label, hint, error, rows = 3, ...props }) {
   return (
     <Field label={label} hint={hint} error={error}>
-      {(id) => <textarea id={id} rows={rows} className={`${INPUT} h-auto! resize-y py-2.5`} {...props} />}
+      {(id, a11y) => <textarea id={id} rows={rows} className={`${inputClass(error)} h-auto! resize-y py-2.5`} {...a11y} {...props} />}
     </Field>
   );
 }
 
-export function SelectBox(props) {
-  return <Select triggerClassName={INPUT} {...props} />;
+export function SelectBox({ error, ...props }) {
+  return <Select triggerClassName={inputClass(error)} {...props} />;
 }
 
 export function SelectField({ label, hint, error, children, ...props }) {
   return (
     <Field label={label} hint={hint} error={error}>
       {(id) => (
-        <SelectBox id={id} className="w-full" {...props}>
+        <SelectBox id={id} className="w-full" error={error} {...props}>
           {children}
         </SelectBox>
       )}
     </Field>
+  );
+}
+
+// A message for the whole form (the server said no, say), in red.
+export function FormError({ children }) {
+  if (!children) return null;
+  return (
+    <p role="alert" className="flex items-start gap-2 rounded-lg border border-rejected/30 bg-rejected-soft px-3 py-2 text-sm text-rejected">
+      <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <span>{children}</span>
+    </p>
   );
 }
 

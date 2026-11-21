@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { api } from '../lib/api';
 import { dayWord, slashDate } from '../lib/dates';
 import { useToast } from '../lib/toast';
 import { SendingFrom, useGmail } from './GmailConnect';
 import { AddressField, MailBody } from './MailParts';
-import { Button, Dialog, SelectField, TextInput } from './ui';
+import { Button, Dialog, FormError, SelectField, TextInput } from './ui';
 
 const PLACEHOLDER = '[reason]';
 
@@ -53,7 +54,12 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   const [mailTo, setMailTo] = useState(null);
   const [cc, setCc] = useState(null);
   const [subject, setSubject] = useState(null);
-  const [error, setError] = useState('');
+  // The problems, box by box, kept by react-hook-form; this form's values are
+  // its own state (the To and CC chips, the letter that follows the dates).
+  const { setError: flag, clearErrors, formState } = useForm();
+  const { errors } = formState;
+  const error = errors.root?.server?.message;
+  const setError = (message) => (message ? flag('root.server', { type: 'server', message }) : clearErrors('root.server'));
 
   // Who the mail goes to, who is copied by default, and the signature.
   const { data: compose } = useQuery({ queryKey: ['compose'], queryFn: () => api.get('/me/compose') });
@@ -133,7 +139,11 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
       toast.success('Request sent', 'Your admin has been told by mail and on their dashboard.');
       onDone();
     },
-    onError: (issue) => setError(issue.message),
+    onError: (issue) => {
+      const field = ['mailTo', 'cc', 'subject', 'message', 'from', 'to'].includes(issue.field) ? issue.field : null;
+      if (field) flag(field, { type: 'server', message: issue.message });
+      else setError(issue.message);
+    },
   });
 
   useEffect(() => onBusy(submit.isPending), [submit.isPending, onBusy]);
@@ -141,44 +151,44 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   // Sending stays off until the server has accepted these dates.
   useEffect(() => onCanSend(Boolean(preview && !preview.error)), [preview, onCanSend]);
 
+  // Every box is checked at once and each problem shows under its own box.
   const onSubmit = (event) => {
     event.preventDefault();
-    setError('');
-    if (chosenTo.length === 0) {
-      setError('Add at least one person in To.');
-      return;
-    }
-    if (chosenSubject.trim().length < 3) {
-      setError('Write a subject for the mail.');
-      return;
-    }
-    if (message.includes(PLACEHOLDER)) {
-      setError(`Write your reason in place of ${PLACEHOLDER} in the mail.`);
-      return;
-    }
-    if (message.trim().length < 20) {
-      setError('Write a few lines for your admin.');
-      return;
-    }
+    clearErrors();
+    const problems = {};
+    if (restricted && !from) problems.from = 'Pick a restricted holiday.';
+    if (!restricted && !from) problems.from = 'Pick the first day.';
+    if (!restricted && !to) problems.to = 'Pick the last day.';
+    if (!restricted && from && to && to < from) problems.to = 'The last day cannot be before the first.';
+    if (chosenTo.length === 0) problems.mailTo = 'Add at least one person in To.';
+    if (chosenSubject.trim().length < 3) problems.subject = 'Write a subject for the mail.';
+    if (message.includes(PLACEHOLDER)) problems.message = `Write your reason in place of ${PLACEHOLDER} in the mail.`;
+    else if (message.trim().length < 20) problems.message = 'Write a few lines for your admin.';
+    const fields = Object.keys(problems);
+    for (const field of fields) flag(field, { type: 'manual', message: problems[field] });
+    if (fields.length) return;
     submit.mutate();
   };
+  // A box's problem goes as soon as it is changed.
+  const changed = (field) => errors[field] && clearErrors(field);
 
   const pickHoliday = (date) => {
     setFrom(date);
     setTo(date);
+    changed('from');
   };
 
   if (ready.types.isPending || ready.compose.isPending || ready.gmail.isPending) return <FormSkeleton />;
 
   return (
-    <form id={formId} onSubmit={onSubmit} className="space-y-5">
+    <form id={formId} onSubmit={onSubmit} noValidate className="space-y-5">
       <SelectField
         label="Leave type"
         value={selectedId}
         hint={selected?.description}
         onChange={(event) => {
           setLeaveTypeId(event.target.value);
-          setError('');
+          clearErrors();
         }}
       >
         {types.map((type) => (
@@ -193,6 +203,7 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
           label="Restricted holiday"
           value={from}
           hint="Restricted holidays are taken as one full day."
+          error={errors.from?.message}
           onChange={(event) => pickHoliday(event.target.value)}
         >
           <option value="">Pick a holiday</option>
@@ -208,14 +219,25 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
             <TextInput
               label="From"
               type="date"
-              required
               value={from}
+              error={errors.from?.message}
               onChange={(event) => {
                 setFrom(event.target.value);
                 if (event.target.value > to) setTo(event.target.value);
+                changed('from');
               }}
             />
-            <TextInput label="To" type="date" required min={from} value={to} onChange={(event) => setTo(event.target.value)} />
+            <TextInput
+              label="To"
+              type="date"
+              min={from}
+              value={to}
+              error={errors.to?.message}
+              onChange={(event) => {
+                setTo(event.target.value);
+                changed('to');
+              }}
+            />
           </div>
 
           {singleDay && (
@@ -262,29 +284,46 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
       <fieldset className="space-y-1 rounded-lg border border-line px-3 py-2">
         <legend className="px-1 text-[13px] font-medium">Leave Application mail</legend>
         <SendingFrom />
-        <AddressField label="To" value={chosenTo} names={names} onChange={setMailTo} />
+        <AddressField
+          label="To"
+          value={chosenTo}
+          names={names}
+          error={errors.mailTo?.message}
+          onChange={(next) => {
+            setMailTo(next);
+            changed('mailTo');
+          }}
+        />
         <div className="border-t border-line" />
-        <AddressField label="CC" value={chosenCc} names={names} onChange={setCc} />
+        <AddressField label="CC" value={chosenCc} names={names} error={errors.cc?.message} onChange={setCc} />
         <div className="pb-1 pt-2">
-          <TextInput label="Subject" required maxLength={150} value={chosenSubject} onChange={(event) => setSubject(event.target.value)} />
+          <TextInput
+            label="Subject"
+            maxLength={150}
+            value={chosenSubject}
+            error={errors.subject?.message}
+            onChange={(event) => {
+              setSubject(event.target.value);
+              changed('subject');
+            }}
+          />
         </div>
       </fieldset>
 
       <MailBody
         label="Message"
-        required
         maxLength={4000}
         value={message}
         signature={compose?.signature}
+        error={errors.message?.message}
         hint={`Replace ${PLACEHOLDER} with your reason. The dates update by themselves.`}
-        onChange={(event) => setMessage(event.target.value)}
+        onChange={(event) => {
+          setMessage(event.target.value);
+          changed('message');
+        }}
       />
 
-      {error && (
-        <p role="alert" className="text-sm text-rejected">
-          {error}
-        </p>
-      )}
+      <FormError>{error}</FormError>
     </form>
   );
 }

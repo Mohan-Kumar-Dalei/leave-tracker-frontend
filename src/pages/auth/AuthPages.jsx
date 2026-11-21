@@ -2,10 +2,12 @@ import { ArrowRight, CalendarCheck, Check, Mail, ShieldCheck } from 'lucide-reac
 import { useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Logo } from '../../components/AppShell';
-import { Button, PasswordInput, Reveal, TextInput } from '../../components/ui';
+import { Button, FormError as FormErrorBox, PasswordInput, Reveal, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { homeOf } from '../../lib/home';
+import { z } from 'zod';
+import { formError, rules, showServerError, useZodForm } from '../../lib/forms';
 
 // What the strip at the foot of the sign-in panel shows.
 const MARQUEE = [
@@ -238,56 +240,56 @@ export function AuthLayout({ title, intro, children }) {
   );
 }
 
-export const FormError = ({ message }) =>
-  message ? (
-    <p role="alert" className="rounded-lg bg-rejected-soft px-3 py-2 text-[13px] text-rejected">
-      {message}
-    </p>
-  ) : null;
+// A message for the whole form, in red. (Kept with this name for the pages
+// that already use it.)
+export const FormError = ({ message }) => <FormErrorBox>{message}</FormErrorBox>;
 
 export const authLink = 'text-[13px] font-medium text-accent hover:underline underline-offset-4';
+
+const loginSchema = z.object({ email: rules.email, password: rules.password });
 
 export function Login() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const form = useZodForm(loginSchema, { email: '', password: '' });
+  const { register, handleSubmit, formState } = form;
+  const { errors, isSubmitting } = formState;
 
-  const submit = async (event) => {
-    event.preventDefault();
-    setError('');
-    setBusy(true);
+  const submit = handleSubmit(async ({ email, password }) => {
     try {
-      const user = await signIn({ email: email.trim(), password });
+      const user = await signIn({ email, password });
       const from = location.state?.from;
       const target = from && from !== '/' ? from : homeOf(user);
       navigate(target, { replace: true });
     } catch (issue) {
-      setError(issue.message);
-    } finally {
-      setBusy(false);
+      showServerError(form, issue);
     }
-  };
+  });
 
   return (
     <AuthLayout title="Welcome back" intro="Sign in with your work email to see your leave and your team.">
-      <form onSubmit={submit} className="space-y-5">
-        <TextInput label="Work email" type="email" autoComplete="username" placeholder="name@contify.com" required value={email} onChange={(event) => setEmail(event.target.value)} />
+      <form onSubmit={submit} noValidate className="space-y-5">
+        <TextInput
+          label="Work email"
+          type="email"
+          autoComplete="username"
+          placeholder="name@contify.com"
+          error={errors.email?.message}
+          {...register('email')}
+        />
         <div className="space-y-2">
-          <PasswordInput label="Password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
+          <PasswordInput label="Password" autoComplete="current-password" error={errors.password?.message} {...register('password')} />
           <div className="text-right">
             <Link to="/forgot-password" className={authLink}>
               Forgot password?
             </Link>
           </div>
         </div>
-        <FormError message={error} />
+        <FormError message={formError(form)} />
         <Button
           type="submit"
-          loading={busy}
+          loading={isSubmitting}
           className="group h-12! w-full rounded-xl! text-[15px]! shadow-[0_14px_30px_-12px_var(--color-accent)]"
         >
           Sign in
@@ -310,35 +312,31 @@ export function Login() {
   );
 }
 
-export function ForgotPassword() {
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+const forgotSchema = z.object({ email: rules.email });
 
-  const submit = async (event) => {
-    event.preventDefault();
-    setError('');
-    setBusy(true);
+export function ForgotPassword() {
+  const [sent, setSent] = useState('');
+  const form = useZodForm(forgotSchema, { email: '' });
+  const { register, handleSubmit, formState } = form;
+
+  const submit = handleSubmit(async ({ email }) => {
     try {
-      const data = await api.post('/auth/forgot-password', { email: email.trim() });
+      const data = await api.post('/auth/forgot-password', { email });
       setSent(data.message);
     } catch (issue) {
-      setError(issue.message);
-    } finally {
-      setBusy(false);
+      showServerError(form, issue, ['email']);
     }
-  };
+  });
 
   return (
     <AuthLayout title="Reset your password" intro="We will mail you a link to choose a new one.">
       {sent ? (
         <p className="rounded-lg bg-accent-soft px-3 py-2.5 text-sm">{sent}</p>
       ) : (
-        <form onSubmit={submit} className="space-y-4">
-          <TextInput label="Email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} />
-          <FormError message={error} />
-          <Button type="submit" loading={busy} className="h-10! w-full">
+        <form onSubmit={submit} noValidate className="space-y-4">
+          <TextInput label="Email" type="email" autoComplete="username" error={formState.errors.email?.message} {...register('email')} />
+          <FormError message={formError(form)} />
+          <Button type="submit" loading={formState.isSubmitting} className="h-10! w-full">
             Send reset link
           </Button>
         </form>
@@ -352,40 +350,34 @@ export function ForgotPassword() {
   );
 }
 
+const resetSchema = z
+  .object({ password: rules.newPassword, confirm: rules.password })
+  .refine((values) => values.password === values.confirm, { path: ['confirm'], message: 'The two passwords do not match.' });
+
 export function ResetPassword() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const token = params.get('token') ?? '';
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const form = useZodForm(resetSchema, { password: '', confirm: '' });
+  const { register, handleSubmit, formState } = form;
+  const { errors } = formState;
 
-  const submit = async (event) => {
-    event.preventDefault();
-    setError('');
-    if (password !== confirm) {
-      setError('The two passwords do not match.');
-      return;
-    }
-    setBusy(true);
+  const submit = handleSubmit(async ({ password }) => {
     try {
       await api.post('/auth/reset-password', { token, password });
       navigate('/login', { replace: true });
     } catch (issue) {
-      setError(issue.message);
-    } finally {
-      setBusy(false);
+      showServerError(form, issue, ['password']);
     }
-  };
+  });
 
   return (
     <AuthLayout title="Choose a password" intro="At least 10 characters, with a letter and a number.">
-      <form onSubmit={submit} className="space-y-4">
-        <PasswordInput label="New password" autoComplete="new-password" required minLength={10} value={password} onChange={(event) => setPassword(event.target.value)} />
-        <PasswordInput label="Repeat password" autoComplete="new-password" required value={confirm} onChange={(event) => setConfirm(event.target.value)} />
-        <FormError message={error} />
-        <Button type="submit" loading={busy} className="h-10! w-full">
+      <form onSubmit={submit} noValidate className="space-y-4">
+        <PasswordInput label="New password" autoComplete="new-password" error={errors.password?.message} {...register('password')} />
+        <PasswordInput label="Repeat password" autoComplete="new-password" error={errors.confirm?.message} {...register('confirm')} />
+        <FormError message={formError(form)} />
+        <Button type="submit" loading={formState.isSubmitting} className="h-10! w-full">
           Save password
         </Button>
       </form>

@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Mail } from 'lucide-react';
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { z } from 'zod';
 import { api } from '../lib/api';
+import { rules, showServerError, useZodForm } from '../lib/forms';
 import { useToast } from '../lib/toast';
 import { Button, Panel, PasswordInput } from './ui';
 import { useAppPath } from '../hooks/useAppPath';
@@ -16,17 +17,18 @@ export const useGmail = () => useQuery({ queryKey: ['gmail'], queryFn: () => api
 function AppPasswordConnect({ app }) {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const [value, setValue] = useState('');
-  const [error, setError] = useState('');
+  const form = useZodForm(z.object({ appPassword: rules.appPassword }), { appPassword: '' });
+  const { errors } = form.formState;
 
   const save = useMutation({
-    mutationFn: () => api.post('/me/gmail/app-password', { appPassword: value }),
+    mutationFn: ({ appPassword }) => api.post('/me/gmail/app-password', { appPassword }),
     onSuccess: () => {
-      setValue('');
+      form.reset();
       queryClient.invalidateQueries({ queryKey: ['gmail'] });
       toast.success('App Password saved', 'Your leave mails can now go from your Gmail.');
     },
-    onError: (issue) => setError(issue.message),
+    // Whatever Google or the server says is about the App Password box.
+    onError: (issue) => showServerError(form, { field: 'appPassword', message: issue.message }, ['appPassword']),
   });
 
   const remove = useMutation({
@@ -75,29 +77,17 @@ function AppPasswordConnect({ app }) {
             </li>
             <li>Paste the 16 letters here. It is checked with Gmail and saved encrypted.</li>
           </ol>
-          <form
-            className="mt-3 space-y-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setError('');
-              save.mutate();
-            }}
-          >
+          <form className="mt-3 space-y-3" noValidate onSubmit={form.handleSubmit((fields) => save.mutate(fields))}>
             <p className="text-sm">
               Gmail: <span className="font-medium">{app.email}</span>
             </p>
             <PasswordInput
               label="App Password"
               autoComplete="off"
-              required
               maxLength={24}
               placeholder="abcd efgh ijkl mnop"
-              value={value}
-              error={error}
-              onChange={(event) => {
-                setValue(event.target.value);
-                setError('');
-              }}
+              error={errors.appPassword?.message}
+              {...form.register('appPassword')}
             />
             <Button type="submit" loading={save.isPending}>
               Save App Password

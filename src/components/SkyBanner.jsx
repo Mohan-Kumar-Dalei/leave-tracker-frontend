@@ -144,94 +144,106 @@ function Glint({ x, y, size, delay }) {
   );
 }
 
-// Volumetric clouds. Each cloud is a heap of puffs drawn from the back to the
-// front, and every puff is lit on its own: bright where the light falls (top
-// left), deepening to shadow underneath. Where a front puff overlaps the ones
-// behind, its edge shows against their shade, so the billows read in depth.
-// A darker flat base, softened edges and a faint shadow below finish it.
-// Three shapes, so no two clouds look alike.
+// Clouds. A real cloud has no round edges: it is a soft mass whose outline
+// breaks into wisps. Each one here is a few large overlapping ellipses whose
+// edges are broken up with fractal noise (an SVG turbulence filter) and then
+// softened, in three layers: a shaded underside, the body, and a bright top
+// where the light falls. Each cloud is drawn once into an image (by shape and
+// colour) and that image drifts, so the noise is not worked out again on
+// every frame.
 const CLOUD_SHAPES = [
   {
-    width: 64,
-    base: [6, 25, 54, 8],
-    // [x, y, radius], back first.
-    puffs: [
-      [40, 13, 12],
-      [26, 15, 13],
-      [52, 20, 9.5],
-      [14, 22, 9.5],
-      [33, 23, 11],
-      [21, 26, 7.5],
-      [46, 26, 8],
+    width: 140,
+    height: 70,
+    body: [
+      [70, 44, 50, 15],
+      [48, 34, 26, 19],
+      [80, 29, 28, 22],
+      [104, 39, 21, 14],
+      [32, 45, 18, 11],
+    ],
+    top: [
+      [56, 27, 17, 10],
+      [80, 22, 18, 12],
     ],
   },
   {
-    width: 52,
-    base: [4, 22, 46, 7],
-    puffs: [
-      [23, 14, 11],
-      [35, 16, 9.5],
-      [11, 21, 8],
-      [45, 21, 7],
-      [29, 23, 9],
-      [17, 25, 6],
+    width: 120,
+    height: 62,
+    body: [
+      [60, 41, 42, 13],
+      [44, 32, 22, 16],
+      [70, 28, 22, 18],
+      [88, 37, 15, 11],
+    ],
+    top: [
+      [50, 26, 13, 8],
+      [70, 21, 14, 10],
     ],
   },
   {
-    width: 72,
-    base: [8, 26, 60, 8],
-    puffs: [
-      [30, 12, 12],
-      [45, 10, 13],
-      [58, 17, 10],
-      [18, 19, 10],
-      [38, 22, 12],
-      [52, 25, 9],
-      [26, 27, 8],
-      [64, 26, 6],
+    width: 170,
+    height: 72,
+    body: [
+      [85, 46, 64, 14],
+      [50, 37, 26, 16],
+      [80, 30, 30, 22],
+      [114, 32, 26, 19],
+      [140, 42, 18, 11],
+      [28, 46, 16, 9],
+    ],
+    top: [
+      [74, 23, 20, 11],
+      [112, 25, 17, 11],
     ],
   },
 ];
 
-// The light and shade, defined once per sky.
-function CloudDefs({ id, light, shade, night }) {
-  return (
-    <>
-      {/* One puff: the light catches its top left, the underside is in shade. */}
-      <radialGradient id={`${id}-puff`} cx="0.38" cy="0.3" r="0.95" fx="0.34" fy="0.22">
-        <stop offset="0" stopColor={night ? light : '#ffffff'} />
-        <stop offset="0.55" stopColor={light} />
-        <stop offset="1" stopColor={shade} />
-      </radialGradient>
-      {/* The flat base, darker, as the light does not reach under the cloud. */}
-      <linearGradient id={`${id}-cloudbase`} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor={light} />
-        <stop offset="1" stopColor={shade} />
-      </linearGradient>
-      <filter id={`${id}-cloudsoft`} x="-10%" y="-20%" width="120%" height="140%">
-        <feGaussianBlur stdDeviation="0.6" />
-      </filter>
-      <filter id={`${id}-cloudshadow`} x="-20%" y="-200%" width="140%" height="500%">
-        <feGaussianBlur stdDeviation="1.6" />
-      </filter>
-    </>
-  );
+const ellipses = (list, fill, extra = '') =>
+  list.map(([cx, cy, rx, ry]) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"${extra}/>`).join('');
+
+// A fluffy edge: noise pushes the outline about, then a blur softens it.
+const fluff = (id, seed, frequency, scale, blur) =>
+  `<filter id="${id}" x="-40%" y="-60%" width="180%" height="220%">` +
+  `<feTurbulence type="fractalNoise" baseFrequency="${frequency}" numOctaves="4" seed="${seed}" result="n"/>` +
+  `<feDisplacementMap in="SourceGraphic" in2="n" scale="${scale}" xChannelSelector="R" yChannelSelector="G" result="d"/>` +
+  `<feGaussianBlur in="d" stdDeviation="${blur}"/></filter>`;
+
+const cloudImages = new Map();
+function cloudImage(shapeIndex, light, shade, night, glow) {
+  const key = `${shapeIndex}|${light}|${shade}|${night}|${glow}`;
+  if (cloudImages.has(key)) return cloudImages.get(key);
+  const { width, height, body, top } = CLOUD_SHAPES[shapeIndex];
+  const underside = body.map(([cx, cy, rx, ry]) => [cx, cy + 6, rx * 0.96, ry * 0.85]);
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">` +
+    `<defs>${fluff('a', 3 + shapeIndex, 0.05, 18, 2.6)}${fluff('b', 7 + shapeIndex, 0.045, 16, 1.6)}${fluff('c', 11 + shapeIndex, 0.06, 12, 3.2)}` +
+    `<filter id="s" x="-30%" y="-200%" width="160%" height="500%"><feGaussianBlur stdDeviation="3"/></filter></defs>` +
+    // A faint shadow on the sky below.
+    `<ellipse cx="${width / 2}" cy="${height - 6}" rx="${width * 0.36}" ry="3" fill="#0b1433" opacity="${night ? 0.28 : 0.1}" filter="url(#s)"/>` +
+    // The shaded underside, the body, then the light on top.
+    `<g filter="url(#a)">${ellipses(underside, shade)}</g>` +
+    `<g filter="url(#b)">${ellipses(body, light)}</g>` +
+    `<g filter="url(#c)" opacity="${glow}">${ellipses(top, '#ffffff')}</g>` +
+    `</svg>`;
+  const uri = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  cloudImages.set(key, uri);
+  return uri;
 }
 
-function Cloud({ id, shape = 0, opacity = 1, scale = 1, y, duration, delay, night }) {
-  const { width, base, puffs } = CLOUD_SHAPES[shape];
+// How strongly the light catches the top: full on a fair day, little under
+// a rain cloud, almost none at night or in a storm.
+const GLOW = { white: 0.9, grey: 0.55, dark: 0.3, storm: 0.12 };
+
+function Cloud({ shape = 0, opacity = 1, scale = 1, y, duration, delay, night, light, shade, tone = 'white' }) {
+  const { width, height } = CLOUD_SHAPES[shape];
+  // 64 units across at scale 1 for the first shape.
+  const k = (scale * 64) / 140;
+  const glow = night ? Math.min(GLOW[tone], 0.2) : GLOW[tone];
   return (
-    <g transform={`translate(0 ${y})`} opacity={opacity}>
+    <g transform={`translate(0 ${Math.max(y, 0) - 4})`} opacity={opacity}>
       <g className="animate-drift-near" style={{ animationDuration: `${duration}s`, animationDelay: `${delay}s` }}>
-        <g transform={`scale(${scale * 0.78})`}>
-          <ellipse cx={width / 2} cy={base[1] + base[3] + 2} rx={width * 0.42} ry="2.6" fill="#0b1433" opacity={night ? 0.25 : 0.1} filter={`url(#${id}-cloudshadow)`} />
-          <g filter={`url(#${id}-cloudsoft)`}>
-            <rect x={base[0]} y={base[1]} width={base[2]} height={base[3]} rx={base[3] / 2} fill={`url(#${id}-cloudbase)`} />
-            {puffs.map(([cx, cy, r]) => (
-              <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} fill={`url(#${id}-puff)`} />
-            ))}
-          </g>
-        </g>
+        <image href={cloudImage(shape, light, shade, night, glow)} width={width * k} height={height * k} preserveAspectRatio="none" />
       </g>
     </g>
   );
@@ -583,11 +595,8 @@ export function SkyBanner({ className = '', preview = null }) {
 
         {/* Cloud cover */}
         {scene.grey > 0 && <rect width="320" height="80" fill={`url(#${id}-overcast)`} opacity={scene.grey} />}
-        <defs>
-          <CloudDefs id={id} light={light} shade={shade} night={night} />
-        </defs>
         {CLOUD_PLACES.slice(0, scene.clouds).map((place) => (
-          <Cloud key={`${place.y}-${place.duration}`} id={id} night={night} {...place} />
+          <Cloud key={`${place.y}-${place.duration}`} night={night} light={light} shade={shade} tone={scene.tone} {...place} />
         ))}
         {scene.fog && <Fog id={id} night={night} />}
         {scene.drops > 0 && <Rain count={scene.drops} night={night} />}

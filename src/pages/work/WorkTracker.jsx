@@ -119,7 +119,7 @@ const OUTCOMES = [
 // Where the work is done (a Google Sheet or a Contify admin page), as a link.
 function WorkSource({ entry }) {
   if (!entry?.sourceName && !entry?.sourceUrl) return null;
-  const name = entry.sourceName || 'Open the sheet';
+  const name = entry.sourceName || entry.task || 'Open the sheet';
   return (
     <p className="col-span-full -mb-1 flex items-center gap-1.5 text-[13px] text-muted">
       <span>Work in:</span>
@@ -733,20 +733,15 @@ function TargetsDialog({ open, sheet, onClose }) {
     z.object({
       category: z.string().min(1, 'Pick the work.'),
       date: z.string().min(1, 'Pick the day.'),
-      sourceName: z.string().trim().max(80, 'Keep it under 80 characters.'),
-      sourceUrl: z
-        .string()
-        .trim()
-        .max(500, 'That link is too long.')
-        .refine((value) => value === '' || /^https?:\/\/\S+$/i.test(value), 'Paste a link that starts with https://'),
     }),
-    { category: '', date: start, sourceName: '', sourceUrl: '' },
+    { category: '', date: start },
   );
   const { errors } = form.formState;
   const [pickError, setPickError] = useState('');
   // The pieces of the work, each with its target. A piece without a name is
   // the work itself.
-  const [lines, setLines] = useState([{ task: '', target: '' }]);
+  const [lines, setLines] = useState([{ task: '', target: '', url: '' }]);
+  const badLink = (url) => url.trim() !== '' && (!/^https?:\/\/\S+$/i.test(url.trim()) || url.trim().length > 500);
   const [linesError, setLinesError] = useState('');
   const checkLines = () => {
     const bad = lines.find(
@@ -754,6 +749,10 @@ function TargetsDialog({ open, sheet, onClose }) {
     );
     if (bad) {
       setLinesError('Give every piece a daily target from 0 to 100000.');
+      return false;
+    }
+    if (lines.some((line) => badLink(line.url))) {
+      setLinesError('Paste a link that starts with https://, or leave it empty.');
       return false;
     }
     const names = lines.map((line) => line.task.trim().toLowerCase());
@@ -771,7 +770,11 @@ function TargetsDialog({ open, sheet, onClose }) {
         ...fields,
         from: date,
         to: date,
-        lines: lines.map((line) => ({ task: line.task.trim(), target: Number(line.target) })),
+        lines: lines.map((line) => ({
+          task: line.task.trim(),
+          target: Number(line.target),
+          ...(line.url.trim() ? { sourceUrl: line.url.trim() } : {}),
+        })),
         users: [...picked],
       }),
     onSuccess: ({ set }) => {
@@ -892,43 +895,58 @@ function TargetsDialog({ open, sheet, onClose }) {
             </Field>
           </div>
           <fieldset className="col-span-2">
-            <legend className="mb-1.5 text-[13px] font-medium">Pieces of it, each with a daily target</legend>
-            <ul className="space-y-2">
+            <legend className="mb-1.5 text-[13px] font-medium">Pieces of it, each with a daily target and where it is done</legend>
+            <ul className="space-y-3">
               {lines.map((line, index) => (
                 // eslint-disable-next-line react/no-array-index-key
-                <li key={index} className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <input
-                      value={line.task}
-                      maxLength={60}
-                      aria-label="Piece of the work"
-                      placeholder={index === 0 ? 'Leave empty for the work itself, or e.g. Sourcing Error Report' : 'Sourcing Error Report'}
-                      onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, task: event.target.value } : item)))}
-                      className={`${inputClass(false)} h-10!`}
-                    />
+                <li key={index} className="space-y-2 rounded-lg border border-line p-2">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <input
+                        value={line.task}
+                        maxLength={60}
+                        aria-label="Piece of the work"
+                        placeholder={
+                          index === 0 ? 'Leave empty for the work itself, or e.g. Sourcing Error Report' : 'Sourcing Error Report'
+                        }
+                        onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, task: event.target.value } : item)))}
+                        className={`${inputClass(false)} h-10!`}
+                      />
+                    </div>
+                    <div className="w-28 shrink-0">
+                      <input
+                        value={line.target}
+                        inputMode="decimal"
+                        aria-label="Daily target"
+                        placeholder="Target"
+                        onChange={(event) =>
+                          setLines(lines.map((item, i) => (i === index ? { ...item, target: event.target.value } : item)))
+                        }
+                        className={`${inputClass(linesError && (line.target === '' || Number.isNaN(Number(line.target))))} h-10! text-right tabular-nums`}
+                      />
+                    </div>
+                    {lines.length > 1 && (
+                      <IconButton label="Remove this piece" onClick={() => setLines(lines.filter((_, i) => i !== index))}>
+                        <X className="h-4 w-4" />
+                      </IconButton>
+                    )}
                   </div>
-                  <div className="w-28 shrink-0">
-                    <input
-                      value={line.target}
-                      inputMode="decimal"
-                      aria-label="Daily target"
-                      placeholder="Target"
-                      onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, target: event.target.value } : item)))}
-                      className={`${inputClass(linesError && (line.target === '' || Number.isNaN(Number(line.target))))} h-10! text-right tabular-nums`}
-                    />
-                  </div>
-                  {lines.length > 1 && (
-                    <IconButton label="Remove this piece" onClick={() => setLines(lines.filter((_, i) => i !== index))}>
-                      <X className="h-4 w-4" />
-                    </IconButton>
-                  )}
+                  <input
+                    value={line.url}
+                    type="url"
+                    maxLength={500}
+                    aria-label="Link of the sheet or page"
+                    placeholder="Link of the sheet or page it is done on (optional)"
+                    onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, url: event.target.value } : item)))}
+                    className={`${inputClass(linesError && badLink(line.url))} h-10!`}
+                  />
                 </li>
               ))}
             </ul>
             {linesError && <p className="mt-1.5 text-sm text-rejected">{linesError}</p>}
             <button
               type="button"
-              onClick={() => setLines([...lines, { task: '', target: '' }])}
+              onClick={() => setLines([...lines, { task: '', target: '', url: '' }])}
               className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -938,20 +956,6 @@ function TargetsDialog({ open, sheet, onClose }) {
           <div className="col-span-2">
             <TextInput label="Day" type="date" error={errors.date?.message} {...form.register('date')} />
           </div>
-          <TextInput
-            label="Where (sheet or page)"
-            placeholder="Broken RSS sheet, or Contify admin"
-            maxLength={80}
-            error={errors.sourceName?.message}
-            {...form.register('sourceName')}
-          />
-          <TextInput
-            label="Link"
-            type="url"
-            placeholder="https://docs.google.com/..."
-            error={errors.sourceUrl?.message}
-            {...form.register('sourceUrl')}
-          />
         </div>
         <p className="text-sm text-muted">
           Not on a Sunday or a holiday, or for anyone on leave that day. The link opens from their My work.

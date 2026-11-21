@@ -350,7 +350,11 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
         </div>
       ) : (
         <div className="mb-3 grid gap-3 sm:grid-cols-2">
-          <Field label="Work" error={errors.category?.message}>
+          <Field
+            label="Work"
+            hint={types.length ? undefined : 'No work types for this department yet. The assistant manager adds them under Work types.'}
+            error={errors.category?.message}
+          >
             {(id) => (
               <SelectBox
                 id={id}
@@ -660,13 +664,13 @@ function SearchField({ value, onChange, label, className = '' }) {
 /* The work types (Broken RSS, New Integration, Sourcing...), for an
    assistant manager or manager to add to or take away from. */
 
-function WorkTypesDialog({ open, types, onClose }) {
+function WorkTypesDialog({ open, types, department, onClose }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const add = useMutation({
-    mutationFn: () => api.post('/work/types', { name: name.trim() }),
+    mutationFn: () => api.post('/work/types', { name: name.trim(), department }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['work'] });
       toast.success('Work type added');
@@ -680,8 +684,10 @@ function WorkTypesDialog({ open, types, onClose }) {
     onError: (issue) => toast.error('Could not remove it', issue.message),
   });
   return (
-    <Dialog open={open} onClose={onClose} title="Work types" kind="modal">
-      <p className="mb-3 text-sm text-muted">Team leads pick from these when they set targets. Work already given keeps its name.</p>
+    <Dialog open={open} onClose={onClose} title={`Work types, ${department}`} kind="modal">
+      <p className="mb-3 text-sm text-muted">
+        The kinds of work this department does. Team leads pick from these when they set targets. Work already given keeps its name.
+      </p>
       <ul className="divide-y divide-line rounded-lg border border-line">
         {types.map((type) => (
           <li key={type.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
@@ -691,7 +697,9 @@ function WorkTypesDialog({ open, types, onClose }) {
             </IconButton>
           </li>
         ))}
-        {types.length === 0 && <li className="px-3 py-3 text-sm text-muted">No work types yet.</li>}
+        {types.length === 0 && (
+          <li className="px-3 py-3 text-sm text-muted">No work types yet. Add the kinds of work this department does.</li>
+        )}
       </ul>
       <form
         noValidate
@@ -881,7 +889,15 @@ function TargetsDialog({ open, sheet, onClose }) {
         </fieldset>
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <Field label="Work" error={errors.category?.message}>
+            <Field
+              label="Work"
+              hint={
+                (sheet.types ?? []).length
+                  ? undefined
+                  : 'No work types for this department yet. The assistant manager adds them under Work types.'
+              }
+              error={errors.category?.message}
+            >
               {(id) => (
                 <SelectBox
                   id={id}
@@ -912,9 +928,7 @@ function TargetsDialog({ open, sheet, onClose }) {
                         value={line.task}
                         maxLength={60}
                         aria-label="Piece of the work"
-                        placeholder={
-                          index === 0 ? 'Leave empty for the work itself, or e.g. Sourcing Error Report' : 'Sourcing Error Report'
-                        }
+                        placeholder={index === 0 ? 'Piece of work (optional)' : 'Piece of work, e.g. Sourcing Error Report'}
                         onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, task: event.target.value } : item)))}
                         className={`${inputClass(false)} h-10!`}
                       />
@@ -1291,7 +1305,7 @@ export default function WorkTracker() {
         onClose={() => setOpened(null)}
       />
       {setting && <TargetsDialog open sheet={sheet} onClose={() => setSetting(false)} />}
-      {typesOpen && <WorkTypesDialog open types={sheet.types ?? []} onClose={() => setTypesOpen(false)} />}
+      {typesOpen && <WorkTypesDialog open types={sheet.types ?? []} department={sheet.department} onClose={() => setTypesOpen(false)} />}
       <Dialog
         open={Boolean(reading)}
         onClose={() => setReading(null)}

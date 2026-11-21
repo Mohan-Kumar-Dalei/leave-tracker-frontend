@@ -490,11 +490,14 @@ function CommentList({ comments }) {
           <div className="flex items-start justify-between gap-2">
             <p className="text-[13px]">
               <span className="font-semibold">{comment.author.name}</span>
-              <span className="text-muted">
-                {' '}
-                · {postedAt(comment.createdAt)}
-                {comment.editedAt ? ' · edited' : ''}
-              </span>
+              {/* A leave comment is written by the app, at no particular time. */}
+              {!comment.fromLeave && (
+                <span className="text-muted">
+                  {' '}
+                  · {postedAt(comment.createdAt)}
+                  {comment.editedAt ? ' · edited' : ''}
+                </span>
+              )}
             </p>
             {comment.mine && editing?.id !== comment.id && (
               <div className="-my-1 -mr-2 flex">
@@ -928,7 +931,7 @@ function TargetsDialog({ open, sheet, onClose }) {
                         value={line.task}
                         maxLength={60}
                         aria-label="Piece of the work"
-                        placeholder={index === 0 ? 'Piece of work (optional)' : 'Piece of work, e.g. Sourcing Error Report'}
+                        placeholder="Work name"
                         onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, task: event.target.value } : item)))}
                         className={`${inputClass(false)} h-10!`}
                       />

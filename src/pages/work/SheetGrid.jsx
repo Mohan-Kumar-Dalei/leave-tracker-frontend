@@ -133,7 +133,7 @@ function CommentCard({ person, day, thread, canWrite, startTyping, onClose, styl
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium leading-4">{comment.author.name}</p>
-                  <p className="text-[11px] leading-4 text-[#5f6368]">{when(comment.createdAt)}</p>
+                  {!comment.fromLeave && <p className="text-[11px] leading-4 text-[#5f6368]">{when(comment.createdAt)}</p>}
                 </div>
                 {comment.mine && (
                   <button
@@ -243,11 +243,13 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
     return list;
   }, [people]);
 
+  // A full day of leave shows 0 in each row (and "Leave" in its comment).
+  const onLeave = (person, day) => !day.sunday && person.away?.[day.date] === 'full';
   const total = (person, day, field) => {
     const item = totals[`${person.id}|${day.date}`];
     if (field === 'target') return day.sunday ? 0 : (item?.target ?? 0);
-    if (field === 'achieved') return item?.filled ? item.achieved : null;
-    return item?.overtime || null;
+    if (field === 'achieved') return item?.filled ? item.achieved : onLeave(person, day) ? 0 : null;
+    return item?.overtime || (onLeave(person, day) ? 0 : null);
   };
 
   // Every number the sheet shows, worked out once per change of data (not on
@@ -319,7 +321,8 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
           fill = { target: COLOURS.target, achieved: COLOURS.achieved, overtime: COLOURS.overtime }[row.kind];
         } else {
           const raw = total(row.person, day, row.kind);
-          const empty = row.kind === 'target' && !day.sunday && !totals[`${row.person.id}|${day.date}`]?.target;
+          const empty =
+            row.kind === 'target' && !day.sunday && !onLeave(row.person, day) && !totals[`${row.person.id}|${day.date}`]?.target;
           value = empty ? '' : (raw ?? '');
           if (row.kind === 'target') fill = day.sunday ? COLOURS.sunday : value ? COLOURS.set : COLOURS.target;
           else fill = day.sunday ? COLOURS.sunday : row.kind === 'achieved' ? COLOURS.achieved : COLOURS.overtime;

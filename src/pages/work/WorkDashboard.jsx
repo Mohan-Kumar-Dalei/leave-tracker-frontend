@@ -23,6 +23,7 @@ const STATUS = {
   short: ['Short', 'bg-rejected-soft text-rejected'],
   missing: ['Not filled', 'bg-pending-soft text-pending'],
   waiting: ['Pending', 'bg-cancelled-soft text-cancelled'],
+  leave: ['On leave', 'bg-cancelled-soft text-cancelled'],
   ahead: ['On track', 'bg-approved-soft text-approved'],
   behind: ['Behind', 'bg-rejected-soft text-rejected'],
 };
@@ -291,7 +292,8 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
       .map((row) => {
         let status;
         if (period === 'day') {
-          if (row.filled === 0) status = date < sheet.today ? 'missing' : 'waiting';
+          if (byId.get(row.user)?.away?.[date] === 'full') status = 'leave';
+          else if (row.filled === 0) status = date < sheet.today ? 'missing' : 'waiting';
           else status = row.achieved > row.target ? 'over' : row.achieved === row.target ? 'done' : 'short';
         } else status = row.achieved >= row.target ? 'ahead' : 'behind';
         return { ...row, person: byId.get(row.user), status };
@@ -593,6 +595,7 @@ function MyDashboard({ sheet, me, notes, onComments }) {
   const counts = (entry) =>
     entry.date < sheet.today || (entry.date === sheet.today && entry.achieved !== null && entry.achieved !== undefined);
   const statusOf = (entry) => {
+    if (me.away?.[entry.date] === 'full') return 'leave';
     if (entry.achieved === null || entry.achieved === undefined) return entry.date < sheet.today ? 'missing' : 'waiting';
     return entry.achieved > entry.target ? 'over' : entry.achieved === entry.target ? 'done' : 'short';
   };

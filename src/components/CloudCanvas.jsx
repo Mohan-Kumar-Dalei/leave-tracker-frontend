@@ -7,8 +7,9 @@ import { useEffect, useRef } from 'react';
 // cloud is bright where the sun reaches it, grey inside and underneath, with
 // soft, wispy edges that slowly change as the wind carries it. How much of the
 // sky is cloud, and its colours, follow the weather; at night the light is the
-// moon's. Sized for a small band: drawn at a low resolution (clouds are soft),
-// about 30 times a second, and only while on screen. Plain WebGL, no library.
+// moon's. Kept light for a small band: 16 steps with 3 towards the sun, drawn
+// at about half resolution (clouds are soft), about 24 times a second, and
+// only while on screen. Plain WebGL, no library.
 // Without WebGL (or if its context is lost), onFail lets the banner draw its
 // own clouds instead.
 
@@ -91,8 +92,8 @@ void main() {
   // Rounder, puffier clouds: the same scale across as up and down.
   vec2 q = vec2(uv.x * aspect * 0.85, uv.y);
 
-  const float STEPS = 22.0;
-  const float LIGHT_STEPS = 4.0;
+  const float STEPS = 16.0;
+  const float LIGHT_STEPS = 3.0;
   float jitter = hash(gl_FragCoord.x * 12.9898 + gl_FragCoord.y * 78.233);
   vec3 sun = normalize(uSun);
 
@@ -107,7 +108,7 @@ void main() {
       float block = 0.0;
       vec3 lp = p;
       for (float s = 0.0; s < LIGHT_STEPS; s++) {
-        lp += sun * 0.075;
+        lp += sun * 0.1;
         block += density(lp);
       }
       // Beer's law for the shadow, and a little "powder" brightening at the
@@ -181,8 +182,8 @@ export function CloudCanvas({ kind = 'partly', night = false, onFail, className 
       let visible = true;
       // Clouds are soft, so a low resolution looks the same and costs little.
       const resize = () => {
-        const width = Math.max(1, Math.round(canvas.clientWidth * 0.75));
-        const height = Math.max(1, Math.round(canvas.clientHeight * 0.75));
+        const width = Math.max(1, Math.round(canvas.clientWidth * 0.55));
+        const height = Math.max(1, Math.round(canvas.clientHeight * 0.55));
         if (canvas.width !== width || canvas.height !== height) {
           canvas.width = width;
           canvas.height = height;
@@ -194,8 +195,8 @@ export function CloudCanvas({ kind = 'partly', night = false, onFail, className 
       let last = 0;
       const draw = (now) => {
         if (!running) return;
-        // About 30 frames a second is plenty for drifting clouds.
-        if (now - last >= 32 || still) {
+        // About 24 frames a second is plenty for drifting clouds.
+        if (now - last >= 41 || still) {
           last = now;
           resize();
           gl.clearColor(0, 0, 0, 0);

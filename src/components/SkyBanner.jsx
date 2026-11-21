@@ -3,6 +3,7 @@ import { Cloud as CloudIcon, CloudDrizzle, CloudFog, CloudLightning, CloudMoon, 
 import { useCallback, useEffect, useId, useState } from 'react';
 import { api } from '../lib/api';
 import { CloudCanvas } from './CloudCanvas';
+import { LightningCanvas } from './LightningCanvas';
 import { useDeviceLocation } from '../lib/deviceLocation';
 
 // The band at the top of the profile card: the sky right now where the
@@ -325,122 +326,6 @@ function Snow() {
   );
 }
 
-// Lightning that forks like the roots of a tree: a jagged main channel from
-// the cloud base down past the bottom, with branches splitting off it and
-// smaller twigs off those. Built once from a fixed seed, so it is the same
-// shape every visit. Real lightning is white at the core with a violet glow.
-function forkedBolt(seed, startX) {
-  const next = seeded(seed);
-  const jitter = (size) => (next() - 0.5) * size;
-  const line = (points) => points.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
-
-  // The main channel, zig-zagging down.
-  const trunk = [[startX, -2]];
-  while (trunk[trunk.length - 1][1] < 84) {
-    const [x, y] = trunk[trunk.length - 1];
-    trunk.push([x + jitter(11), y + 5 + next() * 5]);
-  }
-
-  // Branches off the channel, each going down and out to one side, and
-  // twigs off the branches.
-  const branches = [];
-  const twigs = [];
-  trunk.slice(2, -2).forEach(([x, y], index) => {
-    if (next() > 0.55) return;
-    const side = index % 2 === 0 ? 1 : -1;
-    const branch = [[x, y]];
-    const steps = 3 + Math.floor(next() * 3);
-    for (let step = 0; step < steps; step += 1) {
-      const [bx, by] = branch[branch.length - 1];
-      branch.push([bx + side * (3 + next() * 6) + jitter(3), by + 3 + next() * 5]);
-    }
-    branches.push(line(branch));
-    if (next() < 0.6) {
-      const from = branch[1 + Math.floor(next() * (branch.length - 2))];
-      const twig = [from];
-      for (let step = 0; step < 2 + Math.floor(next() * 2); step += 1) {
-        const [tx, ty] = twig[twig.length - 1];
-        twig.push([tx - side * (1 + next() * 4) + jitter(2), ty + 2 + next() * 4]);
-      }
-      twigs.push(line(twig));
-    }
-  });
-  return { trunk: line(trunk), branches, twigs };
-}
-
-// Two bolts in different places take turns, one every 8 seconds.
-const BOLTS = [
-  { ...forkedBolt(7331, 236), delay: 0 },
-  { ...forkedBolt(90210, 168), delay: -8 },
-];
-
-// Before each strike the whole scene slowly darkens, the strike lights it
-// up pale violet for an instant (with the bolt's flickers), and then the
-// scene slowly comes back. This sits over the clouds and the rain.
-function StormLight() {
-  return (
-    <>
-      <rect width="320" height="80" fill="#0a0d1c" className="storm-dark" />
-      {BOLTS.map((bolt) => (
-        <rect
-          key={bolt.delay}
-          width="320"
-          height="80"
-          fill="#efe4ff"
-          className="storm-light"
-          style={{ animationDelay: `${bolt.delay}s` }}
-        />
-      ))}
-    </>
-  );
-}
-
-// The bolts, in front of the clouds: a wide violet glow, a lilac body and a
-// white-hot core, each thinner for branches and twigs.
-function LightningBolts({ id }) {
-  return (
-    <>
-      <defs>
-        <filter id={`${id}-glow`} x="-50%" y="-20%" width="200%" height="140%">
-          <feGaussianBlur stdDeviation="2.2" />
-        </filter>
-      </defs>
-      {BOLTS.map((bolt) => (
-        <g
-          key={bolt.delay}
-          className="storm-bolt"
-          style={{ animationDelay: `${bolt.delay}s` }}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <g stroke="#a855f7" opacity="0.9" filter={`url(#${id}-glow)`}>
-            <path d={bolt.trunk} strokeWidth="5" />
-            {bolt.branches.map((d) => (
-              <path key={d} d={d} strokeWidth="3" />
-            ))}
-          </g>
-          <g stroke="#d8b4fe">
-            <path d={bolt.trunk} strokeWidth="2.2" />
-            {bolt.branches.map((d) => (
-              <path key={d} d={d} strokeWidth="1.3" />
-            ))}
-            {bolt.twigs.map((d) => (
-              <path key={d} d={d} strokeWidth="0.8" />
-            ))}
-          </g>
-          <g stroke="#ffffff">
-            <path d={bolt.trunk} strokeWidth="1" />
-            {bolt.branches.map((d) => (
-              <path key={d} d={d} strokeWidth="0.55" />
-            ))}
-          </g>
-        </g>
-      ))}
-    </>
-  );
-}
-
 // Fog: the sky washed out to a soft grey-white, with banks of mist (blurred,
 // so they have no edges) drifting slowly at different speeds, thicker low
 // down like real fog over the ground.
@@ -609,18 +494,15 @@ export function SkyBanner({ className = '', preview = null }) {
       {/* The clouds: volumetric, raymarched in WebGL. */}
       {webgl && <CloudCanvas key={`${kind}-${night}`} kind={kind} night={night} onFail={drawCloudsInstead} />}
 
-      {/* In front of the clouds: fog, rain, snow and the storm. */}
+      {/* In front of the clouds: fog, rain and snow. */}
       <svg aria-hidden="true" viewBox="0 0 320 80" preserveAspectRatio="xMaxYMid slice" className="absolute inset-0 h-full w-full">
         {scene.fog && <Fog id={id} night={night} />}
         {scene.drops > 0 && <Rain count={scene.drops} night={night} />}
         {scene.snow && <Snow />}
-        {scene.lightning && (
-          <>
-            <StormLight />
-            <LightningBolts id={id} />
-          </>
-        )}
       </svg>
+
+      {/* A thunderstorm's darkening, strike and flash, over everything. */}
+      {scene.lightning && <LightningCanvas />}
 
       {/* The weather in words, top left. */}
       {weather && (

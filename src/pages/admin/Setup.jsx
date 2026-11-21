@@ -9,7 +9,7 @@ import { formError, rules, showServerError, useZodForm } from '../../lib/forms';
 import { slashDate, weekday } from '../../lib/dates';
 import { useToast } from '../../lib/toast';
 import { useAuth } from '../../lib/auth';
-import { positionOf } from '../../lib/home';
+import { isStaff, positionOf } from '../../lib/home';
 
 const DATE_NOTE = 'Subject to change depending on the actual holiday date (as per past experience)';
 
@@ -23,6 +23,16 @@ const typeRules = z.object({
     .refine((value) => Number(value) >= 0 && Number(value) <= 365, 'Use a number from 0 to 365.')
     .refine((value) => Number.isInteger(Number(value) * 2), 'Use whole or half days.'),
   description: rules.text(240, 'The description'),
+});
+
+const newTypeRules = typeRules.extend({
+  code: z
+    .string()
+    .trim()
+    .min(2, 'Write a short code, like ML.')
+    .max(10, 'Keep the code under 10 characters.')
+    .regex(/^[A-Za-z0-9]+$/, 'Use letters and numbers only.'),
+  tracksBalance: z.boolean(),
 });
 
 const holidayRules = z.object({
@@ -93,12 +103,95 @@ function LeaveTypeDialog({ item, onClose }) {
   );
 }
 
-function LeaveTypes({ canEdit }) {
+function NewLeaveTypeDialog({ onClose }) {
+  const form = useZodForm(newTypeRules, { name: '', code: '', annualQuota: '0', tracksBalance: true, description: '' });
+  const { errors } = form.formState;
+  const counted = form.watch('tracksBalance');
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const save = useMutation({
+    mutationFn: (fields) =>
+      api.post('/leave-types', {
+        name: fields.name,
+        code: fields.code.toUpperCase(),
+        description: fields.description,
+        tracksBalance: fields.tracksBalance,
+        annualQuota: fields.tracksBalance ? Number(fields.annualQuota) : 0,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      toast.success('Leave type added');
+      onClose();
+    },
+    onError: (issue) =>
+      issue.status === 409
+        ? form.setError('code', { message: issue.message })
+        : showServerError(form, issue, ['name', 'code', 'annualQuota', 'description']),
+  });
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Add a leave type"
+      kind="modal"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="new-type-form" loading={save.isPending}>
+            Add
+          </Button>
+        </>
+      }
+    >
+      <form id="new-type-form" className="space-y-4" noValidate onSubmit={form.handleSubmit((fields) => save.mutate(fields))}>
+        <TextInput label="Name" maxLength={60} placeholder="Marriage Leave" error={errors.name?.message} {...form.register('name')} />
+        <TextInput
+          label="Code"
+          maxLength={10}
+          placeholder="ML"
+          hint="A short name for reports, letters and numbers only."
+          error={errors.code?.message}
+          {...form.register('code')}
+        />
+        <label className="flex min-h-11 items-center gap-3 text-sm">
+          <input type="checkbox" {...form.register('tracksBalance')} className="h-5 w-5 accent-accent" />
+          Count the days against a yearly balance
+        </label>
+        {counted && (
+          <TextInput
+            label="Days per year"
+            type="number"
+            step="0.5"
+            hint="Everyone gets this many. Use 0 if an admin credits it by hand."
+            error={errors.annualQuota?.message}
+            {...form.register('annualQuota')}
+          />
+        )}
+        <TextInput label="Description" maxLength={240} error={errors.description?.message} {...form.register('description')} />
+        <FormError>{formError(form)}</FormError>
+      </form>
+    </Dialog>
+  );
+}
+
+function LeaveTypes({ canEdit, canAdd }) {
   const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
   const { data, isPending, isError, error, refetch } = useQuery({ queryKey: ['leave-types'], queryFn: () => api.get('/leave-types') });
 
   return (
     <Panel>
+      {canAdd && (
+        <div className="flex justify-end border-b border-line px-4 py-2 sm:px-5">
+          <Button variant="secondary" onClick={() => setAdding(true)}>
+            Add leave type
+          </Button>
+        </div>
+      )}
       {isPending && <RowsSkeleton />}
       {isError && <LoadError error={error} onRetry={refetch} />}
       <ul>
@@ -122,6 +215,7 @@ function LeaveTypes({ canEdit }) {
         ))}
       </ul>
       {editing && <LeaveTypeDialog item={editing} onClose={() => setEditing(null)} />}
+      {adding && <NewLeaveTypeDialog onClose={() => setAdding(false)} />}
     </Panel>
   );
 }
@@ -178,7 +272,7 @@ function HolidayDialog({ open, item, year, onClose }) {
   );
 }
 
-function Holidays({ canEdit }) {
+function Holidays({ canEdit, canAdd }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [dialog, setDialog] = useState(null);
   const [removing, setRemoving] = useState(null);
@@ -215,7 +309,7 @@ function Holidays({ canEdit }) {
             <ChevronRight className="h-4 w-4" />
           </IconButton>
         </div>
-        {canEdit && (
+        {canAdd && (
           <Button variant="secondary" onClick={() => setDialog({ item: null })}>
             Add holiday
           </Button>
@@ -270,16 +364,17 @@ function Holidays({ canEdit }) {
 export default function Setup() {
   const { user } = useAuth();
   const [tab, setTab] = useState('holidays');
-  // The lists are the same for the whole company: managers change them,
-  // assistant managers see them.
+  // The lists are the same for the whole company: any admin adds to them;
+  // managers and HR change or remove what is there.
   const canEdit = positionOf(user) === 'manager' || positionOf(user) === 'hr';
+  const canAdd = isStaff(user);
 
   return (
     <div>
       <PageHeading title="Setup">
         {canEdit
           ? 'The holiday list and the leave rules everyone works from.'
-          : 'The holiday list and the leave rules everyone works from. Your manager changes them.'}
+          : 'The holiday list and the leave rules everyone works from. You can add to them; your manager changes or removes them.'}
       </PageHeading>
       <Reveal delay={0.08}>
         <Tabs
@@ -292,7 +387,7 @@ export default function Setup() {
           onChange={setTab}
           className="mb-4"
         />
-        {tab === 'holidays' ? <Holidays canEdit={canEdit} /> : <LeaveTypes canEdit={canEdit} />}
+        {tab === 'holidays' ? <Holidays canEdit={canEdit} canAdd={canAdd} /> : <LeaveTypes canEdit={canEdit} canAdd={canAdd} />}
       </Reveal>
     </div>
   );

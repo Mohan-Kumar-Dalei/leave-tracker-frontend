@@ -465,11 +465,10 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
                   <tr className="border-b border-line text-left text-xs text-muted">
                     <th className="px-4 py-2 font-medium sm:px-5">Person</th>
                     <th className="px-2 py-2 font-medium">Work</th>
-                    <th className="px-2 py-2 font-medium">Assigned by</th>
                     <th className="px-2 py-2 text-right font-medium">Target</th>
                     <th className="px-2 py-2 text-right font-medium">Done</th>
                     <th className="px-2 py-2 text-right font-medium whitespace-nowrap">+/−</th>
-                    <th className="px-4 py-2 font-medium sm:px-5">Status</th>
+                    <th className="px-2 py-2 font-medium">Status</th>
                     {sheet.canLead && (
                       <th className="w-10 px-2 py-2">
                         <span className="sr-only">Remove</span>
@@ -478,26 +477,39 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => {
+                  {rows.map((row, index) => {
                     const said = period === 'day' ? notes[`${row.user}|${date}`] : null;
                     const mine = entriesOf((entry) => entry.user === row.user && entry.task === row.task);
+                    const first = index === 0 || rows[index - 1].user !== row.user;
+                    const last = index === rows.length - 1 || rows[index + 1].user !== row.user;
+                    const span = first ? rows.filter((other) => other.user === row.user).length : 0;
+                    const piece = row.task.toLowerCase() !== row.kind.toLowerCase();
                     return (
-                      <tr key={`${row.user}|${row.task}`} className="border-b border-line last:border-b-0">
-                        <td className="px-4 py-2.5 sm:px-5">
-                          <span className="font-medium">{row.person?.name}</span>
-                          {row.person?.workFromHome && <span className="ml-1.5 text-xs text-muted">WFH</span>}
-                          <CommentsButton said={said} title={`${row.person?.name}, ${shortDay(date)}`} onOpen={onComments} />
+                      <tr key={`${row.user}|${row.task}`} className={`align-top ${last ? 'border-b border-line last:border-b-0' : ''}`}>
+                        {first && (
+                          <td rowSpan={span} className="border-r border-line px-4 py-3 sm:px-5">
+                            <p className="font-medium whitespace-nowrap">{row.person?.name}</p>
+                            {(row.person?.workFromHome || said?.length > 0) && (
+                              <p className="mt-0.5 flex items-center text-xs text-muted">
+                                {row.person?.workFromHome && <span>WFH</span>}
+                                <CommentsButton said={said} title={`${row.person?.name}, ${shortDay(date)}`} onOpen={onComments} />
+                              </p>
+                            )}
+                          </td>
+                        )}
+                        <td className={`min-w-44 px-3 ${first ? 'pt-3' : 'pt-1.5'} ${last ? 'pb-3' : 'pb-1.5'}`}>
+                          {piece && <p className="text-[11px] tracking-wide text-muted uppercase">{row.kind}</p>}
+                          <p className="leading-snug [overflow-wrap:anywhere]">{row.task}</p>
+                          {row.by.size > 0 && <p className="mt-0.5 text-xs text-muted">Set by {[...row.by].join(', ')}</p>}
                         </td>
-                        <td className="px-2 py-2.5 text-muted">{row.name}</td>
-                        <td className="px-2 py-2.5 text-muted">{[...row.by].join(', ') || '—'}</td>
-                        <td className="px-2 py-2.5 text-right tabular-nums">{row.target}</td>
-                        <td className="px-2 py-2.5 text-right tabular-nums">{row.filled ? row.achieved : '—'}</td>
+                        <td className={`px-2 text-right tabular-nums ${first ? 'pt-3' : 'pt-1.5'}`}>{row.target}</td>
+                        <td className={`px-2 text-right tabular-nums ${first ? 'pt-3' : 'pt-1.5'}`}>{row.filled ? row.achieved : '—'}</td>
                         <td
-                          className={`px-2 py-2.5 text-right tabular-nums ${row.filled ? tone(row.achieved - row.target) : 'text-muted'}`}
+                          className={`px-2 text-right tabular-nums ${first ? 'pt-3' : 'pt-1.5'} ${row.filled ? tone(row.achieved - row.target) : 'text-muted'}`}
                         >
                           {row.filled ? signed(row.achieved - row.target) : ''}
                         </td>
-                        <td className="px-4 py-2.5 sm:px-5">
+                        <td className={`px-2 whitespace-nowrap ${first ? 'pt-2.5' : 'pt-1'}`}>
                           <Status kind={row.status} />
                           {period === 'month' && row.unfilled > 0 && (
                             <span className="ml-1.5 text-xs text-pending">
@@ -506,7 +518,7 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
                           )}
                         </td>
                         {sheet.canLead && (
-                          <td className="px-2 py-1">
+                          <td className={`px-2 ${first ? 'pt-1.5' : 'pt-0'}`}>
                             {mine.length > 0 && (
                               <IconButton
                                 label={`Remove ${row.name} for ${row.person?.name}`}

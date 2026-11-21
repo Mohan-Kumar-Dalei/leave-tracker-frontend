@@ -119,24 +119,19 @@ const OUTCOMES = [
 // Where the work is done (a Google Sheet or a Contify admin page), as a link.
 function WorkSource({ entry }) {
   if (!entry?.sourceName && !entry?.sourceUrl) return null;
-  const name = entry.sourceName || entry.task || 'Open the sheet';
-  return (
-    <p className="col-span-full -mb-1 flex items-center gap-1.5 text-[13px] text-muted">
-      <span>Work in:</span>
-      {entry.sourceUrl ? (
-        <a
-          href={entry.sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
-        >
-          {name}
-          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
-      ) : (
-        <span className="font-medium text-ink">{name}</span>
-      )}
-    </p>
+  const name = entry.sourceName || 'Open the sheet';
+  return entry.sourceUrl ? (
+    <a
+      href={entry.sourceUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
+    >
+      {name}
+      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+    </a>
+  ) : (
+    <span>Work in {name}</span>
   );
 }
 
@@ -314,89 +309,96 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
   const achieved = typed !== '' ? Number(typed) : saved;
   const difference = achieved !== null && target !== '' ? achieved - Number(target) : null;
 
+  const piece = entry?.category && entry.category.toLowerCase() !== entry.task.toLowerCase();
+  const chip = (
+    <span
+      className={`min-w-12 rounded-md px-2 py-1 text-center text-sm font-semibold tabular-nums ${
+        difference === null ? 'bg-sunken text-muted' : difference < 0 ? 'bg-rejected-soft text-rejected' : 'bg-approved-soft text-approved'
+      }`}
+      title="Achieved minus target"
+    >
+      {difference === null ? '—' : signed(difference)}
+    </span>
+  );
+
   return (
     <form
       noValidate
       onSubmit={form.handleSubmit((fields) => save.mutate(fields))}
-      className={`grid grid-cols-3 gap-3 border-b border-line py-3 last:border-b-0 ${wide ? 'sm:grid-cols-[1.4fr_1fr_1fr_0.8fr_auto] sm:items-start' : ''}`}
+      className="mt-3 rounded-xl border border-line bg-surface p-3 sm:p-4"
     >
-      <WorkSource entry={entry} />
-      <div className={wide ? 'col-span-3 sm:col-span-1' : 'col-span-3'}>
-        {adding ? (
-          <div className="space-y-2">
-            <Field label="Work" error={errors.category?.message}>
-              {(id) => (
-                <SelectBox
-                  id={id}
-                  className="w-full"
-                  error={errors.category?.message}
-                  value={form.watch('category')}
-                  onChange={(event) => form.setValue('category', event.target.value, { shouldValidate: true })}
-                >
-                  <option value="">Pick the work</option>
-                  {types.map((type) => (
-                    <option key={type.id} value={type.name}>
-                      {type.name}
-                    </option>
-                  ))}
-                </SelectBox>
-              )}
-            </Field>
-            <TextInput
-              label="Piece of it (optional)"
-              placeholder="Sourcing Error Report"
-              error={errors.task?.message}
-              {...form.register('task')}
-            />
+      {entry ? (
+        <div className="mb-3 flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            {piece && <p className="text-[11px] font-medium tracking-wide text-muted uppercase">{entry.category}</p>}
+            <p className="leading-snug font-semibold [overflow-wrap:anywhere]">{entry.task}</p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+              {setBy && <span>{setBy}</span>}
+              {setBy && (entry.sourceUrl || entry.sourceName) && <span aria-hidden="true">·</span>}
+              <WorkSource entry={entry} />
+            </p>
           </div>
-        ) : (
-          <div>
-            <p className="mb-1.5 text-[13px] font-medium">Work</p>
-            <p className="flex min-h-10 items-center rounded-lg border border-line bg-sunken px-3 text-sm">{workName(entry)}</p>
-          </div>
-        )}
-      </div>
-      <TextInput
-        label="Target"
-        inputMode="decimal"
-        disabled={!mayTarget}
-        hint={setBy ?? undefined}
-        error={errors.target?.message}
-        {...form.register('target')}
-      />
-      <TextInput
-        label="Achieved"
-        inputMode="decimal"
-        disabled={!mayFill}
-        placeholder={saved !== null ? String(saved) : undefined}
-        hint={future ? 'On the day' : saved !== null ? `Saved: ${saved}` : undefined}
-        error={errors.achieved?.message}
-        {...form.register('achieved')}
-      />
-      <TextInput label="OT" inputMode="decimal" disabled={!mayFill} error={errors.overtime?.message} {...form.register('overtime')} />
-      <div className={`col-span-3 flex h-10 items-center justify-end gap-1.5 ${wide ? 'sm:col-span-1 sm:mt-[25px]' : ''}`}>
-        <span
-          className={`mr-auto min-w-12 rounded-md px-2 py-1 text-center text-sm font-semibold tabular-nums ${
-            difference === null ? 'text-muted' : difference < 0 ? 'bg-rejected-soft text-rejected' : 'bg-approved-soft text-approved'
-          } ${wide ? 'sm:mr-0' : ''}`}
-          title="Achieved minus target"
-        >
-          {difference === null ? '—' : signed(difference)}
-        </span>
-        <div className="flex items-center gap-1">
-          <Button type="submit" variant="secondary" loading={save.isPending}>
-            Save
-          </Button>
-          {entry && (person.canLead || own) && (
-            <IconButton label={`Remove ${workName(entry)}`} onClick={() => remove.mutate()}>
+          {chip}
+          {(person.canLead || own) && (
+            <IconButton label={`Remove ${workName(entry)}`} onClick={() => remove.mutate()} className="-my-1">
               <Trash2 className="h-4 w-4" />
             </IconButton>
           )}
         </div>
+      ) : (
+        <div className="mb-3 grid gap-3 sm:grid-cols-2">
+          <Field label="Work" error={errors.category?.message}>
+            {(id) => (
+              <SelectBox
+                id={id}
+                className="w-full"
+                error={errors.category?.message}
+                value={form.watch('category')}
+                onChange={(event) => form.setValue('category', event.target.value, { shouldValidate: true })}
+              >
+                <option value="">Pick the work</option>
+                {types.map((type) => (
+                  <option key={type.id} value={type.name}>
+                    {type.name}
+                  </option>
+                ))}
+              </SelectBox>
+            )}
+          </Field>
+          <TextInput
+            label="Piece of it (optional)"
+            placeholder="Sourcing Error Report"
+            error={errors.task?.message}
+            {...form.register('task')}
+          />
+        </div>
+      )}
+      <div className={`grid grid-cols-3 gap-3 ${wide ? 'sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-start' : ''}`}>
+        <TextInput label="Target" inputMode="decimal" disabled={!mayTarget} error={errors.target?.message} {...form.register('target')} />
+        <TextInput
+          label="Achieved"
+          inputMode="decimal"
+          disabled={!mayFill}
+          placeholder={saved !== null ? String(saved) : undefined}
+          hint={future ? 'On the day' : saved !== null ? `Saved: ${saved}` : undefined}
+          error={errors.achieved?.message}
+          {...form.register('achieved')}
+        />
+        <TextInput label="OT" inputMode="decimal" disabled={!mayFill} error={errors.overtime?.message} {...form.register('overtime')} />
+        <div className={`col-span-3 flex items-center justify-end gap-2 ${wide ? 'sm:col-span-1 sm:mt-[25px]' : ''}`}>
+          {!entry && chip}
+          <Button type="submit" variant="secondary" loading={save.isPending}>
+            Save
+          </Button>
+        </div>
       </div>
-      {entry && (mayFill || (entry.breakdown ?? []).length > 0) && (mayFill ? <Counts entry={entry} person={person} day={day} /> : null)}
+      {entry && mayFill && (
+        <div className="mt-3">
+          <Counts entry={entry} person={person} day={day} />
+        </div>
+      )}
       {formError(form) && (
-        <div className="col-span-full">
+        <div className="mt-3">
           <FormError>{formError(form)}</FormError>
         </div>
       )}

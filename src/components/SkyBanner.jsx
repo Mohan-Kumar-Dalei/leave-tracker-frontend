@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Cloud as CloudIcon, CloudDrizzle, CloudFog, CloudLightning, CloudMoon, CloudRain, CloudSun, Moon as MoonIcon, Snowflake, Sun as SunIcon } from 'lucide-react';
-import { useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { api } from '../lib/api';
+import { CloudCanvas } from './CloudCanvas';
 import { useDeviceLocation } from '../lib/deviceLocation';
 
 // The band at the top of the profile card: the sky right now where the
@@ -506,6 +507,9 @@ export function SkyBanner({ className = '', preview = null }) {
   const [light, shade] = CLOUD_COLOURS[night ? 'night' : 'day'][scene.tone];
   const showStars = night && scene.body === 1;
   const Icon = ICONS[kind][night ? 1 : 0];
+  // Clouds come from WebGL; if it is missing or fails, the SVG ones are drawn.
+  const [webgl, setWebgl] = useState(true);
+  const drawCloudsInstead = useCallback(() => setWebgl(false), []);
 
   return (
     <div data-sky={night ? 'night' : 'day'} data-weather={kind} className={`relative overflow-hidden motion-reduce:[&_*]:animate-none ${className}`}>
@@ -595,9 +599,18 @@ export function SkyBanner({ className = '', preview = null }) {
 
         {/* Cloud cover */}
         {scene.grey > 0 && <rect width="320" height="80" fill={`url(#${id}-overcast)`} opacity={scene.grey} />}
-        {CLOUD_PLACES.slice(0, scene.clouds).map((place) => (
-          <Cloud key={`${place.y}-${place.duration}`} night={night} light={light} shade={shade} tone={scene.tone} {...place} />
-        ))}
+        {/* Drawn clouds, only where WebGL is not available. */}
+        {!webgl &&
+          CLOUD_PLACES.slice(0, scene.clouds).map((place) => (
+            <Cloud key={`${place.y}-${place.duration}`} night={night} light={light} shade={shade} tone={scene.tone} {...place} />
+          ))}
+      </svg>
+
+      {/* The clouds: volumetric, raymarched in WebGL. */}
+      {webgl && <CloudCanvas key={`${kind}-${night}`} kind={kind} night={night} onFail={drawCloudsInstead} />}
+
+      {/* In front of the clouds: fog, rain, snow and the storm. */}
+      <svg aria-hidden="true" viewBox="0 0 320 80" preserveAspectRatio="xMaxYMid slice" className="absolute inset-0 h-full w-full">
         {scene.fog && <Fog id={id} night={night} />}
         {scene.drops > 0 && <Rain count={scene.drops} night={night} />}
         {scene.snow && <Snow />}

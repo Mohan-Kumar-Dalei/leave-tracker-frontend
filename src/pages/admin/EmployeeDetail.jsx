@@ -3,7 +3,7 @@ import { ChevronLeft, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Controller } from 'react-hook-form';
 import { z } from 'zod';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useTeam } from '../../components/TeamPeople';
 import { MonthlyBars } from '../../components/MonthlyBars';
@@ -491,6 +491,8 @@ export default function EmployeeDetail() {
   const [removing, setRemoving] = useState(null);
   const [toggling, setToggling] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -510,6 +512,21 @@ export default function EmployeeDetail() {
     onError: (issue) => {
       toast.error('Could not change access', issue.message);
       setToggling(false);
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: () => api.delete(`/admin/employees/${id}`),
+    onSuccess: () => {
+      toast.success(`${data.user.name} deleted`);
+      setDeleting(false);
+      queryClient.removeQueries({ queryKey: ['employee', id] });
+      queryClient.invalidateQueries();
+      navigate(appPath('/admin/employees'), { replace: true });
+    },
+    onError: (issue) => {
+      toast.error('Could not delete them', issue.message);
+      setDeleting(false);
     },
   });
 
@@ -571,6 +588,19 @@ export default function EmployeeDetail() {
                   {user.isActive ? 'Turn off access' : 'Restore access'}
                 </Button>
               )}
+              {data.canDelete && (
+                <Button variant="danger" onClick={() => setDeleting(true)}>
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  Delete
+                </Button>
+              )}
+            </div>
+          ) : data.canDelete ? (
+            <div className="flex flex-wrap gap-2">
+              <Button variant="danger" onClick={() => setDeleting(true)}>
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Delete
+              </Button>
             </div>
           ) : (
             <p className="rounded-lg bg-sunken px-3 py-2 text-[13px] text-muted">
@@ -724,6 +754,17 @@ export default function EmployeeDetail() {
         danger
         loading={removeChange.isPending}
         onConfirm={() => removeChange.mutate(removing)}
+      />
+
+      <ConfirmDialog
+        open={deleting}
+        onClose={() => setDeleting(false)}
+        title={`Delete ${user.name}?`}
+        body={`${user.name} (${user.employeeId}) is removed for good: their account, leave history, balances and notifications. They are signed out at once. Anyone who reported to them will need someone new. This cannot be undone.`}
+        confirmLabel="Delete for good"
+        danger
+        loading={remove.isPending}
+        onConfirm={() => remove.mutate()}
       />
 
       <ConfirmDialog

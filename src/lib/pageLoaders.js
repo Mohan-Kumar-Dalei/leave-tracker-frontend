@@ -15,10 +15,11 @@ export const pageLoaders = {
   DepartmentHome: () => import('../pages/org/DepartmentHome'),
   Register: () => import('../pages/org/Register'),
   JoinPages: () => import('../pages/org/JoinPages'),
+  WorkTracker: () => import('../pages/work/WorkTracker'),
 };
 
 // The pages someone signed in can open (not the public ones).
-const SIGNED_IN = ['Overview', 'Team', 'AdminRequests', 'Employees', 'EmployeeDetail', 'Setup', 'Schedule', 'Organisation', 'LeaveTotals', 'DepartmentHome'];
+const SIGNED_IN = ['Overview', 'Team', 'AdminRequests', 'Employees', 'EmployeeDetail', 'Setup', 'Schedule', 'Organisation', 'LeaveTotals', 'DepartmentHome', 'WorkTracker'];
 
 let preloaded = false;
 export function preloadPages() {

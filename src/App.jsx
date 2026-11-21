@@ -23,6 +23,7 @@ const Organisation = lazy(pageLoaders.Organisation);
 const LeaveTotalsPage = lazy(() => pageLoaders.LeaveTotals().then((module) => ({ default: module.LeaveTotalsPage })));
 const DepartmentHome = lazy(pageLoaders.DepartmentHome);
 const Register = lazy(pageLoaders.Register);
+const WorkTracker = lazy(pageLoaders.WorkTracker);
 const AcceptInvite = lazy(() => pageLoaders.JoinPages().then((module) => ({ default: module.AcceptInvite })));
 const JoinDepartment = lazy(() => pageLoaders.JoinPages().then((module) => ({ default: module.JoinDepartment })));
 // Development only: every sky of the dashboard's weather band, at /dev/sky.
@@ -40,6 +41,7 @@ const STAFF_PAGES = [
   ['setup', Setup],
   ['profile', Profile],
   ['totals', LeaveTotalsPage],
+  ['work', WorkTracker],
 ];
 
 const PAGES = {
@@ -49,6 +51,7 @@ const PAGES = {
     ['totals', LeaveTotalsPage],
     ['department', Team],
     ['profile', Profile],
+    ['work', WorkTracker],
   ],
   // Assistant managers and managers run their department and take leave too.
   assistantmanager: [

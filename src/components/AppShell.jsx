@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarCheck, ChevronsUpDown, House, LogOut, Menu, Moon, Network, Settings2, Sun, UserRound, Users } from 'lucide-react';
+import { CalendarCheck, ChevronsUpDown, House, LogOut, Menu, Moon, Network, Settings2, Sun, Target, UserRound, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
@@ -15,6 +15,9 @@ import { NotificationBell } from './NotificationBell';
 import { Avatar } from './ProfilePhoto';
 import { IconButton } from './ui';
 
+// The daily target sheet, for everyone.
+const WORK_SECTION = { key: 'work', label: 'Work Tracker', icon: Target, items: [{ to: 'work', label: 'Work tracker' }] };
+
 // The menu, Zoho style: a dark rail on the left with a few sections, and the
 // section's pages as tabs along the top. `to` is the page under the person's
 // own address (lib/home.js), '' being the page it opens on.
@@ -29,6 +32,7 @@ const EMPLOYEE_SECTIONS = [
       { to: 'totals', label: 'Leave totals' },
     ],
   },
+  WORK_SECTION,
   { key: 'people', label: 'Department', icon: Network, items: [{ to: 'department', label: 'Department' }] },
   { key: 'me', label: 'Profile', icon: UserRound, items: [{ to: 'profile', label: 'Profile' }] },
 ];
@@ -70,6 +74,7 @@ function staffSections({ manager, myDepartment }) {
       ],
     },
     LEAVE_SECTION,
+    WORK_SECTION,
     {
       key: 'people',
       label: 'People',

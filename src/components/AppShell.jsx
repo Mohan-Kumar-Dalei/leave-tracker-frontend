@@ -413,7 +413,7 @@ export function AppShell() {
                 {active && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-accent" />}
                 <span
                   className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg transition-colors ${
-                    active ? 'bg-accent text-on-accent shadow-[0_6px_18px_-6px_var(--color-accent)]' : 'bg-white/[0.06] group-hover:bg-white/10'
+                    active ? 'bg-accent text-on-accent' : 'bg-white/[0.06] group-hover:bg-white/10'
                   }`}
                 >
                   <section.icon className="h-[18px] w-[18px]" aria-hidden="true" />

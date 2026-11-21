@@ -551,10 +551,15 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
               const c = Number(cell.dataset.c);
               if (editing && (editing.r !== r || editing.c !== c)) commit(0);
               setPicked({ r, c });
+              setCard(null);
+              box.current?.focus();
+              // Someone's day opens its popup: target, achieved, OT and comments.
               const owner = ownerOf(r, c);
               const said = owner ? notes[`${owner.person.id}|${owner.day.date}`] : null;
-              setCard(said?.length ? { r, c, typing: false, pinned: true } : null);
-              box.current?.focus();
+              if (owner && !owner.day.sunday && (owner.person.canLead || owner.person.canFill || said?.length)) {
+                event.preventDefault();
+                onOpenDay(owner.person, owner.day);
+              }
             }}
             onDoubleClick={(event) => {
               const cell = event.target.closest('[data-r]');
@@ -668,28 +673,32 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
         role="tablist"
         aria-label="Months"
       >
-        {(sheet.months ?? [{ month: sheet.month, comments: 0 }]).map(({ month, comments }) => {
-          const active = month === sheet.month;
-          return (
-            <button
-              key={month}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => onMonth(month)}
-              className={`my-1 flex shrink-0 items-center gap-1.5 rounded-t px-3 text-[13px] font-medium ${
-                active ? 'border-b-2 border-[#188038] bg-[#e6f4ea] text-[#188038]' : 'text-[#444746] hover:bg-[#e8eaed]'
-              }`}
-            >
-              {comments > 0 && (
-                <span className="rounded bg-[#e37400] px-1 text-[10px] font-semibold leading-4 text-white">
-                  {comments > 99 ? '99+' : comments}
-                </span>
-              )}
-              {tabName(month)}
-            </button>
-          );
-        })}
+        {/* Only this month's tab: next month it is replaced by the new one. */}
+        {(sheet.months ?? [])
+          .filter((item) => item.month === sheet.month)
+          .concat((sheet.months ?? []).some((item) => item.month === sheet.month) ? [] : [{ month: sheet.month, comments: 0 }])
+          .map(({ month, comments }) => {
+            const active = month === sheet.month;
+            return (
+              <button
+                key={month}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onMonth(month)}
+                className={`my-1 flex shrink-0 items-center gap-1.5 rounded-t px-3 text-[13px] font-medium ${
+                  active ? 'border-b-2 border-[#188038] bg-[#e6f4ea] text-[#188038]' : 'text-[#444746] hover:bg-[#e8eaed]'
+                }`}
+              >
+                {comments > 0 && (
+                  <span className="rounded bg-[#e37400] px-1 text-[10px] font-semibold leading-4 text-white">
+                    {comments > 99 ? '99+' : comments}
+                  </span>
+                )}
+                {tabName(month)}
+              </button>
+            );
+          })}
       </div>
     </div>
   );

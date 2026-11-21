@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Download, MessageSquarePlus, Plus, Search, Target, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, MessageSquare, MessageSquarePlus, Plus, Search, Target, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Tabs } from '../../components/Tabs';
@@ -88,7 +88,7 @@ const toCount = (value) => (value === '' || value === undefined ? undefined : Nu
 /* One person's day: their pieces of work, with the target (for a lead) and
    what was achieved (for them, or a lead). */
 
-function WorkLine({ entry, person, day, today, onDone, wide = false }) {
+function WorkLine({ entry, person, day, today, onDone, wide = false, assigners = {} }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const future = day.date > today;
@@ -97,6 +97,14 @@ function WorkLine({ entry, person, day, today, onDone, wide = false }) {
   const self = person.canFill && !person.canLead;
   const own = self && (!entry || !entry.targetBy || entry.targetBy === person.id);
   const mayTarget = person.canLead || own;
+  // Who set this target, said under it.
+  const setBy = !entry?.targetBy
+    ? entry && own && entry.target > 0
+      ? 'Your own target'
+      : null
+    : entry.targetBy === person.id
+      ? 'Set by you'
+      : `Set by ${assigners[entry.targetBy] ?? 'your lead'}`;
   const form = useZodForm(
     z.object({
       task: z.string().trim().min(1, 'Name the work.').max(60, 'Keep it under 60 characters.'),
@@ -166,7 +174,7 @@ function WorkLine({ entry, person, day, today, onDone, wide = false }) {
         label="Target"
         inputMode="decimal"
         disabled={!mayTarget}
-        hint={!mayTarget && entry?.targetBy ? 'Set by your lead' : undefined}
+        hint={setBy ?? undefined}
         error={errors.target?.message}
         {...form.register('target')}
       />
@@ -185,19 +193,24 @@ function WorkLine({ entry, person, day, today, onDone, wide = false }) {
         error={errors.overtime?.message}
         {...form.register('overtime')}
       />
-      <div className={`col-span-3 flex items-center justify-between gap-2 ${wide ? 'sm:col-span-1 sm:flex-col sm:items-end sm:pt-6' : ''}`}>
-        <span className={`text-sm font-semibold tabular-nums ${difference === null ? 'text-muted' : tone(difference)}`}>
+      <div className={`col-span-3 flex h-10 items-center justify-end gap-1.5 ${wide ? 'sm:col-span-1 sm:mt-[25px]' : ''}`}>
+        <span
+          className={`mr-auto min-w-12 rounded-md px-2 py-1 text-center text-sm font-semibold tabular-nums ${
+            difference === null ? 'text-muted' : difference < 0 ? 'bg-rejected-soft text-rejected' : 'bg-approved-soft text-approved'
+          } ${wide ? 'sm:mr-0' : ''}`}
+          title="Achieved minus target"
+        >
           {difference === null ? '—' : signed(difference)}
         </span>
         <div className="flex items-center gap-1">
+          <Button type="submit" variant="secondary" loading={save.isPending}>
+            Save
+          </Button>
           {entry && (person.canLead || own) && (
             <IconButton label={`Remove ${entry.task}`} onClick={() => remove.mutate()}>
               <Trash2 className="h-4 w-4" />
             </IconButton>
           )}
-          <Button type="submit" variant="secondary" loading={save.isPending}>
-            Save
-          </Button>
         </div>
       </div>
       {formError(form) && (
@@ -224,7 +237,80 @@ function commentsOf(comments) {
 
 const postedAt = (value) => new Date(value).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-function Comments({ person, day, comments = [], focus = false, tasks = [] }) {
+// A line for a day's comments: one button to read them and another to add
+// one, each in its own popup, so reading and writing stay apart.
+function Comments({ person, day, comments = [], tasks = [], startAdding = false }) {
+  const [view, setView] = useState(false);
+  const [add, setAdd] = useState(startAdding);
+  const latest = comments.at(-1);
+  return (
+    <section aria-label="Comments" className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+      <MessageSquare className="h-4 w-4 shrink-0 text-[#a8650b]" aria-hidden="true" />
+      <p className="min-w-0 flex-1 truncate text-sm">
+        {latest ? (
+          <>
+            <span className="font-medium">{latest.author.name}:</span>{' '}
+            <span className="text-muted">{latest.text.replace(/\s+/g, ' ')}</span>
+          </>
+        ) : (
+          <span className="text-muted">No comments yet.</span>
+        )}
+      </p>
+      <div className="flex shrink-0 items-center gap-2">
+        <Button variant="secondary" disabled={!comments.length} onClick={() => setView(true)}>
+          View comments{comments.length ? ` (${comments.length})` : ''}
+        </Button>
+        {person.canFill && (
+          <Button variant="secondary" onClick={() => setAdd(true)}>
+            <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
+            Add comment
+          </Button>
+        )}
+      </div>
+      <Dialog open={view} onClose={() => setView(false)} title={`Comments, ${dayTitle(day.date)}`} kind="modal">
+        {view && <CommentList comments={comments} />}
+      </Dialog>
+      <Dialog open={add} onClose={() => setAdd(false)} title={`Add a comment, ${dayTitle(day.date)}`} kind="modal">
+        {add && <CommentForm person={person} day={day} tasks={tasks} onDone={() => setAdd(false)} />}
+      </Dialog>
+    </section>
+  );
+}
+
+// Reading: the day's comments, oldest first; whoever wrote one may remove it.
+function CommentList({ comments }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const remove = useMutation({
+    mutationFn: (id) => api.delete(`/work/comments/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['work'] }),
+    onError: (issue) => toast.error('Could not remove it', issue.message),
+  });
+  if (!comments.length) return <p className="text-sm text-muted">No comments on this day.</p>;
+  return (
+    <ul className="space-y-2">
+      {comments.map((comment) => (
+        <li key={comment.id} className="rounded-lg border-l-[3px] border-[#f2a93b] bg-sunken px-3 py-2">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[13px]">
+              <span className="font-semibold">{comment.author.name}</span>
+              <span className="text-muted"> · {postedAt(comment.createdAt)}</span>
+            </p>
+            {comment.mine && (
+              <IconButton label="Remove this comment" className="-my-1 -mr-2" onClick={() => remove.mutate(comment.id)}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </IconButton>
+            )}
+          </div>
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-5">{comment.text}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Writing: one new comment for the day.
+function CommentForm({ person, day, tasks = [], onDone }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const form = useZodForm(z.object({ text: z.string().trim().min(1, 'Write the comment.').max(2000, 'Keep it under 2000 characters.') }), {
@@ -234,15 +320,11 @@ function Comments({ person, day, comments = [], focus = false, tasks = [] }) {
   const post = useMutation({
     mutationFn: ({ text }) => api.post('/work/comments', { user: person.id, date: day.date, text }),
     onSuccess: () => {
-      form.reset({ text: '' });
       queryClient.invalidateQueries({ queryKey: ['work'] });
+      toast.success('Comment added');
+      onDone?.();
     },
     onError: (issue) => showServerError(form, issue, ['text']),
-  });
-  const remove = useMutation({
-    mutationFn: (id) => api.delete(`/work/comments/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['work'] }),
-    onError: (issue) => toast.error('Could not remove it', issue.message),
   });
   // The usual format, filled in with the day and the work.
   const fillFormat = () => {
@@ -250,62 +332,38 @@ function Comments({ person, day, comments = [], focus = false, tasks = [] }) {
     form.setValue('text', `Date ${date}.${month}.${year}\nTask ${tasks[0] ?? ''}\n`, { shouldFocus: true });
   };
   const submit = form.handleSubmit((fields) => post.mutate(fields));
-
   return (
-    <section aria-label="Comments" className="mt-4 border-t border-line pt-4">
-      <h3 className="mb-2 text-sm font-semibold">
-        Comments {comments.length > 0 && <span className="font-normal text-muted">({comments.length})</span>}
-      </h3>
-      {comments.length === 0 && !person.canFill && <p className="text-sm text-muted">No comments on this day.</p>}
-      <ul className="space-y-2">
-        {comments.map((comment) => (
-          <li key={comment.id} className="rounded-lg border-l-4 border-[#f2a93b] bg-sunken px-3 py-2">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[13px]">
-                <span className="font-semibold">{comment.author.name}</span>
-                <span className="text-muted"> · {postedAt(comment.createdAt)}</span>
-              </p>
-              {comment.mine && (
-                <IconButton label="Remove this comment" className="-my-1 -mr-2" onClick={() => remove.mutate(comment.id)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </IconButton>
-              )}
-            </div>
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">{comment.text}</p>
-          </li>
-        ))}
-      </ul>
-      {person.canFill && (
-        <form noValidate onSubmit={submit} className="mt-3">
-          <TextArea
-            label="Add a comment"
-            rows={4}
-            data-autofocus={focus ? true : undefined}
-            placeholder={EXAMPLE}
-            hint="Ctrl+Enter posts it. It goes into the exported sheet as the cell's note."
-            error={errors.text?.message}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) submit(event);
-            }}
-            {...form.register('text')}
-          />
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <button type="button" className="text-sm text-accent hover:underline" onClick={fillFormat}>
-              Use the usual format
-            </button>
-            <Button type="submit" variant="secondary" loading={post.isPending}>
-              <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
-              Comment
-            </Button>
-          </div>
-          <FormError>{formError(form)}</FormError>
-        </form>
-      )}
-    </section>
+    <form noValidate onSubmit={submit}>
+      <TextArea
+        label="Comment"
+        rows={5}
+        data-autofocus
+        placeholder={EXAMPLE}
+        error={errors.text?.message}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) submit(event);
+        }}
+        {...form.register('text')}
+      />
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <button type="button" className="text-sm text-accent hover:underline" onClick={fillFormat} title="Ctrl+Enter posts it">
+          Use the usual format
+        </button>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={onDone}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={post.isPending}>
+            Comment
+          </Button>
+        </div>
+      </div>
+      <FormError>{formError(form)}</FormError>
+    </form>
   );
 }
 
-function DayDialog({ open, person, day, total, today, tasks, comments, focusComment, onClose }) {
+function DayDialog({ open, person, day, total, today, tasks, comments, focusComment, onClose, assigners }) {
   const [adding, setAdding] = useState(false);
   const entries = total?.entries ?? [];
   const mayChange = person?.canLead || person?.canFill;
@@ -329,7 +387,14 @@ function DayDialog({ open, person, day, total, today, tasks, comments, focusComm
           {entries.length === 0 && !adding && <p className="py-3 text-sm text-muted">No work set for this day yet.</p>}
           {mayChange ? (
             entries.map((entry) => (
-              <WorkLine key={`${entry.id}-${entry.updatedAt}`} entry={entry} person={person} day={day} today={today} />
+              <WorkLine
+                key={`${entry.id}-${entry.updatedAt}`}
+                entry={entry}
+                person={person}
+                day={day}
+                today={today}
+                assigners={assigners}
+              />
             ))
           ) : (
             <ul className="divide-y divide-line text-sm">
@@ -350,7 +415,7 @@ function DayDialog({ open, person, day, total, today, tasks, comments, focusComm
               {entries.length ? 'Add other work' : 'Add work'}
             </Button>
           )}
-          <Comments person={person} day={day} comments={comments} focus={focusComment} tasks={entries.map((entry) => entry.task)} />
+          <Comments person={person} day={day} comments={comments} startAdding={focusComment} tasks={entries.map((entry) => entry.task)} />
         </div>
       )}
     </Dialog>
@@ -533,6 +598,7 @@ function TargetsDialog({ open, sheet, onClose }) {
 /* My work: today's work for the person signed in, to fill in quickly. */
 
 function MyDay({ sheet, me, totals, tasks, notes }) {
+  const assigners = sheet.assigners ?? {};
   const day = sheet.days.find((item) => item.date === sheet.today);
   const [adding, setAdding] = useState(false);
   if (!day) return <Empty title="This is not this month">Go to this month to fill in today's work.</Empty>;
@@ -549,7 +615,7 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
   const canAdd = !(me.workFromHome && entries.length > 0);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+    <div className="grid items-start gap-4 lg:grid-cols-[2fr_1fr]">
       <Panel>
         <PanelTitle>Today, {dayTitle(day.date)}</PanelTitle>
         <div className="px-4 pb-3 sm:px-5">
@@ -562,7 +628,15 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
             <p className="py-3 text-sm text-muted">No target set for today yet. You can still fill in what you did.</p>
           )}
           {entries.map((entry) => (
-            <WorkLine key={`${entry.id}-${entry.updatedAt}`} entry={entry} person={me} day={day} today={sheet.today} wide />
+            <WorkLine
+              key={`${entry.id}-${entry.updatedAt}`}
+              entry={entry}
+              person={me}
+              day={day}
+              today={sheet.today}
+              assigners={assigners}
+              wide
+            />
           ))}
           {adding && <WorkLine person={me} day={day} today={sheet.today} onDone={() => setAdding(false)} wide />}
           {canAdd && !adding && (
@@ -576,7 +650,7 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
       </Panel>
       <Panel>
         <PanelTitle>{monthTitle(sheet.month)} so far</PanelTitle>
-        <dl className="grid grid-cols-3 gap-2 px-4 pb-4 text-center sm:px-5">
+        <dl className="grid grid-cols-3 gap-2 px-4 py-4 text-center sm:px-5">
           {[
             ['Target', target, 'text-ink'],
             ['Achieved', achieved, 'text-ink'],
@@ -737,6 +811,7 @@ export default function WorkTracker() {
         tasks={sheet.tasks}
         comments={opened ? notes[`${opened.person.id}|${opened.day.date}`] : []}
         focusComment={Boolean(opened?.comment)}
+        assigners={sheet.assigners ?? {}}
         onClose={() => setOpened(null)}
       />
       {setting && <TargetsDialog open sheet={sheet} onClose={() => setSetting(false)} />}

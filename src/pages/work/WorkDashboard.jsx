@@ -286,9 +286,9 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
               : 'Nobody has a target for this work this month yet.'}
         </Empty>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
+        <div className="grid items-start gap-4 lg:grid-cols-[1fr_2fr]">
           <ArtPanel title="By work">
-            <ul className="divide-y divide-line">
+            <ul className="max-h-[min(62vh,560px)] divide-y divide-line overflow-y-auto">
               {byWork.map((item) => (
                 <li key={item.task}>
                   <button
@@ -314,9 +314,9 @@ function TeamDashboard({ sheet, me, notes, search = '' }) {
 
           <Panel>
             <PanelTitle>Who did what{period === 'day' ? `, ${shortDay(date)}` : ', this month so far'}</PanelTitle>
-            <div className="overflow-x-auto">
+            <div className="max-h-[min(62vh,560px)] overflow-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-surface">
                   <tr className="border-b border-line text-left text-xs text-muted">
                     <th className="px-4 py-2 font-medium sm:px-5">Person</th>
                     <th className="px-2 py-2 font-medium">Work</th>
@@ -390,7 +390,7 @@ function MyDashboard({ sheet, me, notes }) {
   const mine = sheet.entries
     .filter((entry) => entry.user === me.id && (period === 'month' || entry.date === date))
     .sort((a, b) => a.date.localeCompare(b.date) || a.task.localeCompare(b.task));
-  const by = (entry) => (entry.targetBy ? (sheet.assigners?.[entry.targetBy] ?? 'Someone') : '—');
+  const by = (entry) => (entry.targetBy ? (entry.targetBy === me.id ? 'You' : (sheet.assigners?.[entry.targetBy] ?? 'Your lead')) : '—');
   // What counts so far: days gone by, and today once filled in.
   const counts = (entry) =>
     entry.date < sheet.today || (entry.date === sheet.today && entry.achieved !== null && entry.achieved !== undefined);
@@ -471,9 +471,9 @@ function MyDashboard({ sheet, me, notes }) {
           {period === 'day' ? 'Nobody has given you a target for this day yet.' : 'Nobody has given you a target this month yet.'}
         </Empty>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
+        <div className="grid items-start gap-4 lg:grid-cols-[1fr_2fr]">
           <ArtPanel title="My work">
-            <ul className="divide-y divide-line">
+            <ul className="max-h-[min(62vh,560px)] divide-y divide-line overflow-y-auto">
               {byWork.map((item) => (
                 <li key={item.task} className="px-4 py-3 sm:px-5">
                   <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
@@ -484,7 +484,10 @@ function MyDashboard({ sheet, me, notes }) {
                   </div>
                   <Bar done={item.achieved} of={item.due || item.target} />
                   <p className="mt-1.5 text-xs text-muted">
-                    {[...item.from].map(([name, amount]) => `${amount} from ${name}`).join(' · ')}
+                    {[...item.from]
+                      .filter(([name]) => name !== '—')
+                      .map(([name, amount]) => `${amount} from ${name}`)
+                      .join(' · ') || `${item.target} target`}
                     {' · '}
                     {item.days} {item.days === 1 ? 'day' : 'days'}
                   </p>
@@ -495,9 +498,9 @@ function MyDashboard({ sheet, me, notes }) {
 
           <Panel>
             <PanelTitle>Assigned to me{period === 'day' ? `, ${dayLabel(date)}` : ''}</PanelTitle>
-            <div className="overflow-x-auto">
+            <div className="max-h-[min(62vh,560px)] overflow-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-surface">
                   <tr className="border-b border-line text-left text-xs text-muted">
                     <th className="px-4 py-2 font-medium sm:px-5">Day</th>
                     <th className="px-2 py-2 font-medium">Work</th>

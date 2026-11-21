@@ -49,7 +49,7 @@ export function Tabs({ tabs, value, onChange, label, className = '' }) {
         <span
           ref={marker}
           aria-hidden="true"
-          className="pointer-events-none absolute left-0 rounded-lg bg-surface opacity-0 shadow-[0_1px_2px_rgb(16_24_64/0.08),0_2px_8px_-2px_rgb(16_24_64/0.1)] transition-[transform,width,opacity] duration-300 ease-[var(--ease-calm)] motion-reduce:transition-none"
+          className="pointer-events-none absolute left-0 rounded-lg bg-surface opacity-0 ring-1 ring-line transition-[transform,width,opacity] duration-300 ease-[var(--ease-calm)] motion-reduce:transition-none"
         />
         {tabs.map((tab, position) => {
           const active = tab.id === picked;
@@ -93,12 +93,12 @@ export function SegmentedTabs({ tabs, value, onChange, label }) {
       role="tablist"
       aria-label={label}
       onKeyDown={onKeyDown}
-      className="relative inline-flex max-w-full overflow-x-auto rounded-xl border border-line bg-surface p-1 shadow-card [scrollbar-width:none]"
+      className="relative inline-flex max-w-full overflow-x-auto rounded-xl border border-line bg-surface p-1 [scrollbar-width:none]"
     >
       <span
         ref={marker}
         aria-hidden="true"
-        className="pointer-events-none absolute left-0 rounded-lg bg-accent opacity-0 shadow-[0_6px_16px_-8px_var(--color-accent)] transition-[transform,width,opacity] duration-300 ease-[var(--ease-calm)] motion-reduce:transition-none"
+        className="pointer-events-none absolute left-0 rounded-lg bg-accent opacity-0 transition-[transform,width,opacity] duration-300 ease-[var(--ease-calm)] motion-reduce:transition-none"
       />
       {tabs.map(([key, name], position) => {
         const active = key === picked;

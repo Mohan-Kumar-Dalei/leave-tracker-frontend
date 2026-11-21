@@ -293,18 +293,12 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
           {lines.length === 0 && (
             <p className="mb-2 text-sm text-muted">Count it here, like Fixed 46, Working fine 22, Webpage issue 49.</p>
           )}
-          <datalist id="work-outcomes">
-            {OUTCOMES.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
           <ul className="space-y-2">
             {lines.map((line, index) => (
               // eslint-disable-next-line react/no-array-index-key
               <li key={index} className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <input
-                    list="work-outcomes"
                     value={line.label}
                     disabled={!mayFill}
                     maxLength={40}

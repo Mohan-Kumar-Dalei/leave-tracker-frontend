@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { Cloud as CloudIcon, CloudDrizzle, CloudFog, CloudLightning, CloudMoon, CloudRain, CloudSun, LocateFixed, MapPin, Moon as MoonIcon, Snowflake, Sun as SunIcon } from 'lucide-react';
+import { Cloud as CloudIcon, CloudDrizzle, CloudFog, CloudLightning, CloudMoon, CloudRain, CloudSun, Moon as MoonIcon, Snowflake, Sun as SunIcon } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { api } from '../lib/api';
+import { useDeviceLocation } from '../lib/deviceLocation';
 
-// The band at the top of the profile card: the sky right now, over the
-// office (Bhubaneswar, Odisha) or, if the person shares it, where they are.
+// The band at the top of the profile card: the sky right now where the
+// person is (the app asks for their location when it opens), or over the
+// office, Bhubaneswar, Odisha, if they did not allow it.
 // The server reads the weather every ten minutes (see services/weather.js)
 // and the band draws it: day or night by the real sun,
 // then clear, a few clouds, overcast, fog, drizzle, rain, or a thunderstorm
@@ -27,82 +29,6 @@ function useClockNight() {
     return () => clearInterval(timer);
   }, []);
   return night;
-}
-
-// Whether this person chose to see the weather where they are. The browser
-// asks them once, when they press the location button; after that their
-// choice is remembered here. Until then (or if they say no) the sky shows
-// the office, Bhubaneswar, Odisha.
-const HERE_KEY = 'lt-weather-here';
-const readHere = () => {
-  try {
-    return localStorage.getItem(HERE_KEY) === 'yes';
-  } catch {
-    return false;
-  }
-};
-const saveHere = (value) => {
-  try {
-    localStorage.setItem(HERE_KEY, value ? 'yes' : 'no');
-  } catch {
-    // Storage may be off; the choice simply lasts this visit.
-  }
-};
-// About 10 km: enough for the weather, and all the server ever sees.
-const roughly = (value) => Math.round(value * 10) / 10;
-
-function useLocation() {
-  const [wanted, setWanted] = useState(readHere);
-  const [coords, setCoords] = useState(null);
-  const [asking, setAsking] = useState(false);
-  const supported = typeof navigator !== 'undefined' && 'geolocation' in navigator;
-
-  const locate = (onDone) => {
-    setAsking(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setCoords({ lat: roughly(position.coords.latitude), lon: roughly(position.coords.longitude) });
-        setAsking(false);
-        onDone?.(true);
-      },
-      () => {
-        setCoords(null);
-        setAsking(false);
-        onDone?.(false);
-      },
-      { maximumAge: 30 * 60 * 1000, timeout: 10000, enableHighAccuracy: false },
-    );
-  };
-
-  // Someone who said yes before: find them again quietly (no prompt, since
-  // the browser already has their permission). Once, when the card shows.
-  useEffect(() => {
-    if (!wanted || !supported) return;
-    locate((ok) => {
-      if (!ok) {
-        setWanted(false);
-        saveHere(false);
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const toggle = () => {
-    if (!supported) return;
-    if (wanted) {
-      setWanted(false);
-      setCoords(null);
-      saveHere(false);
-      return;
-    }
-    // This is where the browser asks for permission.
-    locate((ok) => {
-      setWanted(ok);
-      saveHere(ok);
-    });
-  };
-
-  return { coords: wanted ? coords : null, using: wanted && Boolean(coords), asking, supported, toggle };
 }
 
 // In development only, ?sky=rain&time=night shows that sky, to see each one.
@@ -489,8 +415,9 @@ const timeOf = (iso) => (iso ? iso.slice(11, 16) : '');
 // gallery of every sky uses it).
 export function SkyBanner({ className = '', preview = null }) {
   const id = useId().replace(/:/g, '');
-  const here = useLocation();
-  const live = useWeather(here.coords, !preview);
+  // Where the person is, if they allowed it when the app opened.
+  const { coords } = useDeviceLocation();
+  const live = useWeather(coords, !preview);
   const weather = preview ?? live;
   const clock = useClockNight();
   const night = weather ? !weather.isDay : clock;
@@ -602,38 +529,19 @@ export function SkyBanner({ className = '', preview = null }) {
         )}
       </svg>
 
-      {/* The weather in words, top left, with the location button. */}
+      {/* The weather in words, top left. */}
       {weather && (
-        <div
-          className={`absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full py-0.5 pl-2 pr-0.5 text-[11px] font-medium shadow-sm backdrop-blur-sm ${
+        <p
+          title={`${weather.location}${weather.observedAt ? `, as of ${timeOf(weather.observedAt)}` : ''}`}
+          className={`absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium shadow-sm backdrop-blur-sm ${
             night ? 'bg-black/25 text-white' : 'bg-white/70 text-[#1f2a44]'
           }`}
         >
-          <p
-            title={`${weather.location}${weather.observedAt ? `, as of ${timeOf(weather.observedAt)}` : ''}`}
-            className="inline-flex min-w-0 items-center gap-1.5"
-          >
-            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span className="tabular-nums">{weather.temperature}°</span>
-            <span className="max-w-24 truncate">{weather.label}</span>
-            <span className="sr-only">in {weather.location}</span>
-          </p>
-          {here.supported && !preview && (
-            <button
-              type="button"
-              onClick={here.toggle}
-              disabled={here.asking}
-              aria-pressed={here.using}
-              title={here.using ? 'Showing your location. Switch back to Bhubaneswar, Odisha' : 'Show the weather where you are'}
-              aria-label={here.using ? 'Show the weather in Bhubaneswar, Odisha' : 'Show the weather where you are'}
-              className={`grid h-5 w-5 place-items-center rounded-full transition-colors disabled:opacity-50 ${
-                here.using ? 'bg-accent text-on-accent' : night ? 'hover:bg-white/20' : 'hover:bg-black/10'
-              }`}
-            >
-              {here.using ? <LocateFixed className="h-3 w-3" aria-hidden="true" /> : <MapPin className="h-3 w-3" aria-hidden="true" />}
-            </button>
-          )}
-        </div>
+          <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="tabular-nums">{weather.temperature}°</span>
+          <span className="max-w-24 truncate">{weather.label}</span>
+          <span className="sr-only">in {weather.location}</span>
+        </p>
       )}
     </div>
   );

@@ -9,6 +9,7 @@ import { useAuth } from '../lib/auth';
 import { homeOf, positionOf } from '../lib/home';
 import { preloadPages } from '../lib/pageLoaders';
 import { prefetchPage } from '../lib/prefetch';
+import { askForLocation } from '../lib/deviceLocation';
 import { setTheme, useTheme } from '../lib/theme';
 import { NotificationBell } from './NotificationBell';
 import { Avatar } from './ProfilePhoto';
@@ -321,6 +322,9 @@ export function AppShell() {
     sections.find((section) => section.items.some((item) => isOpen(item, home, pathname))) ?? sections[0];
 
   useLiveUpdates(true);
+  // Ask for the person's location as the app opens, for the weather on the
+  // dashboard. The browser asks once and remembers the answer for the site.
+  useEffect(() => askForLocation(), []);
 
   const { data: overview } = useQuery({
     queryKey: ['admin-overview'],

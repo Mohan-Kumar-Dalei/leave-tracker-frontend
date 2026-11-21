@@ -236,13 +236,7 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
     >
       <WorkSource entry={entry} />
       <div className={wide ? 'col-span-3 sm:col-span-1' : 'col-span-3'}>
-        <TextInput
-          label="Work"
-          list="work-tasks"
-          disabled={!mayTarget && Boolean(entry)}
-          error={errors.task?.message}
-          {...form.register('task')}
-        />
+        <TextInput label="Work" disabled={!mayTarget && Boolean(entry)} error={errors.task?.message} {...form.register('task')} />
       </div>
       <TextInput
         label="Target"
@@ -543,11 +537,6 @@ function DayDialog({ open, person, day, total, today, tasks, comments, focusComm
     <Dialog open={open} onClose={onClose} title={person ? `${person.name}, ${dayTitle(day.date)}` : ''} kind="modal">
       {person && (
         <div>
-          <datalist id="work-tasks">
-            {tasks.map((task) => (
-              <option key={task} value={task} />
-            ))}
-          </datalist>
           {person.away?.[day.date] && (
             <p className="mb-2 rounded-lg bg-pending-soft px-3 py-2 text-sm text-pending">
               On {person.away[day.date] === 'full' ? 'leave' : 'half-day leave'} this day.
@@ -744,13 +733,8 @@ function TargetsDialog({ open, sheet, onClose }) {
           </div>
           {pickError && <p className="mt-1.5 text-sm text-rejected">{pickError}</p>}
         </fieldset>
-        <datalist id="target-tasks">
-          {sheet.tasks.map((task) => (
-            <option key={task} value={task} />
-          ))}
-        </datalist>
         <div className="grid grid-cols-2 gap-3">
-          <TextInput label="Work" list="target-tasks" placeholder="Profiles" error={errors.task?.message} {...form.register('task')} />
+          <TextInput label="Work" placeholder="Profiles" error={errors.task?.message} {...form.register('task')} />
           <TextInput
             label="Daily target"
             inputMode="decimal"
@@ -810,11 +794,6 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
       <Panel>
         <PanelTitle>Today, {dayTitle(day.date)}</PanelTitle>
         <div className="px-4 pb-3 sm:px-5">
-          <datalist id="work-tasks">
-            {tasks.map((task) => (
-              <option key={task} value={task} />
-            ))}
-          </datalist>
           {entries.length === 0 && !adding && (
             <p className="py-3 text-sm text-muted">No target set for today yet. You can still fill in what you did.</p>
           )}

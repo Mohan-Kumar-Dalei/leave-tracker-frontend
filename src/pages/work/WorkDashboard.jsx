@@ -303,8 +303,12 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
     target: 0,
     achieved: 0,
   });
-  const finished = rows.filter((row) => ['done', 'over', 'ahead'].includes(row.status)).length;
-  const missing = rows.filter((row) => row.status === 'missing' || row.unfilled > 0).length;
+  // Counted by people, not by pieces of work: someone is done when all their
+  // work is done, and not filled in when any of it is not.
+  const workOf = new Map();
+  for (const row of rows) workOf.set(row.user, [...(workOf.get(row.user) ?? []), row]);
+  const finished = [...workOf.values()].filter((list) => list.every((row) => ['done', 'over', 'ahead'].includes(row.status))).length;
+  const missing = [...workOf.values()].filter((list) => list.some((row) => row.status === 'missing' || row.unfilled > 0)).length;
 
   // Each piece of work: how many people, and how much of it is done.
   const byWork = [

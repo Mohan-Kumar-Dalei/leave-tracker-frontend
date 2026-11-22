@@ -4,7 +4,18 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs } from '../../components/Tabs';
 import { ReviewList } from '../../components/ReviewList';
-import { Empty, LoadError, LoadingBar, PageHeading, Pagination, Panel, Reveal, RowsSkeleton, SelectBox } from '../../components/ui';
+import {
+  Empty,
+  LoadError,
+  LoadingBar,
+  PageHeading,
+  Pagination,
+  Panel,
+  Reveal,
+  RowsSkeleton,
+  SelectBox,
+  StickyTop,
+} from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
 
 const TABS = [
@@ -44,83 +55,88 @@ export default function AdminRequests() {
 
   return (
     <div>
-      <PageHeading
-        title="Leave requests"
-        actions={
-          <a
-            href={`/api/admin/leaves.csv${toQuery(query)}`}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium shadow-card hover:bg-bg"
-          >
-            <Download className="h-4 w-4" aria-hidden="true" />
-            Export CSV
-          </a>
-        }
-      >
-        Approve or reject requests. The employee hears about it by mail and on their dashboard.
-      </PageHeading>
+      {/* The heading, tabs and filters stay put on a desktop. */}
+      <StickyTop>
+        <PageHeading
+          title="Leave requests"
+          actions={
+            <a
+              href={`/api/admin/leaves.csv${toQuery(query)}`}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium shadow-card hover:bg-bg"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Export CSV
+            </a>
+          }
+        >
+          Approve or reject requests. The employee hears about it by mail and on their dashboard.
+        </PageHeading>
 
-      <Reveal delay={0.08}>
-        <Tabs
-          label="Filter by status"
-          tabs={TABS}
-          value={status}
-          onChange={(next) => {
-            setParams({ status: next });
-            setPage(1);
-          }}
-          className="mb-4"
-        />
-
-        <div className="mb-4 flex flex-wrap gap-3">
-          <label className="relative min-w-56 flex-1 sm:max-w-sm">
-            <span className="sr-only">Search by name or employee ID</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
-            <input
-              type="search"
-              maxLength={80}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search name or employee ID"
-              className="min-h-11 w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-base placeholder:text-muted focus:border-accent focus:outline-none sm:text-sm"
-            />
-          </label>
-          <SelectBox
-            aria-label="Filter by leave type"
-            value={leaveType}
-            onChange={(event) => {
-              setLeaveType(event.target.value);
+        <Reveal delay={0.08}>
+          <Tabs
+            label="Filter by status"
+            tabs={TABS}
+            value={status}
+            onChange={(next) => {
+              setParams({ status: next });
               setPage(1);
             }}
-            className="w-full sm:w-64"
-          >
-            <option value="">All leave types</option>
-            {types?.items.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.name}
-              </option>
-            ))}
-          </SelectBox>
-          {/* HR and anyone running more than one department can pick one. */}
-          {data?.departments?.length > 1 && (
+            className="mb-4"
+          />
+
+          <div className="flex flex-wrap gap-3">
+            <label className="relative min-w-56 flex-1 sm:max-w-sm">
+              <span className="sr-only">Search by name or employee ID</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
+              <input
+                type="search"
+                maxLength={80}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search name or employee ID"
+                className="min-h-11 w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-base placeholder:text-muted focus:border-accent focus:outline-none sm:text-sm"
+              />
+            </label>
             <SelectBox
-              aria-label="Filter by department"
-              value={department}
+              aria-label="Filter by leave type"
+              value={leaveType}
               onChange={(event) => {
-                setDepartment(event.target.value);
+                setLeaveType(event.target.value);
                 setPage(1);
               }}
-              className="w-full sm:w-56"
+              className="w-full sm:w-64"
             >
-              <option value="">All departments</option>
-              {data.departments.map((name) => (
-                <option key={name} value={name}>
-                  {name}
+              <option value="">All leave types</option>
+              {types?.items.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
                 </option>
               ))}
             </SelectBox>
-          )}
-        </div>
+            {/* HR and anyone running more than one department can pick one. */}
+            {data?.departments?.length > 1 && (
+              <SelectBox
+                aria-label="Filter by department"
+                value={department}
+                onChange={(event) => {
+                  setDepartment(event.target.value);
+                  setPage(1);
+                }}
+                className="w-full sm:w-56"
+              >
+                <option value="">All departments</option>
+                {data.departments.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </SelectBox>
+            )}
+          </div>
+        </Reveal>
+      </StickyTop>
 
+      <Reveal delay={0.1}>
         <Panel>
           <LoadingBar show={isFetching && isPlaceholderData} />
           {isPending && <RowsSkeleton />}

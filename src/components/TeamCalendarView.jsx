@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { dayWord, monthKey, monthLabel, shortRange } from '../lib/dates';
 import { CalendarGrid } from './CalendarGrid';
 import { StatusBadge } from './StatusBadge';
-import { LoadError, LoadingBar, Panel, PanelTitle, RowsSkeleton, SelectBox } from './ui';
+import { LoadError, LoadingBar, Panel, PanelTitle, RowsSkeleton, SelectBox, StickyTop } from './ui';
 
 const shortName = (name = '') => {
   const [first, last] = name.split(' ');
@@ -89,7 +89,9 @@ function MonthLeaves({ leaves, title, loading, showDepartment = false }) {
 // The whole team's leave for a month. Admins see it on the Team calendar page and
 // employees in the calendar view of My leave. Someone over several departments
 // (a manager) picks one, or sees them all.
-export function TeamCalendarView({ year, month, onMonthChange, minMonth, maxMonth }) {
+// With `heading` (the Team calendar page), the heading and the department
+// picker are the page's top, which stays put on a desktop.
+export function TeamCalendarView({ year, month, onMonthChange, minMonth, maxMonth, heading = null }) {
   const [department, setDepartment] = useState('');
   const { data, isError, error, refetch, isPlaceholderData, isFetching } = useQuery({
     queryKey: ['team-calendar', year, month, ...(department ? [department] : [])],
@@ -98,24 +100,32 @@ export function TeamCalendarView({ year, month, onMonthChange, minMonth, maxMont
     placeholderData: keepPreviousData,
   });
   const departments = data?.departments ?? [];
+  const picker = departments.length > 0 && (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-sm text-muted">Department</span>
+      <SelectBox aria-label="Department" value={department} onChange={(event) => setDepartment(event.target.value)}>
+        <option value="">All departments</option>
+        {departments.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </SelectBox>
+    </div>
+  );
 
   const events = useMemo(() => toEvents(data), [data]);
   const today = data?.today ?? new Date().toISOString().slice(0, 10);
 
   return (
     <div className="space-y-4">
-      {departments.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted">Department</span>
-          <SelectBox aria-label="Department" value={department} onChange={(event) => setDepartment(event.target.value)}>
-            <option value="">All departments</option>
-            {departments.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </SelectBox>
-        </div>
+      {heading ? (
+        <StickyTop>
+          {heading}
+          {picker}
+        </StickyTop>
+      ) : (
+        picker
       )}
       <div className="grid items-start gap-4 xl:grid-cols-[1fr_320px]">
         <Panel>

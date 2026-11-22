@@ -71,7 +71,8 @@ export default function Employees() {
     <div>
       {/* The heading and the search stay in place; only the list scrolls under them.
           On phones they sit below the app's own top bar (h-14). */}
-      <div className="sticky top-[101px] z-10 -mx-4 bg-bg px-4 pb-1 pt-3 sm:-mx-6 sm:px-6 lg:top-[57px] lg:-mx-8 lg:px-8 lg:pt-4">
+      {/* Stays put on a desktop only; on phones and tablets the page scrolls. */}
+      <div className="-mx-4 bg-bg px-4 pb-1 pt-3 sm:-mx-6 sm:px-6 lg:sticky lg:top-[57px] lg:z-10 lg:-mx-8 lg:px-8 lg:pt-4">
         <PageHeading title="Employees" actions={<Button onClick={() => setAdding(true)}>Add employee</Button>}>
           {data ? `${data.total} ${data.total === 1 ? 'employee' : 'employees'}. ` : ''}
           Add employees, correct balances and turn off access when someone leaves.

@@ -404,13 +404,16 @@ export function ConfirmDialog({ open, onClose, title, body, confirmLabel, danger
 // a hard edge; at rest that strip is only the page colour, so nothing changes.
 // On phones it sits below the app's top bar. `roomy` leaves a wider strip, so
 // the content under it starts lower and fades out over a longer stretch.
+// The top of a page (greeting, buttons, filters). On a desktop (1024px and
+// wider) it stays put while the rest scrolls under it, fading out at its
+// foot; on phones and tablets it scrolls away with the page.
 export function StickyTop({ children, className = '', roomy = false }) {
   const strip = roomy
-    ? 'pb-8 bg-[linear-gradient(to_bottom,var(--color-bg)_calc(100%-1.5rem),transparent)]'
-    : 'pb-4 bg-[linear-gradient(to_bottom,var(--color-bg)_calc(100%-1rem),transparent)]';
+    ? 'lg:pb-8 lg:bg-[linear-gradient(to_bottom,var(--color-bg)_calc(100%-1.5rem),transparent)]'
+    : 'lg:pb-4 lg:bg-[linear-gradient(to_bottom,var(--color-bg)_calc(100%-1rem),transparent)]';
   return (
     <div
-      className={`sticky top-[101px] z-20 -mx-4 -mt-3 ${strip} px-4 pt-3 sm:-mx-6 sm:px-6 lg:top-[57px] lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8 ${className}`}
+      className={`-mx-4 -mt-3 px-4 pb-4 pt-3 sm:-mx-6 sm:px-6 lg:sticky lg:top-[57px] lg:z-20 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8 ${strip} ${className}`}
     >
       {children}
     </div>

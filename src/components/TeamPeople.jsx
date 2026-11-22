@@ -1,6 +1,6 @@
 import { isManager, ManagerBadge } from './OrgTrees';
 import { useQuery } from '@tanstack/react-query';
-import { BadgeCheck, Building2, Mail, MapPin, Phone, Search, UserRound } from 'lucide-react';
+import { BadgeCheck, Building2, Mail, MapPin, Phone, Search, Sun, UserRound } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { slashDate } from '../lib/dates';
@@ -42,10 +42,28 @@ export function LeaveTag({ leave, short = false, className = '' }) {
   );
 }
 
-// People on leave come first, then everyone by name.
-export const leaveFirst = (members) => [...members].sort((a, b) => Number(Boolean(b.leave)) - Number(Boolean(a.leave)) || a.name.localeCompare(b.name));
+// The weekend: everyone is off, so everyone gets a sunny tag instead of leave.
+export function WeekendTag({ className = '' }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md bg-[#f2a93b]/15 px-1.5 py-0.5 text-xs font-medium text-[#a8650b] dark:text-[#f5c26b] ${className}`}
+    >
+      <Sun className="h-3 w-3" aria-hidden="true" />
+      Weekend
+    </span>
+  );
+}
 
-export function MemberRow({ member, onOpen, detail = 'leave', shortTag = false }) {
+// Today's tag: the weekend for everyone, else their leave, if any.
+export function DayTag({ leave, weekend = false, short = false, className = '' }) {
+  return weekend ? <WeekendTag className={className} /> : <LeaveTag leave={leave} short={short} className={className} />;
+}
+
+// People on leave come first, then everyone by name.
+export const leaveFirst = (members) =>
+  [...members].sort((a, b) => Number(Boolean(b.leave)) - Number(Boolean(a.leave)) || a.name.localeCompare(b.name));
+
+export function MemberRow({ member, onOpen, detail = 'leave', shortTag = false, weekend = false }) {
   return (
     <button
       type="button"
@@ -69,7 +87,7 @@ export function MemberRow({ member, onOpen, detail = 'leave', shortTag = false }
         ) : (
           <span className="block truncate text-[13px] text-muted">{member.designation}</span>
         )}
-        <LeaveTag leave={member.leave} short={shortTag} className="mt-1" />
+        <DayTag leave={member.leave} weekend={weekend} short={shortTag} className="mt-1" />
       </span>
     </button>
   );
@@ -138,7 +156,7 @@ export function MemberProfile({ member, onClose }) {
             <span className="mx-1.5 text-line">·</span>
             <span className="tabular-nums">{member.employeeId}</span>
           </p>
-          <LeaveTag leave={member.leave} className="mt-2" />
+          <DayTag leave={member.leave} weekend={Boolean(data?.weekend)} className="mt-2" />
           <div className="mt-4 grid grid-cols-2 gap-2">
             <a
               href={`mailto:${member.email}`}
@@ -188,7 +206,7 @@ export function MemberProfile({ member, onClose }) {
   );
 }
 
-export function AllMembers({ members, onOpen, onClose }) {
+export function AllMembers({ members, onOpen, onClose, weekend = false }) {
   const [query, setQuery] = useState('');
   const shown = useMemo(() => {
     const words = query.trim().toLowerCase();
@@ -213,7 +231,7 @@ export function AllMembers({ members, onOpen, onClose }) {
       <ul className="mt-3 h-[min(420px,50dvh)] divide-y divide-line overflow-y-auto overscroll-contain">
         {shown.map((member) => (
           <li key={member.id}>
-            <MemberRow member={member} onOpen={onOpen} />
+            <MemberRow member={member} onOpen={onOpen} weekend={weekend} />
           </li>
         ))}
         {shown.length === 0 && <li className="px-2 py-6 text-center text-sm text-muted">Nobody matches that search.</li>}

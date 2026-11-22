@@ -407,7 +407,7 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
       ) : (
         <div className="grid items-start gap-4 lg:grid-cols-[1fr_2fr]">
           <ArtPanel title="By work">
-            <ul className="max-h-[min(62vh,560px)] divide-y divide-line overflow-y-auto">
+            <ul className="divide-y divide-line lg:max-h-[min(62vh,560px)] lg:overflow-y-auto">
               {byWork.map((item) => (
                 <li key={item.task} className="relative">
                   {sheet.canLead &&
@@ -465,7 +465,7 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
 
           <Panel>
             <PanelTitle>Who did what{period === 'day' ? `, ${shortDay(date)}` : ', this month'}</PanelTitle>
-            <div className="max-h-[min(62vh,560px)] overflow-auto">
+            <div className="overflow-x-auto lg:max-h-[min(62vh,560px)] lg:overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-surface">
                   <tr className="border-b border-line text-left text-xs text-muted">
@@ -685,7 +685,7 @@ function MyDashboard({ sheet, me, notes, onComments }) {
       ) : (
         <div className="grid items-start gap-4 lg:grid-cols-[1fr_2fr]">
           <ArtPanel title="My work">
-            <ul className="max-h-[min(62vh,560px)] divide-y divide-line overflow-y-auto">
+            <ul className="divide-y divide-line lg:max-h-[min(62vh,560px)] lg:overflow-y-auto">
               {byWork.map((item) => (
                 <li key={item.task} className="px-4 py-3 sm:px-5">
                   <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
@@ -712,7 +712,7 @@ function MyDashboard({ sheet, me, notes, onComments }) {
 
           <Panel>
             <PanelTitle>Assigned to me{period === 'day' ? `, ${dayLabel(date)}` : ''}</PanelTitle>
-            <div className="max-h-[min(62vh,560px)] overflow-auto">
+            <div className="overflow-x-auto lg:max-h-[min(62vh,560px)] lg:overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-surface">
                   <tr className="border-b border-line text-left text-xs text-muted">

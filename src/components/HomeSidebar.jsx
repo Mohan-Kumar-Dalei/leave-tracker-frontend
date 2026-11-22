@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { positionOf } from '../lib/home';
 import { PhotoAvatar } from './ProfilePhoto';
-import { Coffee, Sun } from 'lucide-react';
+import { Sun } from 'lucide-react';
+import { DancingBuddy } from './DancingBuddy';
 import { AllMembers, DayTag, MemberProfile, MemberRow, leaveFirst, useTeam } from './TeamPeople';
 import { SkyBanner } from './SkyBanner';
 import { Panel } from './ui';
@@ -32,26 +33,27 @@ function firstLookThisSignIn(userId) {
   return Date.now() - (firstSeen.get(userId) ?? 0) < 1500;
 }
 
-// On the weekend, a warm note at the top of the department list: the sun
-// turning slowly, and the day off for everyone.
+// On the weekend, a warm note at the top of the department list: a little
+// cartoon friend dancing, the sun turning slowly behind, and the day off for
+// everyone. It fits itself to the room it has (a container query): side by
+// side in the dashboard column, bigger on a wide phone, stacked when narrow.
 function WeekendNote({ today }) {
   const day = new Date(`${today}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
   return (
-    <div className="relative mx-2 mb-1 overflow-hidden rounded-xl border border-[#f2a93b]/30 bg-[#fff6e3] px-3 py-3 dark:border-[#f2a93b]/25 dark:bg-[#2a2216]">
-      <Sun
-        className="absolute -right-3 -top-3 h-16 w-16 animate-[spin_24s_linear_infinite] text-[#f2a93b]/25 motion-reduce:animate-none"
-        aria-hidden="true"
-      />
-      <div className="relative flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#f2a93b] text-white shadow-[0_6px_16px_-6px_#f2a93b]">
-          <Sun className="h-5 w-5 animate-[spin_12s_linear_infinite] motion-reduce:animate-none" aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-[#7a4a06] dark:text-[#f5c26b]">Happy {day}!</p>
-          <p className="mt-0.5 text-[13px] leading-snug text-[#8a5a12] dark:text-[#e9c88f]">
-            Everyone is off today. Rest, recharge, enjoy the day
-            <Coffee className="ml-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />
-          </p>
+    <div className="@container mx-2 mb-1">
+      <div className="relative overflow-hidden rounded-xl border border-[#f2a93b]/30 bg-[#fff6e3] px-3 py-2.5 dark:border-[#f2a93b]/25 dark:bg-[#2a2216] @sm:px-4 @sm:py-3">
+        <Sun
+          className="absolute -right-4 -top-4 h-20 w-20 animate-[spin_24s_linear_infinite] text-[#f2a93b]/20 motion-reduce:animate-none"
+          aria-hidden="true"
+        />
+        <div className="relative flex items-center gap-3 @max-[13rem]:flex-col @max-[13rem]:text-center">
+          <DancingBuddy className="-my-1 h-16 w-14 shrink-0 @sm:h-20 @sm:w-[4.25rem]" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-[#7a4a06] dark:text-[#f5c26b] @sm:text-base">Happy {day}!</p>
+            <p className="mt-0.5 text-[13px] leading-snug text-pretty text-[#8a5a12] dark:text-[#e9c88f] @sm:text-sm">
+              Everyone is off today. Rest, recharge and enjoy the day.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -131,11 +133,11 @@ export function HomeSidebar({ show = 3 }) {
   const weekend = Boolean(data.weekend);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 lg:h-full">
       <ProfileCard me={me} onOpen={setOpen} weekend={weekend} />
       {manager && <ReportingTo manager={manager} onOpen={setOpen} weekend={weekend} />}
 
-      <Panel>
+      <Panel className="lg:flex-1">
         <div className="px-4 pb-1 pt-3">
           <h2 className="text-sm font-semibold">Department members</h2>
           <p className="text-xs text-muted">

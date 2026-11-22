@@ -37,7 +37,11 @@ const looksLikeAssistant = (person) => /assistant\s*manager/i.test(person.design
 const inviteRules = z.object({ name: rules.name, email: rules.email });
 
 // One or more emails, separated by commas, spaces or new lines; each checked.
-const splitEmails = (value) => value.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean);
+const splitEmails = (value) =>
+  value
+    .split(/[\s,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 const mailRules = z.object({
   emails: z
     .string()
@@ -78,9 +82,7 @@ function InviteAssistant({ id, pending }) {
             Invited {pending.name} ({pending.email}). Sending again makes a new link.
           </p>
         )}
-        <p className="text-[13px] text-muted">
-          They register with the link, become this department&apos;s admin and bring in the team.
-        </p>
+        <p className="text-[13px] text-muted">They register with the link, become this department&apos;s admin and bring in the team.</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <TextInput label="Full name" maxLength={80} error={errors.name?.message} {...form.register('name')} />
           <TextInput label="Email" type="email" maxLength={160} error={errors.email?.message} {...form.register('email')} />
@@ -257,11 +259,7 @@ function Requests({ id, requests }) {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  disabled={decide.isPending}
-                  onClick={() => decide.mutate({ request, decision: 'reject' })}
-                >
+                <Button variant="ghost" disabled={decide.isPending} onClick={() => decide.mutate({ request, decision: 'reject' })}>
                   Reject
                 </Button>
                 <Button disabled={decide.isPending} onClick={() => decide.mutate({ request, decision: 'approve' })}>
@@ -301,7 +299,10 @@ function Team({ id, members, canChooseAssistant, assistants = [] }) {
         const to = assistants.find((choice) => choice.id === change.leaveReportTo);
         toast.success('Saved', `${person.name}'s leave now goes to ${to ? to.name : 'their assistant manager'}.`);
       } else if (change.teamLead !== undefined) {
-        toast.success(change.teamLead ? 'Team lead added' : 'Team lead removed', `${person.name} ${change.teamLead ? 'is now a team lead' : 'is no longer a team lead; their team reports to the assistant manager'}.`);
+        toast.success(
+          change.teamLead ? 'Team lead added' : 'Team lead removed',
+          `${person.name} ${change.teamLead ? 'is now a team lead' : 'is no longer a team lead; their team reports to the assistant manager'}.`,
+        );
       } else toast.success('Saved', `${person.name}'s reporting line is updated.`);
     },
     onError: (issue) => toast.error('Could not do that', issue.message),
@@ -346,7 +347,7 @@ function Team({ id, members, canChooseAssistant, assistants = [] }) {
         </p>
       )}
       {sorted.length ? (
-        <ul className="max-h-[60dvh] min-h-0 flex-1 divide-y divide-line overflow-y-auto overscroll-contain md:max-h-none">
+        <ul className="divide-y divide-line lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
           {sorted.map((person) => {
             const suggested = !hasAssistant && person.place === 'member' && looksLikeAssistant(person);
             return (
@@ -356,7 +357,9 @@ function Team({ id, members, canChooseAssistant, assistants = [] }) {
                   <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-medium">
                     {person.name}
                     {PLACE[person.place] && (
-                      <span className="rounded bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent">{PLACE[person.place]}</span>
+                      <span className="rounded bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent">
+                        {PLACE[person.place]}
+                      </span>
                     )}
                     {person.place === 'member' && person.teamLead && (
                       <span className="rounded bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent">Team Lead</span>
@@ -378,7 +381,9 @@ function Team({ id, members, canChooseAssistant, assistants = [] }) {
                       disabled={arrange.isPending}
                       onChange={(event) => arrange.mutate({ person, change: { reportsTo: event.target.value || null } })}
                     >
-                      {!above.some((lead) => lead.id === person.reportsTo) && <option value={person.reportsTo ?? ''}>Reports to nobody</option>}
+                      {!above.some((lead) => lead.id === person.reportsTo) && (
+                        <option value={person.reportsTo ?? ''}>Reports to nobody</option>
+                      )}
                       {above
                         .filter((lead) => lead.id !== person.id)
                         .map((lead) => (
@@ -462,7 +467,9 @@ function WorkTrackerSwitch({ id, on }) {
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">Work tracker</h2>
           <p className="mt-0.5 text-sm text-muted">
-            {on ? 'On: everyone in this department sees the Work Tracker tab.' : 'Off: nobody in this department sees the Work Tracker tab.'}
+            {on
+              ? 'On: everyone in this department sees the Work Tracker tab.'
+              : 'Off: nobody in this department sees the Work Tracker tab.'}
           </p>
         </div>
         <label className="relative inline-flex shrink-0 cursor-pointer items-center">
@@ -533,7 +540,7 @@ export default function DepartmentHome() {
       {isError && <LoadError error={error} onRetry={refetch} />}
 
       {data && (
-        <div className="grid gap-4 md:h-[calc(100dvh-335px)] md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:h-[calc(100dvh-227px)]">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:h-[calc(100dvh-227px)]">
           <Reveal className="flex min-h-0 flex-col gap-4">
             <WorkTrackerSwitch id={id} on={Boolean(data.department.workTracker)} />
             {data.you.canInviteAssistant && <InviteAssistant id={id} pending={data.assistantInvite} />}
@@ -541,12 +548,7 @@ export default function DepartmentHome() {
             <Requests id={id} requests={data.requests} />
           </Reveal>
           <Reveal delay={0.06} className="min-h-0">
-            <Team
-              id={id}
-              members={data.members}
-              canChooseAssistant={data.you.canChooseAssistant}
-              assistants={data.assistants}
-            />
+            <Team id={id} members={data.members} canChooseAssistant={data.you.canChooseAssistant} assistants={data.assistants} />
           </Reveal>
         </div>
       )}

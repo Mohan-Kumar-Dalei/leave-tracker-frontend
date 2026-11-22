@@ -63,7 +63,7 @@ function MonthLeaves({ leaves, title, loading, showDepartment = false }) {
       <PanelTitle>{title}</PanelTitle>
       {loading && <RowsSkeleton rows={3} />}
       {!loading && leaves.length === 0 && <p className="px-4 py-4 text-sm text-muted">Nobody has applied for leave this month.</p>}
-      <ul className="max-h-[32rem] overflow-y-auto">
+      <ul className="lg:max-h-[32rem] lg:overflow-y-auto">
         {!loading &&
           leaves.map((leave) => (
             <li key={leave.id} className="border-b border-line px-4 py-2.5 last:border-b-0">

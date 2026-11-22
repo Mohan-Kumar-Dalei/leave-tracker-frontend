@@ -122,9 +122,7 @@ function BalanceCard({ balance, index = 0, count = 1, className = '' }) {
   const low = leaveType.tracksBalance && available <= 0;
 
   return (
-    <div
-      className={`relative isolate flex flex-col overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card ${className}`}
-    >
+    <div className={`relative isolate flex flex-col overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-card ${className}`}>
       {/* A mandala in the spirit of Odisha's jhoti chita, shared with the card
           beside it, with a faint layer of the card colour over it so the text
           stays easy to read. */}
@@ -141,9 +139,7 @@ function BalanceCard({ balance, index = 0, count = 1, className = '' }) {
         {leaveType.tracksBalance && (
           <div className="flex items-baseline justify-between">
             <dt className="text-muted">Available</dt>
-            <dd className={`text-xl font-semibold tabular-nums ${low ? 'text-muted' : 'text-approved'}`}>
-              {available}
-            </dd>
+            <dd className={`text-xl font-semibold tabular-nums ${low ? 'text-muted' : 'text-approved'}`}>{available}</dd>
           </div>
         )}
         <div className="flex items-center justify-between">
@@ -160,9 +156,7 @@ function BalanceCard({ balance, index = 0, count = 1, className = '' }) {
 
 function changeText({ days, leaveType }) {
   const count = Math.abs(days);
-  return days > 0
-    ? `${count} ${dayWord(count)} added to ${leaveType}`
-    : `${count} ${dayWord(count)} taken from ${leaveType}`;
+  return days > 0 ? `${count} ${dayWord(count)} added to ${leaveType}` : `${count} ${dayWord(count)} taken from ${leaveType}`;
 }
 
 // Tells the employee why their balance changed. It stays until they close it.
@@ -176,10 +170,7 @@ function BalanceChanges({ items }) {
 
   return items.map((item) => (
     <Reveal key={item.id}>
-      <div
-        role="status"
-        className="flex items-start gap-3 rounded-xl border border-accent/20 bg-accent-soft py-2 pl-4 pr-2"
-      >
+      <div role="status" className="flex items-start gap-3 rounded-xl border border-accent/20 bg-accent-soft py-2 pl-4 pr-2">
         <Scale className="mt-1 h-[18px] w-[18px] shrink-0 text-accent" aria-hidden="true" />
         <div className="min-w-0 flex-1 py-0.5 text-sm">
           <p className="font-medium">{changeText(item)}</p>
@@ -255,7 +246,9 @@ function subtitle(data) {
 // A number in the year line, or a small loading block until it is known.
 function Figure({ value }) {
   if (value === undefined) {
-    return <span className="inline-block h-3 w-5 animate-pulse rounded bg-sunken align-middle motion-reduce:animate-none" aria-label="Loading" />;
+    return (
+      <span className="inline-block h-3 w-5 animate-pulse rounded bg-sunken align-middle motion-reduce:animate-none" aria-label="Loading" />
+    );
   }
   return <span className="font-medium tabular-nums text-ink">{value}</span>;
 }
@@ -277,9 +270,7 @@ export default function Summary() {
 
   const shownYear = data?.year ?? new Date().getFullYear();
   const today = data?.today ?? new Date().toISOString().slice(0, 10);
-  const shownMonth = data
-    ? (month ?? (Number(today.slice(0, 4)) === shownYear ? Number(today.slice(5, 7)) - 1 : 0))
-    : 0;
+  const shownMonth = data ? (month ?? (Number(today.slice(0, 4)) === shownYear ? Number(today.slice(5, 7)) - 1 : 0)) : 0;
 
   const changeYear = (delta) => {
     setYear(shownYear + delta);
@@ -368,11 +359,13 @@ export default function Summary() {
 
       {data && <BalanceChanges items={data.adjustments} />}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[264px_minmax(0,1fr)]">
+      {/* On a desktop the two columns end level: whichever is taller, the
+          other grows to meet it (the lists scroll inside their panels). */}
+      <div className="grid items-start gap-4 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-stretch">
         <aside className="order-last lg:order-first">
           <HomeSidebar />
         </aside>
-        <div className="min-w-0 space-y-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <Reveal delay={0.08}>
             {/* All five leave types in one row on a laptop or bigger. */}
             <div className="grid grid-cols-2 gap-3 md:grid-cols-6 xl:grid-cols-5">
@@ -397,9 +390,10 @@ export default function Summary() {
 
           {view === 'list' ? (
             <>
-              {/* Upcoming and past side by side, each scrolling inside. */}
-              <div className="grid items-start gap-4 xl:grid-cols-2">
-                <Reveal delay={0.12}>
+              {/* Upcoming and past side by side, the same height, taking what
+                  is left of the column (at least 30rem each). */}
+              <div className="grid gap-4 lg:min-h-[61rem] lg:flex-1 lg:basis-0 lg:grid-rows-2 xl:min-h-[30rem] xl:grid-cols-2 xl:grid-rows-1">
+                <Reveal delay={0.12} className="lg:min-h-0">
                   <EntryPanel
                     label="Filter upcoming"
                     filters={MY_UPCOMING_FILTERS}
@@ -410,7 +404,7 @@ export default function Summary() {
                     fill
                   />
                 </Reveal>
-                <Reveal delay={0.16}>
+                <Reveal delay={0.16} className="lg:min-h-0">
                   <EntryPanel
                     label="Filter past"
                     filters={MY_PAST_FILTERS}
@@ -444,12 +438,7 @@ export default function Summary() {
           )}
         </div>
       </div>
-      <ApplyLeaveDialog
-        open={dialog.open}
-        preset={dialog.preset}
-        today={today}
-        onClose={() => setDialog({ open: false, preset: null })}
-      />
+      <ApplyLeaveDialog open={dialog.open} preset={dialog.preset} today={today} onClose={() => setDialog({ open: false, preset: null })} />
     </div>
   );
 }

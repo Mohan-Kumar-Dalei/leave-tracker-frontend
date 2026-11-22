@@ -428,3 +428,111 @@
 .sky-fog {
   animation: sky-fog 9s ease-in-out infinite alternate;
 }
+
+/* The dancing buddy on the weekend note (components/DancingBuddy.jsx). */
+.buddy-body,
+.buddy-arm-left,
+.buddy-arm-right,
+.buddy-leg-left,
+.buddy-leg-right,
+.buddy-shadow {
+  transform-box: fill-box;
+}
+.buddy-body {
+  transform-origin: 50% 100%;
+  animation: buddy-sway 0.9s ease-in-out infinite alternate;
+}
+.buddy-arm-left {
+  transform-origin: 100% 100%;
+  animation: buddy-wave-left 0.45s ease-in-out infinite alternate;
+}
+.buddy-arm-right {
+  transform-origin: 0% 100%;
+  animation: buddy-wave-right 0.45s ease-in-out infinite alternate;
+}
+.buddy-leg-left {
+  transform-origin: 50% 0%;
+  animation: buddy-step 0.45s ease-in-out infinite alternate;
+}
+.buddy-leg-right {
+  transform-origin: 50% 0%;
+  animation: buddy-step 0.45s ease-in-out infinite alternate-reverse;
+}
+.buddy-shadow {
+  transform-origin: 50% 50%;
+  animation: buddy-shadow 0.9s ease-in-out infinite alternate;
+}
+.buddy-note {
+  opacity: 0;
+  animation: buddy-note 2.4s ease-out infinite;
+}
+.buddy-note-late {
+  animation-delay: 1.2s;
+}
+@keyframes buddy-sway {
+  from {
+    transform: translateY(0) rotate(-7deg);
+  }
+  to {
+    transform: translateY(-4px) rotate(7deg);
+  }
+}
+@keyframes buddy-wave-left {
+  from {
+    transform: rotate(18deg);
+  }
+  to {
+    transform: rotate(-28deg);
+  }
+}
+@keyframes buddy-wave-right {
+  from {
+    transform: rotate(-18deg);
+  }
+  to {
+    transform: rotate(28deg);
+  }
+}
+@keyframes buddy-step {
+  from {
+    transform: rotate(-12deg);
+  }
+  to {
+    transform: rotate(10deg);
+  }
+}
+@keyframes buddy-shadow {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0.8);
+  }
+}
+@keyframes buddy-note {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .buddy-body,
+  .buddy-arm-left,
+  .buddy-arm-right,
+  .buddy-leg-left,
+  .buddy-leg-right,
+  .buddy-shadow,
+  .buddy-note {
+    animation: none;
+  }
+  .buddy-note {
+    opacity: 1;
+  }
+}

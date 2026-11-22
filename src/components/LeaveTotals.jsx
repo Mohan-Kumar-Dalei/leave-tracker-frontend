@@ -31,7 +31,7 @@ function SheetTable({ data, month, onDepartment }) {
   const monthCell = (index) => `px-3 py-2 text-right tabular-nums ${index === month - 1 ? 'bg-accent-soft/60' : ''}`;
 
   return (
-    <div className="max-h-[520px] overflow-auto">
+    <div className="overflow-x-auto lg:max-h-[520px] lg:overflow-auto">
       <table className="w-full min-w-[960px] border-separate border-spacing-0 text-sm">
         <thead className="sticky top-0 z-[1] bg-surface">
           <tr className="text-xs text-muted">
@@ -127,7 +127,12 @@ export function LeaveTotalsPage() {
             data && (
               <>
                 {data.canChooseDepartment && (
-                  <SelectBox aria-label="Department" className="w-52" value={department} onChange={(event) => setDepartment(event.target.value)}>
+                  <SelectBox
+                    aria-label="Department"
+                    className="w-52"
+                    value={department}
+                    onChange={(event) => setDepartment(event.target.value)}
+                  >
                     <option value="all">All departments</option>
                     {data.departments.map((name) => (
                       <option key={name} value={name}>
@@ -168,7 +173,10 @@ export function LeaveTotalsPage() {
           {data ? (
             `${scope} · ${typeName} · ${data.year}`
           ) : (
-            <span className="mt-1 block h-4 w-56 max-w-full animate-pulse rounded bg-sunken motion-reduce:animate-none" aria-hidden="true" />
+            <span
+              className="mt-1 block h-4 w-56 max-w-full animate-pulse rounded bg-sunken motion-reduce:animate-none"
+              aria-hidden="true"
+            />
           )}
         </PageHeading>
       </StickyTop>

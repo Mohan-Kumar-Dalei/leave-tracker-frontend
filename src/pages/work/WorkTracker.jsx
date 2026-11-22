@@ -1185,7 +1185,7 @@ export default function WorkTracker() {
   // The page fills the screen: its top stays put and only the part below
   // scrolls (the sheet scrolls inside itself, like the Google Sheet).
   return (
-    <div className="flex h-[calc(100dvh-233px)] min-h-[440px] flex-col lg:h-[calc(100dvh-129px)]">
+    <div className="flex flex-col lg:h-[calc(100dvh-129px)] lg:min-h-[440px]">
       <div className="shrink-0">
         <PageHeading
           title="Work tracker"
@@ -1259,7 +1259,7 @@ export default function WorkTracker() {
       </div>
 
       {shownTab === 'sheet' ? (
-        <div className="min-h-0 flex-1">
+        <div className="h-[78dvh] min-h-[420px] lg:h-auto lg:min-h-0 lg:flex-1">
           {sheet.people.length === 0 ? (
             <Empty title="Nobody here yet">People in this department appear here.</Empty>
           ) : (
@@ -1275,7 +1275,7 @@ export default function WorkTracker() {
           )}
         </div>
       ) : (
-        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-2">
+        <div className="-mx-1 px-1 pb-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           {shownTab === 'report' ? (
             <WorkReport key={`${sheet.month}|${sheet.department}`} sheet={sheet} />
           ) : shownTab === 'mine' && me ? (

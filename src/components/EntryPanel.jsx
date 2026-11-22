@@ -81,24 +81,17 @@ function EntryRow({ entry, onAvail }) {
   );
 }
 
-// With `fill`, panels side by side share one fixed height on a laptop, so
-// they end level however many entries each has; the list scrolls inside.
+// With `fill`, the panel takes the height its place on the page gives it (on
+// a desktop the page lines its panels up), and the list scrolls inside. On
+// phones and tablets nothing scrolls inside: the whole page does.
 export function EntryPanel({ filters, entries, loading, scroll, fill = false, onAvail, label }) {
   const [filter, setFilter] = useState('all');
-  const shown = useMemo(
-    () => (filter === 'all' ? entries : entries.filter((entry) => entry.kind === filter)),
-    [entries, filter],
-  );
+  const shown = useMemo(() => (filter === 'all' ? entries : entries.filter((entry) => entry.kind === filter)), [entries, filter]);
 
   return (
-    <Panel className={fill ? 'flex flex-col xl:h-[30rem]' : ''}>
+    <Panel className={fill ? 'flex flex-col lg:h-full' : ''}>
       <div className="shrink-0 border-b border-line p-3 sm:px-5">
-        <SelectBox
-          aria-label={label}
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          className="w-full sm:w-64"
-        >
+        <SelectBox aria-label={label} value={filter} onChange={(event) => setFilter(event.target.value)} className="w-full sm:w-64">
           {filters.map(([value, text]) => (
             <option key={value} value={value}>
               {text}
@@ -111,7 +104,7 @@ export function EntryPanel({ filters, entries, loading, scroll, fill = false, on
       {!loading && shown.length > 0 && (
         <ul
           tabIndex={scroll ? 0 : undefined}
-          className={`@container ${scroll ? 'max-h-96 overflow-y-auto' : ''} ${fill ? 'min-h-0 flex-1 xl:max-h-none' : ''}`}
+          className={`@container ${scroll && !fill ? 'lg:max-h-96 lg:overflow-y-auto' : ''} ${fill ? 'lg:min-h-0 lg:flex-1 lg:overflow-y-auto' : ''}`}
         >
           {shown.map((entry) => (
             <EntryRow key={`${entry.kind}-${entry.id}`} entry={entry} onAvail={onAvail} />

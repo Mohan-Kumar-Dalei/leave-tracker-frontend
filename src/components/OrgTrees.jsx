@@ -73,14 +73,8 @@ function PersonCard({ member, on, tag, onClick }) {
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted">
           <span className="truncate">{member.designation}</span>
           {isManager(member) && <ManagerBadge />}
-          {tag && (
-            <span className="shrink-0 rounded bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent">
-              {tag}
-            </span>
-          )}
-          {member.workFromHome && (
-            <span className="shrink-0 rounded bg-sunken px-1.5 py-px text-[10px] font-semibold">WFH</span>
-          )}
+          {tag && <span className="shrink-0 rounded bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent">{tag}</span>}
+          {member.workFromHome && <span className="shrink-0 rounded bg-sunken px-1.5 py-px text-[10px] font-semibold">WFH</span>}
         </span>
       </span>
     </button>
@@ -216,9 +210,7 @@ function Gap({ left, right, part = 'all', joinFrom = 0, leftShift = 0, rightShif
               key={item.id}
               style={{ top: centre(row) + leftShift, left: BADGE_LEFT, minWidth: BADGE_W }}
               className={`absolute grid h-6 -translate-y-1/2 place-items-center rounded-md px-1.5 text-xs font-semibold tabular-nums ${
-                item.id === left.chosen && lines
-                  ? 'bg-accent text-on-accent'
-                  : 'border border-line bg-surface text-muted'
+                item.id === left.chosen && lines ? 'bg-accent text-on-accent' : 'border border-line bg-surface text-muted'
               }`}
             >
               {item.count}
@@ -300,7 +292,7 @@ function Columns({ columns, scrollLast = false, centreFirst = false }) {
           ))}
           <div className="relative flex items-start">
             <Gap left={parent} right={last} part="left" />
-            <div className="max-h-[calc(100dvh-425px)] min-h-72 overflow-y-auto overscroll-contain pr-1 lg:max-h-[calc(100dvh-307px)]">
+            <div className="pr-1 lg:max-h-[calc(100dvh-307px)] lg:min-h-72 lg:overflow-y-auto lg:overscroll-contain">
               <div className="relative flex items-start">
                 {/* The line on this side starts level with the chosen
                     department, so the spine runs from there to the people
@@ -327,12 +319,7 @@ function Columns({ columns, scrollLast = false, centreFirst = false }) {
                 It sits over the column's lines but under the cover, which
                 hides it while the chosen person is lower down. */}
             {covered && (
-              <svg
-                aria-hidden="true"
-                width={SPINE + 2}
-                height={fromY + 2}
-                className="pointer-events-none absolute left-0 top-0 z-10"
-              >
+              <svg aria-hidden="true" width={SPINE + 2} height={fromY + 2} className="pointer-events-none absolute left-0 top-0 z-10">
                 <path d={`M${SPINE} ${fromY} V0`} stroke="var(--color-accent)" strokeWidth="2" fill="none" />
               </svg>
             )}
@@ -353,7 +340,7 @@ function Columns({ columns, scrollLast = false, centreFirst = false }) {
   return (
     <div
       ref={box}
-      className="max-h-[calc(100dvh-391px)] min-h-72 overflow-auto overscroll-contain rounded-xl border border-line bg-surface p-4 shadow-card lg:max-h-[calc(100dvh-273px)]"
+      className="overflow-x-auto rounded-xl border border-line bg-surface p-4 shadow-card lg:max-h-[calc(100dvh-273px)] lg:min-h-72 lg:overflow-auto lg:overscroll-contain"
     >
       <div className="flex w-max items-start">
         {columns.map((column, index) => (

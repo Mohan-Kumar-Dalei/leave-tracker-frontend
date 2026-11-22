@@ -132,7 +132,7 @@ export default function Overview() {
       {/* On a desktop the columns end level: the last panel of each takes up
           what is left, so no column is short of the others. */}
       <div className="grid items-start gap-4 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-stretch">
-        <aside className="order-last lg:order-first">
+        <aside>
           <HomeSidebar />
         </aside>
         <div className="flex min-w-0 flex-col gap-4">

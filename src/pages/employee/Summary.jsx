@@ -362,7 +362,7 @@ export default function Summary() {
       {/* On a desktop the two columns end level: whichever is taller, the
           other grows to meet it (the lists scroll inside their panels). */}
       <div className="grid items-start gap-4 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-stretch">
-        <aside className="order-last lg:order-first">
+        <aside>
           <HomeSidebar />
         </aside>
         <div className="flex min-w-0 flex-col gap-4">

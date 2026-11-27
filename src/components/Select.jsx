@@ -17,7 +17,16 @@ function readOptions(children) {
 // A dropdown that takes the same <option> children and onChange as a native
 // select. The list opens in the browser's top layer, so a card or a dialog
 // cannot cut it off. Focus stays on the button and the arrow keys move a highlight.
-export function Select({ value, onChange, children, id, className = '', triggerClassName = '', 'aria-label': ariaLabel }) {
+export function Select({
+  value,
+  onChange,
+  children,
+  id,
+  className = '',
+  triggerClassName = '',
+  listMinWidth = 240,
+  'aria-label': ariaLabel,
+}) {
   const options = useMemo(() => readOptions(children), [children]);
   const selectedIndex = options.findIndex((option) => option.value === String(value ?? ''));
   const shown = options[selectedIndex] ?? options[0];
@@ -38,8 +47,9 @@ export function Select({ value, onChange, children, id, className = '', triggerC
     const wanted = Math.min(options.length * OPTION_HEIGHT + 10, MAX_LIST_HEIGHT);
     const flip = roomBelow < wanted && roomAbove > roomBelow;
 
-    // At least wide enough to read the options, and never off the screen.
-    const width = Math.min(Math.max(box.width, 240), window.innerWidth - GAP * 2);
+    // At least wide enough to read the options (a narrow box in a list can
+    // ask for less, so its list stays inside the panel), never off the screen.
+    const width = Math.min(Math.max(box.width, listMinWidth), window.innerWidth - GAP * 2);
     setPlace({
       inset: 'auto',
       left: Math.max(GAP, Math.min(box.left, window.innerWidth - width - GAP)),

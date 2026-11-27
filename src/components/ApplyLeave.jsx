@@ -31,7 +31,7 @@ function EachDay({ days, halves, onChange }) {
               {slashDate(item.date)}
             </span>
             {item.off ? (
-              <span className="grid h-9 w-36 shrink-0 place-items-center truncate rounded-lg bg-sunken px-2 text-sm text-muted">
+              <span className="grid h-9 w-32 shrink-0 place-items-center sm:w-36 truncate rounded-lg bg-sunken px-2 text-sm text-muted">
                 {item.off}
               </span>
             ) : (
@@ -39,8 +39,9 @@ function EachDay({ days, halves, onChange }) {
                 value={halves[item.date] ?? 'full'}
                 aria-label={`${weekday(item.date)} ${slashDate(item.date)}`}
                 onChange={(event) => onChange(item.date, event.target.value)}
-                className="w-36 shrink-0"
-                triggerClassName={`${inputClass(false)} h-9! w-full py-0!`}
+                className="w-32 shrink-0 sm:w-36"
+                listMinWidth={0}
+                triggerClassName={`${inputClass(false)} h-9! w-full px-2.5! py-0! text-sm`}
               >
                 {SESSIONS.map(([value, label]) => (
                   <option key={value} value={value}>

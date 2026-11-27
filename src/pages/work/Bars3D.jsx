@@ -4,8 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 // box with a lighter top and a darker side. The same shapes draw on the page
 // and in the PNG picture, so both look alike.
 
-const DEPTH_X = 9;
-const DEPTH_Y = 7;
+export const DEPTH_X = 9;
+export const DEPTH_Y = 7;
 
 // A colour mixed towards white (amount > 0) or black (amount < 0).
 export function shade(hex, amount) {
@@ -16,7 +16,7 @@ export function shade(hex, amount) {
 }
 
 // The front, top and side of a box whose front is x, y, w, h.
-function box(x, y, w, h, colour) {
+export function box(x, y, w, h, colour) {
   const top = `${x},${y} ${x + DEPTH_X},${y - DEPTH_Y} ${x + w + DEPTH_X},${y - DEPTH_Y} ${x + w},${y}`;
   const side = `${x + w},${y} ${x + w + DEPTH_X},${y - DEPTH_Y} ${x + w + DEPTH_X},${y + h - DEPTH_Y} ${x + w},${y + h}`;
   return [
@@ -113,12 +113,46 @@ export function shapesMarkup(shapes, { ink = '#12141a', muted = '#626979', track
       if (shape.kind === 'rect')
         return `<rect x="${shape.x}" y="${shape.y}" width="${shape.w}" height="${shape.h}"${shape.r ? ` rx="${shape.r}"` : ''} fill="${fillOf(shape.fill)}"/>`;
       if (shape.kind === 'polygon') return `<polygon points="${shape.points}" fill="${shape.fill}"/>`;
-      if (shape.kind === 'line') return `<line x1="${shape.x1}" y1="${shape.y1}" x2="${shape.x2}" y2="${shape.y2}" stroke="${rule}"/>`;
+      if (shape.kind === 'line')
+        return `<line x1="${shape.x1}" y1="${shape.y1}" x2="${shape.x2}" y2="${shape.y2}" stroke="${
+          shape.color ?? (shape.tone === 'ink' ? ink : rule)
+        }" stroke-width="${shape.width ?? 1}" stroke-linecap="round"/>`;
       return `<text x="${shape.x}" y="${shape.y}" font-size="${shape.size * scale}"${shape.weight ? ` font-weight="${shape.weight}"` : ''}${
         shape.anchor ? ` text-anchor="${shape.anchor}"` : ''
-      } fill="${shape.tone === 'muted' ? muted : ink}">${esc(shape.text)}${shape.after ? `<tspan font-weight="400" fill="${muted}">${esc(shape.after)}</tspan>` : ''}</text>`;
+      } fill="${shape.color ?? (shape.tone === 'muted' ? muted : ink)}">${esc(shape.text)}${shape.after ? `<tspan font-weight="400" fill="${muted}">${esc(shape.after)}</tspan>` : ''}</text>`;
     })
     .join('\n');
+}
+
+// Saves an SVG as a PNG picture, twice the size for sharp text.
+export async function savePng(svg, width, height, name) {
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  try {
+    const image = new Image();
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = reject;
+      image.src = url;
+    });
+    const scale = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const context = canvas.getContext('2d');
+    context.scale(scale, scale);
+    context.drawImage(image, 0, 0);
+    const png = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(png);
+    link.download = `${name
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-|-$/g, '')
+      .toLowerCase()}.png`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 // How wide the chart's box is on the page.
@@ -137,19 +171,32 @@ function useWidth() {
 }
 
 export function Bars3D({ items, colourOf, vertical = false, done = null }) {
+  return (
+    <ShapesChart
+      vertical={vertical}
+      label="Chart of what came of the work"
+      build={(width) => {
+        const drawn = barShapes({ items, colourOf, width, vertical, done, top: DEPTH_Y });
+        return { ...drawn, floor: drawn.height - 41 };
+      }}
+    />
+  );
+}
+
+// Any chart made of shapes, sized to its box: the bars grow in, the rest
+// (tracks, lines, words) stays still.
+export function ShapesChart({ build, vertical = false, label }) {
   const [ref, width] = useWidth();
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const frame = requestAnimationFrame(() => setShown(true));
     return () => cancelAnimationFrame(frame);
   }, []);
-  const { shapes, height } = width
-    ? barShapes({ items, colourOf, width: width - DEPTH_X, vertical, done, top: DEPTH_Y })
-    : { shapes: [], height: 0 };
+  const { shapes, height, floor = 0 } = width ? build(width - DEPTH_X) : { shapes: [], height: 0 };
   return (
     <div ref={ref} className="w-full min-w-0">
       {width > 0 && (
-        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Chart of what came of the work">
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}>
           {/* The empty track goes under the bar. */}
           {shapes
             .filter((shape) => shape.fill === 'track')
@@ -159,7 +206,7 @@ export function Bars3D({ items, colourOf, vertical = false, done = null }) {
             ))}
           <g
             style={{
-              transformOrigin: vertical ? `0 ${height - 41}px` : '0 0',
+              transformOrigin: vertical ? `0 ${floor}px` : '0 0',
               transform: shown ? 'none' : vertical ? 'scaleY(0)' : 'scaleX(0)',
               transition: 'transform 800ms cubic-bezier(.2,.7,.2,1)',
             }}
@@ -194,7 +241,19 @@ export function Bars3D({ items, colourOf, vertical = false, done = null }) {
                 );
               if (shape.kind === 'line')
                 // eslint-disable-next-line react/no-array-index-key
-                return <line key={index} x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} stroke="var(--color-line)" />;
+                return (
+                  <line
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={index}
+                    x1={shape.x1}
+                    y1={shape.y1}
+                    x2={shape.x2}
+                    y2={shape.y2}
+                    stroke={shape.color ?? (shape.tone === 'ink' ? 'var(--color-ink)' : 'var(--color-line)')}
+                    strokeWidth={shape.width ?? 1}
+                    strokeLinecap="round"
+                  />
+                );
               return (
                 <text
                   // eslint-disable-next-line react/no-array-index-key
@@ -204,7 +263,7 @@ export function Bars3D({ items, colourOf, vertical = false, done = null }) {
                   fontSize={shape.size}
                   fontWeight={shape.weight}
                   textAnchor={shape.anchor}
-                  fill={shape.tone === 'muted' ? 'var(--color-muted)' : 'var(--color-ink)'}
+                  fill={shape.color ?? (shape.tone === 'muted' ? 'var(--color-muted)' : 'var(--color-ink)')}
                 >
                   {shape.text}
                   {shape.after && (

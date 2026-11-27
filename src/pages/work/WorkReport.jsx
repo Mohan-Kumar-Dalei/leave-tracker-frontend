@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { BarChart3, BarChartHorizontal, Download, PieChart } from 'lucide-react';
-import { Bars3D, barShapes, shapesMarkup } from './Bars3D';
+import { Bars3D, barShapes, savePng, shapesMarkup } from './Bars3D';
+import { TargetReport } from './WorkTargets';
 import { MandalaBackdrop } from '../../components/MandalaCorner';
 import { SegmentedTabs } from '../../components/Tabs';
 import { Empty, SelectBox } from '../../components/ui';
 
-// The work report, for an assistant manager or manager: for each kind of work
-// (Broken RSS, New Integration, Sourcing...), what came of it (Fixed, Working
-// fine, Webpage issue...) as a ring, as bars and as plain numbers, for one day
-// or the whole month.
+// The work report, for team leads, assistant managers and managers: target
+// and done by work type, for each person and each day (WorkTargets.jsx); then
+// for each kind of work (Broken RSS, New Integration, Sourcing...), what came
+// of it (Fixed, Working fine, Webpage issue...) as a ring, as bars and as
+// plain numbers, for one day or the whole month.
 
 const COLOURS = ['#2f5bea', '#0e9f6e', '#f2a93b', '#e5484d', '#8e4ec6', '#12a5b8', '#d6409f', '#7c8597'];
 const dayName = (date) =>
@@ -196,35 +198,7 @@ ${parts.join('\n')}
 
 export async function downloadChart({ title, subtitle, items, style, done }) {
   const { svg, width, height } = chartSvg({ title, subtitle, items, style, done });
-  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-  try {
-    const image = new Image();
-    await new Promise((resolve, reject) => {
-      image.onload = resolve;
-      image.onerror = reject;
-      image.src = url;
-    });
-    const scale = 2;
-    const canvas = document.createElement('canvas');
-    canvas.width = width * scale;
-    canvas.height = height * scale;
-    const context = canvas.getContext('2d');
-    context.scale(scale, scale);
-    context.drawImage(image, 0, 0);
-    const png = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(png);
-    link.download = `${[title, subtitle]
-      .filter(Boolean)
-      .join(' ')
-      .replace(/[^a-z0-9]+/gi, '-')
-      .replace(/^-|-$/g, '')
-      .toLowerCase()}.png`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  await savePng(svg, width, height, [title, subtitle].filter(Boolean).join(' '));
 }
 
 export function ChartSwitch({ value, onChange, picture, compact = false }) {
@@ -368,6 +342,7 @@ export function WorkReport({ sheet }) {
         <Empty title="No work given yet">{period === 'day' ? 'Nobody has work on this day.' : 'Nobody has work this month yet.'}</Empty>
       ) : (
         <>
+          <TargetReport sheet={sheet} period={period} date={date} when={when} />
           <Card title="All work" entries={entries} when={when} big />
           <div className="grid gap-4 lg:grid-cols-2">
             {kinds.map((kind) => (

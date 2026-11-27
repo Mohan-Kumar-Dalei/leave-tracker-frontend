@@ -1223,7 +1223,7 @@ export default function WorkTracker() {
               { id: 'dashboard', label: 'Dashboard' },
               ...(me ? [{ id: 'mine', label: 'My work' }] : []),
               { id: 'sheet', label: 'Team sheet' },
-              ...(sheet.canManageTypes ? [{ id: 'report', label: 'Report' }] : []),
+              ...(sheet.canLead ? [{ id: 'report', label: 'Report' }] : []),
             ]}
             value={shownTab}
             onChange={setTab}

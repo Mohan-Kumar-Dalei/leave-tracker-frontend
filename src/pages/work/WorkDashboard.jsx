@@ -215,10 +215,10 @@ function below(people, id) {
 
 // The days a month view counts: up to today in this month, every working day
 // in a month gone by, none in a month to come. Public holidays are off.
-const countedDays = (sheet) => sheet.days.filter((day) => !day.sunday && !day.holiday && day.date <= sheet.today).map((day) => day.date);
+const countedDays = (sheet) => sheet.days.filter((day) => !day.off && day.date <= sheet.today).map((day) => day.date);
 
 function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
-  const workingDays = sheet.days.filter((day) => !day.sunday);
+  const workingDays = sheet.days.filter((day) => !day.off);
   const inMonth = sheet.today >= sheet.days[0].date && sheet.today <= sheet.days.at(-1).date;
   const firstDay = inMonth ? sheet.today : (countedDays(sheet).at(-1) ?? workingDays[0]?.date);
   const myTeam = me ? below(sheet.people, me.id) : [];
@@ -582,7 +582,7 @@ function RemoveConfirm({ removing, onClose, loading, onConfirm }) {
 }
 
 function MyDashboard({ sheet, me, notes, onComments }) {
-  const workingDays = sheet.days.filter((day) => !day.sunday);
+  const workingDays = sheet.days.filter((day) => !day.off);
   const inMonth = sheet.today >= sheet.days[0].date && sheet.today <= sheet.days.at(-1).date;
   const [period, setPeriod] = useState('month');
   const [date, setDate] = useState(inMonth ? sheet.today : (workingDays.at(-1)?.date ?? sheet.days[0].date));

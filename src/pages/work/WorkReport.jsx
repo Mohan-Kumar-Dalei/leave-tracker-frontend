@@ -304,7 +304,7 @@ function Card({ title, entries, when, big = false }) {
 }
 
 export function WorkReport({ sheet }) {
-  const workingDays = sheet.days.filter((day) => !day.sunday);
+  const workingDays = sheet.days.filter((day) => !day.off);
   const inMonth = sheet.today >= sheet.days[0].date && sheet.today <= sheet.days.at(-1).date;
   const [period, setPeriod] = useState('month');
   const [date, setDate] = useState(inMonth ? sheet.today : (workingDays.at(-1)?.date ?? sheet.days[0].date));

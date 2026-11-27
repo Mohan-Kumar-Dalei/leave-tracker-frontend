@@ -243,14 +243,16 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
     return list;
   }, [people]);
 
-  // A full day of leave, or a public holiday, shows 0 in each row (and
-  // "Leave" in the comment for leave).
-  const onLeave = (person, day) => !day.sunday && (Boolean(day.holiday) || person.away?.[day.date] === 'full');
+  // A full day of leave shows 0 in each row (and "Leave" in its comment). A
+  // day the office is closed (a Sunday or a public holiday) is off: grey,
+  // with nothing to set or fill; a holiday shows 0 in each row too.
+  const onLeave = (person, day) => !day.off && person.away?.[day.date] === 'full';
+  const zero = (person, day) => onLeave(person, day) || Boolean(day.holiday);
   const total = (person, day, field) => {
     const item = totals[`${person.id}|${day.date}`];
-    if (field === 'target') return day.sunday ? 0 : (item?.target ?? 0);
-    if (field === 'achieved') return item?.filled ? item.achieved : onLeave(person, day) ? 0 : null;
-    return item?.overtime || (onLeave(person, day) ? 0 : null);
+    if (field === 'target') return day.off ? 0 : (item?.target ?? 0);
+    if (field === 'achieved') return item?.filled ? item.achieved : zero(person, day) ? 0 : null;
+    return item?.overtime || (zero(person, day) ? 0 : null);
   };
 
   // Every number the sheet shows, worked out once per change of data (not on
@@ -270,7 +272,7 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
   const dayAt = (c) => (c >= 3 ? days[c - 3] : null);
 
   function canEdit(row, day) {
-    if (!day || day.sunday || !row?.person) return false;
+    if (!day || day.off || !row?.person) return false;
     if (row.kind === 'target') {
       if (row.person.canLead) return true;
       // Their own added work (no lead set it): they may set its target.
@@ -313,20 +315,19 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
             value =
               c === 2 ? days.reduce((sum, _d, i) => sum + sums.achieved[i] - sums.target[i], 0) : sums.achieved[c - 3] - sums.target[c - 3];
           } else {
-            const diff = (d) => (d.sunday ? 0 : (total(row.person, d, 'achieved') ?? 0) - total(row.person, d, 'target'));
+            const diff = (d) => (d.off ? 0 : (total(row.person, d, 'achieved') ?? 0) - total(row.person, d, 'target'));
             value = c === 2 ? days.reduce((sum, d) => sum + diff(d), 0) : diff(day);
           }
-          fill = day?.sunday ? COLOURS.sunday : value < 0 ? COLOURS.less : COLOURS.more;
+          fill = day?.off ? COLOURS.sunday : value < 0 ? COLOURS.less : COLOURS.more;
         } else if (c === 2) {
           value = monthSum(row.kind);
           fill = { target: COLOURS.target, achieved: COLOURS.achieved, overtime: COLOURS.overtime }[row.kind];
         } else {
           const raw = total(row.person, day, row.kind);
-          const empty =
-            row.kind === 'target' && !day.sunday && !onLeave(row.person, day) && !totals[`${row.person.id}|${day.date}`]?.target;
+          const empty = row.kind === 'target' && !day.off && !onLeave(row.person, day) && !totals[`${row.person.id}|${day.date}`]?.target;
           value = empty ? '' : (raw ?? '');
-          if (row.kind === 'target') fill = day.sunday ? COLOURS.sunday : value ? COLOURS.set : COLOURS.target;
-          else fill = day.sunday ? COLOURS.sunday : row.kind === 'achieved' ? COLOURS.achieved : COLOURS.overtime;
+          if (row.kind === 'target') fill = day.off ? COLOURS.sunday : value ? COLOURS.set : COLOURS.target;
+          else fill = day.off ? COLOURS.sunday : row.kind === 'achieved' ? COLOURS.achieved : COLOURS.overtime;
         }
         const said = row.kind === 'achieved' && day ? notes[`${row.person.id}|${day.date}`] : null;
         cells.push({ value, fill, said: said?.length ? said : null });
@@ -549,7 +550,7 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
       // Someone's day opens its popup: target, achieved, OT and comments.
       const owner = ownerOf(r, c);
       const said = owner ? notes[`${owner.person.id}|${owner.day.date}`] : null;
-      if (owner && !owner.day.sunday && (owner.person.canLead || owner.person.canFill || said?.length)) {
+      if (owner && !owner.day.off && (owner.person.canLead || owner.person.canFill || said?.length)) {
         event.preventDefault();
         onOpenDay(owner.person, owner.day);
       }

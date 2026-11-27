@@ -976,7 +976,7 @@ function TargetsDialog({ open, sheet, onClose }) {
   const allShown = shown.length > 0 && shown.every((person) => picked.has(person.id));
   const first = sheet.days[0].date;
   const lastDay = sheet.days[sheet.days.length - 1].date;
-  const start = sheet.today >= first && sheet.today <= lastDay ? sheet.today : (sheet.days.find((day) => !day.sunday)?.date ?? first);
+  const start = sheet.today >= first && sheet.today <= lastDay ? sheet.today : (sheet.days.find((day) => !day.off)?.date ?? first);
   const form = useZodForm(
     z.object({
       category: z.string().min(1, 'Pick the work.'),
@@ -1228,11 +1228,12 @@ function MyDay({ sheet, me, totals, tasks, notes }) {
   const [adding, setAdding] = useState(false);
   if (!day) return <Empty title="This is not this month">Go to this month to fill in today's work.</Empty>;
   if (day.sunday) return <Empty title="Sunday is off">Nothing to fill in today.</Empty>;
+  if (day.holiday) return <Empty title={`${day.holiday}, the office is closed`}>Nothing to fill in today.</Empty>;
   const total = totals[`${me.id}|${day.date}`];
   const entries = total?.entries ?? [];
   // So far: the days gone by, and today once it is filled in.
   const counted = sheet.days.filter((item) => {
-    if (item.sunday || item.date > sheet.today) return false;
+    if (item.off || item.date > sheet.today) return false;
     return item.date < sheet.today || totals[`${me.id}|${item.date}`]?.filled;
   });
   const target = counted.reduce((sum, item) => sum + (totals[`${me.id}|${item.date}`]?.target ?? 0), 0);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { positionOf } from '../lib/home';
@@ -100,6 +100,31 @@ export function HomeSidebar({ show = 3 }) {
   const { data } = useTeam();
   const [open, setOpen] = useState(null);
   const [all, setAll] = useState(false);
+  // On a wide screen the department list fills the height the column has
+  // (it is as tall as the page beside it), so it shows as many people as fit
+  // there before "+N more", instead of three and an empty space below.
+  const listBox = useRef(null);
+  const [fit, setFit] = useState(show);
+  useLayoutEffect(() => {
+    const box = listBox.current;
+    if (!box) return undefined;
+    const wide = window.matchMedia('(min-width: 1024px)');
+    const measure = () => {
+      if (!wide.matches) return setFit(show);
+      const rows = [...box.querySelectorAll(':scope > ul > li')];
+      const room = box.clientHeight;
+      const fits = rows.filter((row) => row.offsetTop + row.offsetHeight <= room).length;
+      return setFit(Math.max(show, fits));
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(box);
+    wide.addEventListener('change', measure);
+    return () => {
+      watch.disconnect();
+      wide.removeEventListener('change', measure);
+    };
+  }, [show, data]);
 
   if (!data) {
     return <div className="h-72 animate-pulse rounded-xl bg-sunken motion-reduce:animate-none" />;
@@ -129,7 +154,7 @@ export function HomeSidebar({ show = 3 }) {
   // Only the people in the same department, now that there are several.
   const others = leaveFirst(data.members.filter((member) => member.id !== user.id && member.department === me.department));
   const away = others.filter((member) => member.leave).length;
-  const rest = others.length - show;
+  const rest = others.length - fit;
   const weekend = Boolean(data.weekend);
 
   return (
@@ -137,7 +162,7 @@ export function HomeSidebar({ show = 3 }) {
       <ProfileCard me={me} onOpen={setOpen} weekend={weekend} />
       {manager && <ReportingTo manager={manager} onOpen={setOpen} weekend={weekend} />}
 
-      <Panel className="lg:flex-1">
+      <Panel className="lg:flex lg:flex-1 lg:flex-col">
         <div className="px-4 pb-1 pt-3">
           <h2 className="text-sm font-semibold">Department members</h2>
           <p className="text-xs text-muted">
@@ -145,13 +170,18 @@ export function HomeSidebar({ show = 3 }) {
           </p>
         </div>
         {weekend && <WeekendNote today={data.today} />}
-        <ul className="divide-y divide-line px-2 pb-1">
-          {others.slice(0, show).map((member) => (
-            <li key={member.id}>
-              <MemberRow member={member} onOpen={setOpen} shortTag weekend={weekend} />
-            </li>
-          ))}
-        </ul>
+        {/* On a wide screen every row is laid out (taking no height of its
+            own, so the list never makes the column taller) and the ones past
+            the bottom are hidden; below that, the first few. */}
+        <div ref={listBox} className="relative lg:min-h-[11rem] lg:flex-1 lg:overflow-hidden">
+          <ul className="divide-y divide-line px-2 pb-1 lg:absolute lg:inset-x-0 lg:top-0">
+            {others.map((member, index) => (
+              <li key={member.id} aria-hidden={index >= fit || undefined} className={index >= fit ? 'max-lg:hidden lg:invisible' : ''}>
+                <MemberRow member={member} onOpen={setOpen} shortTag weekend={weekend} />
+              </li>
+            ))}
+          </ul>
+        </div>
         {rest > 0 && (
           <button
             type="button"

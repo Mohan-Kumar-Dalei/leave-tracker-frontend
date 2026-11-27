@@ -194,8 +194,12 @@ function UserMenu({ user, onSignOut, inSidebar = false }) {
             <UserRound className="h-4 w-4 text-muted" aria-hidden="true" />
             Profile, Gmail and password
           </Link>
-          <button type="button" onClick={onSignOut} className={`${itemClass} border-t border-line`}>
-            <LogOut className="h-4 w-4 text-muted" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="group flex h-10 w-full items-center gap-2.5 border-t border-line px-3 text-sm text-ink transition-colors hover:bg-rejected-soft hover:text-rejected max-sm:h-11"
+          >
+            <LogOut className="h-4 w-4 text-muted transition-colors group-hover:text-rejected" aria-hidden="true" />
             Sign out
           </button>
         </div>
@@ -448,7 +452,8 @@ export function AppShell() {
 
       {/* The top: the open section's pages as tabs, and the account on the
           right. On phones the logo row sits above the tabs. */}
-      <header className="sticky top-0 z-20 border-b border-line bg-surface">
+      {/* Above the pages' own sticky tops (z-20), so the account menu opens over them. */}
+      <header className="sticky top-0 z-30 border-b border-line bg-surface">
         <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6 lg:hidden">
           <Link to={home}>
             <Logo />

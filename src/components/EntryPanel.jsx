@@ -36,7 +36,7 @@ function EntryRow({ entry, onAvail }) {
   const isTeam = entry.kind === 'team';
   const isLeave = entry.kind === 'leave' || isTeam;
   const detail = isTeam
-    ? `Department leave, ${entry.detail}`
+    ? `Teammate's leave, ${entry.detail}`
     : isLeave
       ? (entry.detail ?? `${entry.days} ${dayWord(entry.days)}. ${entry.reason}`)
       : entry.note;

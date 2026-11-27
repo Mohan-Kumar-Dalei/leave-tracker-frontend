@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquarePlus, Trash2 } from 'lucide-react';
+import { Maximize2, MessageSquarePlus, Minimize2, Trash2 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../../lib/api';
@@ -341,12 +341,50 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
   const [cardPos, setCardPos] = useState(null);
   const [mark, setMark] = useState(null); // where the picked cell is, for its outline
   // Small screens get the comments in a popup instead of beside the cell.
+  // Only desktops (1024px and up) keep columns A and B frozen: on phones and
+  // tablets they would fill the screen, so there the whole sheet scrolls.
   const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [desktop, setDesktop] = useState(() => typeof window === 'undefined' || window.innerWidth >= 1024);
   useEffect(() => {
-    const check = () => setNarrow(window.innerWidth < 768);
+    const check = () => {
+      setNarrow(window.innerWidth < 768);
+      setDesktop(window.innerWidth >= 1024);
+    };
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
+
+  // Full screen: the browser's own when it has one, else the sheet fills the
+  // window. Esc (or the button) brings it back.
+  const frame = useRef(null);
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    const sync = () => {
+      if (!document.fullscreenElement) setFull(false);
+    };
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+  useEffect(() => {
+    if (!full) return undefined;
+    const onKey = (event) => event.key === 'Escape' && !document.fullscreenElement && setFull(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [full]);
+  const toggleFull = async () => {
+    if (!full) {
+      setFull(true);
+      try {
+        await frame.current?.requestFullscreen?.();
+      } catch {
+        // Not allowed here: the sheet still fills the window.
+      }
+    } else {
+      setFull(false);
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+    }
+    box.current?.focus();
+  };
 
   // A cell's formula, for the bar above (only for the picked cell).
   const formulaOf = (r, c) => {
@@ -517,7 +555,7 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
     },
   };
 
-  const stickyLeft = (c) => (c === 1 ? NUM_W : c === 2 ? NUM_W + A_W : undefined);
+  const stickyLeft = (c) => (!desktop ? undefined : c === 1 ? NUM_W : c === 2 ? NUM_W + A_W : undefined);
   const stickyTop = (r) => (r === 0 ? ROW_H + 1 : r === 1 ? ROW_H * 2 + 2 : undefined);
 
   // The cells, drawn only when the numbers change.
@@ -573,7 +611,7 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
       </tbody>
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [matrix, rows, todayCol],
+    [matrix, rows, todayCol, desktop],
   );
 
   const pickedValue = matrix[picked.r]?.[picked.c - 1]?.value;
@@ -584,7 +622,12 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
   const editPlace = editing ? placeOf(editing.r, editing.c) : null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-[#dadce0] bg-white text-[#202124] [color-scheme:light]">
+    <div
+      ref={frame}
+      className={`flex min-h-0 flex-col overflow-hidden bg-white text-[#202124] [color-scheme:light] ${
+        full ? 'fixed inset-0 z-[60] h-dvh w-screen' : 'h-full rounded-lg border border-[#dadce0]'
+      }`}
+    >
       {/* The name box and formula bar. */}
       <div className="flex h-9 shrink-0 items-center border-b border-[#dadce0] bg-white text-[13px]">
         <span className="flex h-full w-[90px] items-center border-r border-[#dadce0] px-3 font-medium tabular-nums">
@@ -604,6 +647,16 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
             <span className="hidden sm:inline">Comment</span>
           </button>
         )}
+        <button
+          type="button"
+          onClick={toggleFull}
+          aria-pressed={full}
+          title={full ? 'Exit full screen (Esc)' : 'Full screen'}
+          className="mr-1 flex h-7 shrink-0 items-center gap-1.5 rounded px-2 text-[#444746] hover:bg-[#f1f3f4]"
+        >
+          {full ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
+          <span className="hidden sm:inline">{full ? 'Exit full screen' : 'Full screen'}</span>
+        </button>
       </div>
 
       {/* The grid. */}

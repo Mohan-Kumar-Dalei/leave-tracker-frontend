@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowUpDown,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Download,
   ExternalLink,
   MessageSquare,
@@ -142,10 +145,97 @@ function WorkSource({ entry }) {
 export const workName = (entry) =>
   entry.category && entry.category.toLowerCase() !== entry.task.toLowerCase() ? `${entry.category} › ${entry.task}` : entry.task;
 
+// The choices for what came of a piece of work: the list its work type's
+// leads keep (Broken RSS: Fixed, Webpage Issue...), or the usual ones until
+// they set one.
+const outcomesFor = (entry, types = []) => {
+  const kind = (entry?.category || entry?.task || '').toLowerCase();
+  const list = types.find((type) => type.name.toLowerCase() === kind)?.outcomes ?? [];
+  return list.length ? list : OUTCOMES;
+};
+
+// A box to type into that lists the matching choices under it; a choice is
+// picked by a click, or with the arrow keys and Enter.
+function OutcomePicker({ value, options, onChange, invalid }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const words = value.trim().toLowerCase();
+  const exact = options.some((option) => option.toLowerCase() === words);
+  const shown = exact || !words ? options : options.filter((option) => option.toLowerCase().includes(words));
+  const choose = (option) => {
+    onChange(option);
+    setOpen(false);
+  };
+  return (
+    <div>
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden="true" />
+        <input
+          value={value}
+          maxLength={40}
+          role="combobox"
+          aria-expanded={open}
+          aria-autocomplete="list"
+          aria-label="What came of it"
+          placeholder="Search, e.g. Fixed"
+          onFocus={() => {
+            setOpen(true);
+            setActive(0);
+          }}
+          onBlur={() => setOpen(false)}
+          onChange={(event) => {
+            onChange(event.target.value);
+            setOpen(true);
+            setActive(0);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              setOpen(true);
+              setActive((at) => Math.min(shown.length - 1, at + 1));
+            } else if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              setActive((at) => Math.max(0, at - 1));
+            } else if (event.key === 'Enter' && open && shown[active]) {
+              event.preventDefault();
+              choose(shown[active]);
+            } else if (event.key === 'Escape') {
+              setOpen(false);
+            }
+          }}
+          className={`${inputClass(invalid)} h-9! pl-8!`}
+        />
+      </div>
+      {open && (
+        <ul role="listbox" className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-line bg-surface py-1 shadow-card">
+          {shown.length === 0 && <li className="px-3 py-1.5 text-sm text-muted">Not in the list for this work</li>}
+          {shown.map((option, index) => (
+            <li
+              key={option}
+              role="option"
+              aria-selected={index === active}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                choose(option);
+              }}
+              onMouseEnter={() => setActive(index)}
+              className={`cursor-pointer px-3 py-1.5 text-sm ${index === active ? 'bg-accent-soft text-accent' : ''}`}
+            >
+              {option}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // What came of the work: lines of a name and a count, saved on their own.
 // Each save adds to what is there, then the box is empty again; what was
-// saved shows above as plain text and goes into the day's comment.
-function Counts({ entry, person, day }) {
+// saved shows above as plain text and goes into the day's comment. The name
+// is picked from the list for the work's type.
+function Counts({ entry, person, day, types = [] }) {
+  const options = outcomesFor(entry, types);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [lines, setLines] = useState([]);
@@ -170,6 +260,10 @@ function Counts({ entry, person, day }) {
     if (!lines.length) return setError('Add a line first.');
     const bad = lines.find((line) => !line.label.trim() || line.count === '' || Number.isNaN(Number(line.count)) || Number(line.count) < 0);
     if (bad) return setError('Give every line a name and a count of 0 or more.');
+    const unknown = lines.find((line) => !options.some((option) => option.toLowerCase() === line.label.trim().toLowerCase()));
+    if (unknown) return setError(`Pick "${unknown.label.trim()}" from the list, or ask your team lead to add it.`);
+    // Written the way the list has it.
+    setLines(lines.map((line) => ({ ...line, label: options.find((option) => option.toLowerCase() === line.label.trim().toLowerCase()) })));
     setError('');
     return save.mutate();
   };
@@ -185,15 +279,13 @@ function Counts({ entry, person, day }) {
       <ul className="space-y-2">
         {lines.map((line, index) => (
           // eslint-disable-next-line react/no-array-index-key
-          <li key={index} className="flex items-center gap-2">
+          <li key={index} className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              <input
+              <OutcomePicker
                 value={line.label}
-                maxLength={40}
-                aria-label="What"
-                placeholder="Fixed"
-                onChange={(event) => setLines(lines.map((item, i) => (i === index ? { ...item, label: event.target.value } : item)))}
-                className={`${inputClass(error && !line.label.trim())} h-9!`}
+                options={options}
+                invalid={Boolean(error) && !options.some((option) => option.toLowerCase() === line.label.trim().toLowerCase())}
+                onChange={(label) => setLines(lines.map((item, i) => (i === index ? { ...item, label } : item)))}
               />
             </div>
             <div className="w-24 shrink-0">
@@ -218,7 +310,7 @@ function Counts({ entry, person, day }) {
           type="button"
           onClick={() => {
             setError('');
-            setLines([...lines, { label: OUTCOMES.find((name) => !lines.some((line) => line.label === name)) ?? '', count: '' }]);
+            setLines([...lines, { label: '', count: '' }]);
           }}
           className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
         >
@@ -401,7 +493,7 @@ function WorkLine({ entry, person, day, today, onDone, wide = false, assigners =
       </div>
       {entry && mayFill && (
         <div className="mt-3">
-          <Counts entry={entry} person={person} day={day} />
+          <Counts entry={entry} person={person} day={day} types={types} />
         </div>
       )}
       {formError(form) && (
@@ -664,14 +756,82 @@ function SearchField({ value, onChange, label, className = '' }) {
   );
 }
 
-/* The work types (Broken RSS, New Integration, Sourcing...), for an
-   assistant manager or manager to add to or take away from. */
+/* The work types (Broken RSS, New Integration, Sourcing...): an assistant
+   manager or manager adds and removes them; they and the team leads keep, for
+   each, what can come of it (Fixed, Webpage Issue...), which the team picks
+   from when they count their day. */
 
-function WorkTypesDialog({ open, types, department, onClose }) {
+function TypeOutcomes({ type }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [list, setList] = useState(type.outcomes ?? []);
+  const [name, setName] = useState('');
+  const changed = JSON.stringify(list) !== JSON.stringify(type.outcomes ?? []);
+  const save = useMutation({
+    mutationFn: () => api.patch(`/work/types/${type.id}`, { outcomes: list }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work'] });
+      toast.success(`Saved for ${type.name}`);
+    },
+    onError: (issue) => toast.error('Could not save it', issue.message),
+  });
+  const add = () => {
+    const clean = name.trim();
+    if (!clean || list.some((item) => item.toLowerCase() === clean.toLowerCase())) return setName('');
+    setList([...list, clean]);
+    return setName('');
+  };
+  return (
+    <div className="mt-2 rounded-lg bg-sunken/60 p-2.5">
+      <p className="mb-1.5 text-xs text-muted">What can come of {type.name}</p>
+      <ul className="flex flex-wrap gap-1.5">
+        {list.map((item) => (
+          <li key={item} className="inline-flex items-center gap-1 rounded-md bg-surface py-0.5 pr-1 pl-2 text-xs ring-1 ring-line">
+            {item}
+            <button
+              type="button"
+              aria-label={`Remove ${item}`}
+              onClick={() => setList(list.filter((other) => other !== item))}
+              className="grid h-5 w-5 place-items-center rounded text-muted hover:bg-rejected-soft hover:text-rejected"
+            >
+              <X className="h-3 w-3" aria-hidden="true" />
+            </button>
+          </li>
+        ))}
+        {list.length === 0 && <li className="text-xs text-muted">None yet: the team sees the usual list (Fixed, Working fine...).</li>}
+      </ul>
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          value={name}
+          maxLength={40}
+          aria-label={`Add to what can come of ${type.name}`}
+          placeholder="Add, e.g. Webpage Issue"
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              add();
+            }
+          }}
+          className={`${inputClass(false)} h-9!`}
+        />
+        <Button variant="secondary" onClick={add}>
+          Add
+        </Button>
+        <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!changed}>
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function WorkTypesDialog({ open, types, department, canManage, onClose }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [openType, setOpenType] = useState(null);
   const add = useMutation({
     mutationFn: () => api.post('/work/types', { name: name.trim(), department }),
     onSuccess: () => {
@@ -689,46 +849,117 @@ function WorkTypesDialog({ open, types, department, onClose }) {
   return (
     <Dialog open={open} onClose={onClose} title={`Work types, ${department}`} kind="modal">
       <p className="mb-3 text-sm text-muted">
-        The kinds of work this department does. Team leads pick from these when they set targets. Work already given keeps its name.
+        The kinds of work this department does, and what can come of each. The team picks from these when they count their day.
       </p>
       <ul className="divide-y divide-line rounded-lg border border-line">
         {types.map((type) => (
-          <li key={type.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-            <span>{type.name}</span>
-            <IconButton label={`Remove ${type.name}`} onClick={() => remove.mutate(type.id)}>
-              <Trash2 className="h-4 w-4" />
-            </IconButton>
+          <li key={type.id} className="px-3 py-2 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                aria-expanded={openType === type.id}
+                onClick={() => setOpenType(openType === type.id ? null : type.id)}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              >
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-muted transition-transform ${openType === type.id ? '' : '-rotate-90'}`}
+                  aria-hidden="true"
+                />
+                <span className="font-medium">{type.name}</span>
+                <span className="text-xs text-muted">{(type.outcomes ?? []).length || 'no'} options</span>
+              </button>
+              {canManage && (
+                <IconButton label={`Remove ${type.name}`} onClick={() => remove.mutate(type.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </IconButton>
+              )}
+            </div>
+            {openType === type.id && <TypeOutcomes key={`${type.id}-${(type.outcomes ?? []).join('|')}`} type={type} />}
           </li>
         ))}
         {types.length === 0 && (
           <li className="px-3 py-3 text-sm text-muted">No work types yet. Add the kinds of work this department does.</li>
         )}
       </ul>
-      <form
-        noValidate
-        className="mt-3 flex items-start gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (name.trim().length < 2) return setError('Name the work, like Snapshot.');
-          setError('');
-          return add.mutate();
-        }}
-      >
-        <div className="min-w-0 flex-1">
-          <input
-            value={name}
-            maxLength={60}
-            aria-label="New work type"
-            placeholder="New work type"
-            onChange={(event) => setName(event.target.value)}
-            className={inputClass(Boolean(error))}
-          />
-          {error && <p className="mt-1.5 text-sm text-rejected">{error}</p>}
-        </div>
-        <Button type="submit" loading={add.isPending}>
-          Add
+      {canManage && (
+        <form
+          noValidate
+          className="mt-3 flex items-start gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim().length < 2) return setError('Name the work, like Snapshot.');
+            setError('');
+            return add.mutate();
+          }}
+        >
+          <div className="min-w-0 flex-1">
+            <input
+              value={name}
+              maxLength={60}
+              aria-label="New work type"
+              placeholder="New work type"
+              onChange={(event) => setName(event.target.value)}
+              className={inputClass(Boolean(error))}
+            />
+            {error && <p className="mt-1.5 text-sm text-rejected">{error}</p>}
+          </div>
+          <Button type="submit" loading={add.isPending}>
+            Add
+          </Button>
+        </form>
+      )}
+    </Dialog>
+  );
+}
+
+/* The order of the people on the team sheet (and the dashboard and the
+   export), for the assistant manager or a manager to arrange. */
+
+function RowOrderDialog({ open, people, department, onClose }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [order, setOrder] = useState(() => people.map((person) => ({ id: person.id, name: person.name })));
+  const move = (from, to) => {
+    if (to < 0 || to >= order.length) return;
+    const next = [...order];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    setOrder(next);
+  };
+  const save = useMutation({
+    mutationFn: () => api.put('/work/order', { department, ids: order.map((item) => item.id) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work'] });
+      toast.success('Row order saved');
+      onClose();
+    },
+    onError: (issue) => toast.error('Could not save it', issue.message),
+  });
+  return (
+    <Dialog open={open} onClose={onClose} title="Row order" kind="modal">
+      <p className="mb-3 text-sm text-muted">The order of the people on the team sheet, top to bottom. Move someone with the arrows.</p>
+      <ol className="max-h-[52dvh] divide-y divide-line overflow-y-auto rounded-lg border border-line">
+        {order.map((item, index) => (
+          <li key={item.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+            <span className="w-6 shrink-0 text-right text-xs text-muted tabular-nums">{index + 1}</span>
+            <span className="min-w-0 flex-1 truncate">{item.name}</span>
+            <IconButton label={`Move ${item.name} up`} onClick={() => move(index, index - 1)} disabled={index === 0}>
+              <ChevronUp className="h-4 w-4" />
+            </IconButton>
+            <IconButton label={`Move ${item.name} down`} onClick={() => move(index, index + 1)} disabled={index === order.length - 1}>
+              <ChevronDown className="h-4 w-4" />
+            </IconButton>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
         </Button>
-      </form>
+        <Button onClick={() => save.mutate()} loading={save.isPending}>
+          Save order
+        </Button>
+      </div>
     </Dialog>
   );
 }
@@ -1149,6 +1380,7 @@ export default function WorkTracker() {
   const [opened, setOpened] = useState(null);
   const [setting, setSetting] = useState(false);
   const [typesOpen, setTypesOpen] = useState(false);
+  const [ordering, setOrdering] = useState(false);
   const [readingKey, setReading] = useState(null); // { title, user, date }
   const [search, setSearch] = useState('');
 
@@ -1191,7 +1423,13 @@ export default function WorkTracker() {
           title="Work tracker"
           actions={
             <>
-              {sheet.canManageTypes && (
+              {sheet.canManageTypes && shownTab === 'sheet' && (
+                <Button variant="secondary" onClick={() => setOrdering(true)}>
+                  <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+                  Row order
+                </Button>
+              )}
+              {sheet.canLead && (
                 <Button variant="secondary" onClick={() => setTypesOpen(true)}>
                   Work types
                 </Button>
@@ -1308,7 +1546,16 @@ export default function WorkTracker() {
         onClose={() => setOpened(null)}
       />
       {setting && <TargetsDialog open sheet={sheet} onClose={() => setSetting(false)} />}
-      {typesOpen && <WorkTypesDialog open types={sheet.types ?? []} department={sheet.department} onClose={() => setTypesOpen(false)} />}
+      {typesOpen && (
+        <WorkTypesDialog
+          open
+          types={sheet.types ?? []}
+          department={sheet.department}
+          canManage={sheet.canManageTypes}
+          onClose={() => setTypesOpen(false)}
+        />
+      )}
+      {ordering && <RowOrderDialog open people={sheet.people} department={sheet.department} onClose={() => setOrdering(false)} />}
       <Dialog
         open={Boolean(reading)}
         onClose={() => setReading(null)}

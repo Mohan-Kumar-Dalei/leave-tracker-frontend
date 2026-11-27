@@ -382,7 +382,7 @@ export function AppShell() {
           open ? 'w-60' : 'w-[76px]'
         }`}
       >
-        <div className={`relative flex h-[4.5rem] shrink-0 items-center gap-2 ${open ? 'px-4' : 'justify-center px-2'}`}>
+        <div className={`relative flex h-16 shrink-0 items-center gap-2 ${open ? 'px-4' : 'justify-center px-2'}`}>
           <button
             type="button"
             onClick={toggleRail}
@@ -394,14 +394,9 @@ export function AppShell() {
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
           {open && (
-            <Link to={home} title={`${APP_NAME}: ${TAGLINE}`} className="flex min-w-0 items-center gap-2.5">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent text-on-accent shadow-[0_6px_18px_-6px_var(--color-accent)]">
-                <CalendarCheck className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-[15px] font-semibold leading-tight tracking-tight">{APP_NAME}</span>
-                <span className="block text-[10.5px] leading-snug text-white/55">{TAGLINE}</span>
-              </span>
+            <Link to={home} className="flex min-w-0 items-center gap-2">
+              <CalendarCheck className="h-5 w-5 shrink-0 text-[#8fb3ff]" strokeWidth={2.25} aria-hidden="true" />
+              <span className="truncate text-[15px] font-semibold tracking-tight">{APP_NAME}</span>
             </Link>
           )}
         </div>

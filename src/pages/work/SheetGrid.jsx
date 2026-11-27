@@ -245,14 +245,13 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
 
   // A full day of leave shows 0 in each row (and "Leave" in its comment). A
   // day the office is closed (a Sunday or a public holiday) is off: grey,
-  // with nothing to set or fill; a holiday shows 0 in each row too.
+  // 0 for the target, and nothing to set or fill.
   const onLeave = (person, day) => !day.off && person.away?.[day.date] === 'full';
-  const zero = (person, day) => onLeave(person, day) || Boolean(day.holiday);
   const total = (person, day, field) => {
     const item = totals[`${person.id}|${day.date}`];
     if (field === 'target') return day.off ? 0 : (item?.target ?? 0);
-    if (field === 'achieved') return item?.filled ? item.achieved : zero(person, day) ? 0 : null;
-    return item?.overtime || (zero(person, day) ? 0 : null);
+    if (field === 'achieved') return item?.filled ? item.achieved : onLeave(person, day) ? 0 : null;
+    return item?.overtime || (onLeave(person, day) ? 0 : null);
   };
 
   // Every number the sheet shows, worked out once per change of data (not on

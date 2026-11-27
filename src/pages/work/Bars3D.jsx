@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-// Bars in 3D, lying down (horizontal) or standing up (columns): each bar a
-// box with a lighter top and a darker side. The same shapes draw on the page
-// and in the PNG picture, so both look alike.
+// Bars lying down (horizontal, flat with round ends) or standing up
+// (columns, in 3D: each a box with a lighter top and a darker side). The
+// same shapes draw on the page and in the PNG picture, so both look alike.
 
 export const DEPTH_X = 9;
 export const DEPTH_Y = 7;
@@ -49,7 +49,7 @@ export function barShapes({ items, colourOf, width, vertical = false, done = nul
   const pct = (count) => (base ? Math.round((count / base) * 100) : 0);
   const shapes = [];
   if (!vertical) {
-    const room = width - DEPTH_X - 2;
+    const room = width;
     items.forEach((item, index) => {
       const y = top + 14 + index * 54;
       const colour = colourOf(item, index);
@@ -68,7 +68,7 @@ export function barShapes({ items, colourOf, width, vertical = false, done = nul
           after: ` · ${pct(item.count)}%`,
         },
         { kind: 'rect', x: 0, y: y + 28, w: room, h: 14, fill: 'track', r: 3 },
-        ...box(0, y + 28, Math.max(3, (room * item.count) / most), 14, colour),
+        { kind: 'rect', x: 0, y: y + 28, w: Math.max(3, (room * item.count) / most), h: 14, fill: colour, r: 3, bar: true },
       );
     });
     return { shapes, height: top + 14 + items.length * 54 };
@@ -219,7 +219,7 @@ export function ShapesChart({ build, vertical = false, label }) {
                   <polygon key={index} points={shape.points} fill={shape.fill} />
                 ) : (
                   // eslint-disable-next-line react/no-array-index-key
-                  <rect key={index} x={shape.x} y={shape.y} width={shape.w} height={shape.h} fill={shape.fill} />
+                  <rect key={index} x={shape.x} y={shape.y} width={shape.w} height={shape.h} rx={shape.r} fill={shape.fill} />
                 ),
               )}
           </g>

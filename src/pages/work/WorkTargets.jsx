@@ -21,12 +21,13 @@ const BANDS = [
 const colourFor = (pct) => (pct === null ? '#c3c8d2' : BANDS.find(([floor]) => pct >= floor)[1]);
 
 // The shapes of the chart, `width` wide: lying bars for people, standing
-// columns for days. The bar is what was done; the dark line is the target.
+// columns for days (in 3D). The bar is what was done; the dark line is the
+// target.
 function targetShapes({ rows, width, vertical, top = 0 }) {
   const most = Math.max(1, ...rows.map((row) => Math.max(row.target, row.done)));
   const shapes = [];
   if (!vertical) {
-    const room = width - DEPTH_X - 2;
+    const room = width;
     rows.forEach((row, index) => {
       const y = top + 14 + index * 58;
       const at = (value) => (room * value) / most;
@@ -44,7 +45,8 @@ function targetShapes({ rows, width, vertical, top = 0 }) {
         },
         { kind: 'rect', x: 0, y: y + 26, w: Math.max(3, at(row.target)), h: 14, fill: 'track', r: 3 },
       );
-      if (row.done > 0) shapes.push(...box(0, y + 26, Math.max(3, at(row.done)), 14, colourFor(row.pct)));
+      if (row.done > 0)
+        shapes.push({ kind: 'rect', x: 0, y: y + 26, w: Math.max(3, at(row.done)), h: 14, fill: colourFor(row.pct), r: 3, bar: true });
       if (row.target > 0)
         shapes.push({ kind: 'line', x1: at(row.target), y1: y + 21, x2: at(row.target), y2: y + 45, tone: 'ink', width: 2 });
     });

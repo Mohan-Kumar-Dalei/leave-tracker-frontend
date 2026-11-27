@@ -1,10 +1,11 @@
-import { ArrowRight, CalendarCheck, Check, Mail, ShieldCheck } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowRight, CalendarCheck, Check, Mail, ShieldCheck, Target } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Logo } from '../../components/AppShell';
 import { Button, FormError as FormErrorBox, PasswordInput, Reveal, TextInput } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { APP_NAME, TAGLINE } from '../../lib/brand';
 import { homeOf } from '../../lib/home';
 import { z } from 'zod';
 import { formError, rules, showServerError, useZodForm } from '../../lib/forms';
@@ -13,10 +14,13 @@ import { formError, rules, showServerError, useZodForm } from '../../lib/forms';
 const MARQUEE = [
   'Apply in seconds',
   'Approve in one click',
+  'Daily targets',
   'Leave Application mails',
+  'The team sheet',
   'Balances update by themselves',
+  'Charts you can download',
   'Team calendar',
-  'Department and employee trees',
+  'What came of the work',
   'Join with one link',
   'Your own Gmail',
   'Leave totals by month',
@@ -28,7 +32,11 @@ function Marquee() {
     <div className="relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
       <div className="flex w-max animate-marquee items-center gap-6 motion-reduce:animate-none">
         {[...MARQUEE, ...MARQUEE].map((item, index) => (
-          <span key={`${item}-${index}`} aria-hidden={index >= MARQUEE.length} className="flex shrink-0 items-center gap-6 text-sm text-white/60">
+          <span
+            key={`${item}-${index}`}
+            aria-hidden={index >= MARQUEE.length}
+            className="flex shrink-0 items-center gap-6 text-sm text-white/60"
+          >
             {item}
             <span className="h-1 w-1 rounded-full bg-white/30" />
           </span>
@@ -49,12 +57,12 @@ function Glass({ className = '', children }) {
   );
 }
 
-// A glimpse of the app floating on the panel: a balance, an approval and the
-// week ahead.
-function Preview() {
+// A glimpse of the leave side floating on the panel: a balance, an approval
+// and the week ahead.
+function LeaveScene() {
   const week = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   return (
-    <div aria-hidden="true" className="relative h-[290px] w-full max-w-[460px]">
+    <>
       <Glass className="left-0 top-4 w-64 animate-float motion-reduce:animate-none">
         <span className="text-xs text-white/60">Casual / Sick leave</span>
         <p className="mt-2 text-3xl font-semibold tabular-nums">
@@ -97,6 +105,126 @@ function Preview() {
           ))}
         </div>
       </Glass>
+    </>
+  );
+}
+
+// The work tracker side: today's target against what was done, a target a
+// team lead just set, and the week's bars on the team sheet.
+const WORK_WEEK = [
+  ['M', 100, 118],
+  ['T', 100, 96],
+  ['W', 100, 104],
+  ['T', 100, 88],
+  ['F', 100, 120],
+];
+
+function WorkScene() {
+  return (
+    <>
+      <Glass className="left-0 top-4 w-64 animate-float motion-reduce:animate-none">
+        <span className="text-xs text-white/60">Broken RSS, today</span>
+        <p className="mt-2 text-3xl font-semibold tabular-nums">
+          118<span className="text-base font-medium text-white/50"> / 100 done</span>
+        </p>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full w-full rounded-full bg-[linear-gradient(90deg,#34c58a,#8be3bd)]" />
+        </div>
+        <p className="mt-2 text-xs font-medium text-emerald-300">+18 over the target</p>
+      </Glass>
+
+      <Glass className="right-0 top-0 w-60 animate-float [animation-delay:1.2s] motion-reduce:animate-none">
+        <div className="flex items-start gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#5b8cff]/25 text-[#a9c2ff]">
+            <Target className="h-4 w-4" strokeWidth={2.5} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Targets set</p>
+            <p className="mt-0.5 text-xs text-white/60">100 Broken RSS a day for 4 people, 23 to 27 Nov.</p>
+          </div>
+        </div>
+      </Glass>
+
+      <Glass className="bottom-0 left-16 w-72 animate-float [animation-delay:2.4s] motion-reduce:animate-none">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-white/60">Team sheet, this week</span>
+          <span className="flex items-center gap-2 text-[10px] text-white/50">
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-white/25" />
+              Target
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-[#5b8cff]" />
+              Done
+            </span>
+          </span>
+        </div>
+        <div className="mt-3 grid h-[74px] grid-cols-5 items-end gap-3">
+          {WORK_WEEK.map(([day, target, done], index) => (
+            <div key={`${day}-${index}`} className="flex flex-col items-center gap-1.5">
+              <div className="flex h-14 items-end gap-1">
+                <span className="w-2.5 rounded-t-[3px] bg-white/25" style={{ height: `${(target / 120) * 100}%` }} />
+                <span
+                  className={`w-2.5 rounded-t-[3px] ${done >= target ? 'bg-[linear-gradient(180deg,#8fb3ff,#5b8cff)]' : 'bg-[linear-gradient(180deg,#ffb3a8,#f0786a)]'}`}
+                  style={{ height: `${(done / 120) * 100}%` }}
+                />
+              </div>
+              <span className="text-[11px] text-white/45">{day}</span>
+            </div>
+          ))}
+        </div>
+      </Glass>
+    </>
+  );
+}
+
+const SCENES = [
+  ['leave', 'Leave', LeaveScene],
+  ['work', 'Work', WorkScene],
+];
+
+// The two sides of the app, one after the other every few seconds (held
+// still for anyone who asks for less motion); the pills pick one.
+function Preview() {
+  const [scene, setScene] = useState('leave');
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    if (held || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const timer = setInterval(() => setScene((now) => (now === 'leave' ? 'work' : 'leave')), 6000);
+    return () => clearInterval(timer);
+  }, [held]);
+  return (
+    <div className="w-full max-w-[460px]">
+      <div className="mb-5 inline-flex rounded-full border border-white/15 bg-white/[0.06] p-1 text-[13px]">
+        {SCENES.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={scene === key}
+            onClick={() => {
+              setScene(key);
+              setHeld(true);
+            }}
+            className={`rounded-full px-3.5 py-1 font-medium transition-colors ${
+              scene === key ? 'bg-white text-[#1b2654]' : 'text-white/65 hover:text-white'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div aria-hidden="true" className="relative h-[290px]">
+        {SCENES.map(([key, , Scene]) => (
+          <div
+            key={key}
+            className={`absolute inset-0 transition-[opacity,transform] duration-700 ease-[var(--ease-calm)] motion-reduce:transition-none ${
+              scene === key ? 'opacity-100' : 'pointer-events-none translate-y-2 opacity-0'
+            }`}
+          >
+            <Scene />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -125,14 +253,12 @@ for (let row = 0; row < TILE_ROWS; row += 1) {
     TILES.push({ col, row, kind: col >= 5 && mark < 6 ? 'leave' : col >= 5 && mark < 9 ? 'holiday' : 'day' });
   }
 }
-const TILE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="${STRIP}" height="${TILE_ROWS * PITCH}">${TILES.map(
-  ({ col, row }) => {
-    const size = sizeAt(col);
-    const offset = gapAt(col) / 2;
-    const round = Math.min(3, col * 0.6);
-    return `<rect x="${col * PITCH + offset}" y="${row * PITCH + offset}" width="${size}" height="${size}" rx="${round}"/>`;
-  },
-).join('')}</svg>`;
+const TILE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="${STRIP}" height="${TILE_ROWS * PITCH}">${TILES.map(({ col, row }) => {
+  const size = sizeAt(col);
+  const offset = gapAt(col) / 2;
+  const round = Math.min(3, col * 0.6);
+  return `<rect x="${col * PITCH + offset}" y="${row * PITCH + offset}" width="${size}" height="${size}" rx="${round}"/>`;
+}).join('')}</svg>`;
 const TILE_MASK = `url("data:image/svg+xml,${encodeURIComponent(TILE_SVG)}")`;
 const PANEL_MASK = {
   maskImage: `linear-gradient(#000, #000), ${TILE_MASK}`,
@@ -153,9 +279,7 @@ function MarkedTiles() {
         <span
           key={`${col}-${row}`}
           className={`absolute rounded-[3px] ${
-            kind === 'leave'
-              ? 'animate-twinkle bg-accent shadow-[0_0_10px_var(--color-accent)] motion-reduce:animate-none'
-              : 'bg-[#f2a93b]'
+            kind === 'leave' ? 'animate-twinkle bg-accent shadow-[0_0_10px_var(--color-accent)] motion-reduce:animate-none' : 'bg-[#f2a93b]'
           }`}
           style={{
             left: col * PITCH + gapAt(col) / 2,
@@ -177,7 +301,7 @@ export function AuthLayout({ title, intro, children }) {
   return (
     <main className="grid min-h-dvh bg-bg lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       <section
-        aria-label="About Leave Tracker"
+        aria-label={`About ${APP_NAME}`}
         className="aurora-bg relative hidden flex-col overflow-hidden pb-8 pl-12 pr-48 pt-10 text-white lg:flex xl:pl-16"
         style={PANEL_MASK}
       >
@@ -192,18 +316,21 @@ export function AuthLayout({ title, intro, children }) {
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-[linear-gradient(135deg,#5b8cff,#2f5bea)] shadow-[0_10px_30px_-10px_#5b8cff]">
             <CalendarCheck className="h-5 w-5" strokeWidth={2.25} aria-hidden="true" />
           </span>
-          <span className="text-lg font-semibold tracking-tight">Leave Tracker</span>
-          <span className="ml-2 rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-white/70">Contify</span>
+          <span className="text-lg font-semibold tracking-tight">{APP_NAME}</span>
+          <span className="ml-2 rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-white/70">
+            Contify
+          </span>
         </div>
 
-        <div className="relative my-auto space-y-10 py-10">
+        <div className="relative my-auto space-y-10 py-10 [@media(max-height:820px)]:space-y-6 [@media(max-height:820px)]:py-4">
           <div className="max-w-lg">
-            <h2 className="text-[44px] font-semibold leading-[1.05] tracking-[-0.035em] text-white xl:text-[52px]">
-              Leave, approvals and your team,{' '}
-              <span className="bg-[linear-gradient(90deg,#8fb3ff,#c7b8ff_50%,#ffd59a)] bg-clip-text text-transparent">in one calm place.</span>
+            {/* The tagline, said as the heading: TAGLINE in lib/brand.js. */}
+            <h2 aria-label={TAGLINE} className="text-[44px] font-semibold leading-[1.05] tracking-[-0.035em] text-white xl:text-[52px]">
+              Every leave, every target,{' '}
+              <span className="bg-[linear-gradient(90deg,#8fb3ff,#c7b8ff_50%,#ffd59a)] bg-clip-text text-transparent">one desk.</span>
             </h2>
             <p className="mt-4 max-w-md text-base leading-relaxed text-white/65">
-              Apply in seconds, approve in one click and always know who is away, for every department.
+              Apply for leave and approve it in one click, set the day's targets and see what the team got done, for every department.
             </p>
           </div>
           <Preview />
@@ -212,14 +339,13 @@ export function AuthLayout({ title, intro, children }) {
         <div className="relative -ml-12 xl:-ml-16">
           <Marquee />
         </div>
-
       </section>
 
       <section className="relative grid place-items-center px-5 py-12 sm:px-10">
         <div aria-hidden="true" className="absolute right-0 top-0 h-72 w-72 rounded-full bg-accent/10 blur-[90px] lg:hidden" />
         <Reveal className="relative w-full max-w-[420px]">
           <div className="mb-10 flex justify-center lg:hidden">
-            <Logo />
+            <Logo tagline />
           </div>
           <h1 className="text-[28px] font-semibold tracking-[-0.02em] sm:text-[32px]">{title}</h1>
           {intro && <p className="mt-2 text-[15px] leading-relaxed text-muted">{intro}</p>}

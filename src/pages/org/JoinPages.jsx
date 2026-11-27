@@ -82,7 +82,7 @@ function AppPasswordHelp({ email }) {
         <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer noopener" className={authLink}>
           myaccount.google.com/apppasswords
         </a>{' '}
-        and make one called Leave Tracker.
+        and make one called TeamDesk.
       </li>
       <li>Paste the 16 letters below.</li>
     </ol>
@@ -148,7 +148,12 @@ export function AcceptInvite() {
     if (data?.name && !getValues('name')) setValue('name', data.name);
   }, [data, getValues, setValue]);
 
-  if (isPending) return <AuthLayout title="Opening your invitation"><Loading /></AuthLayout>;
+  if (isPending)
+    return (
+      <AuthLayout title="Opening your invitation">
+        <Loading />
+      </AuthLayout>
+    );
   if (error) return <Problem error={error} />;
   if (done) {
     return (
@@ -158,7 +163,9 @@ export function AcceptInvite() {
     );
   }
 
-  const stepFields = withAppPassword ? [['appPassword'], ['name', 'phone', 'password', 'confirm']] : [[], ['name', 'phone', 'password', 'confirm']];
+  const stepFields = withAppPassword
+    ? [['appPassword'], ['name', 'phone', 'password', 'confirm']]
+    : [[], ['name', 'phone', 'password', 'confirm']];
   const showing = withAppPassword ? step : 1;
 
   const next = async (event) => {
@@ -209,7 +216,13 @@ export function AcceptInvite() {
               <EmployeeIdField />
               <TextInput label="Phone" maxLength={20} error={errors.phone?.message} {...register('phone')} />
             </div>
-            <PasswordInput label="Choose a password" hint={PASSWORD_HINT} autoComplete="new-password" error={errors.password?.message} {...register('password')} />
+            <PasswordInput
+              label="Choose a password"
+              hint={PASSWORD_HINT}
+              autoComplete="new-password"
+              error={errors.password?.message}
+              {...register('password')}
+            />
             <PasswordInput label="Type it again" autoComplete="new-password" error={errors.confirm?.message} {...register('confirm')} />
           </>
         )}
@@ -245,20 +258,27 @@ export function JoinDepartment() {
   const { errors, isSubmitting } = formState;
   const email = watch('email');
 
-  if (isPending) return <AuthLayout title="Opening the link"><Loading /></AuthLayout>;
+  if (isPending)
+    return (
+      <AuthLayout title="Opening the link">
+        <Loading />
+      </AuthLayout>
+    );
   if (error) return <Problem error={error} />;
   if (done) {
     return (
       <Done title="Request sent">
-        Your request to join {data.department} is with your manager. You can sign in once they approve it; you will get a
-        mail.
+        Your request to join {data.department} is with your manager. You can sign in once they approve it; you will get a mail.
       </Done>
     );
   }
 
   // With App Passwords the email is asked on step 1, with the App Password.
   const stepFields = withAppPassword
-    ? [['email', 'appPassword'], ['name', 'phone', 'designation', 'password', 'confirm']]
+    ? [
+        ['email', 'appPassword'],
+        ['name', 'phone', 'designation', 'password', 'confirm'],
+      ]
     : [[], ['name', 'email', 'phone', 'designation', 'password', 'confirm']];
   const showing = withAppPassword ? step : 1;
 
@@ -283,13 +303,23 @@ export function JoinDepartment() {
   );
 
   return (
-    <AuthLayout title={`Join ${data.department}`} intro={`${data.company}${data.location ? `, ${data.location}` : ''}. Fill in your details; your manager will approve you.`}>
+    <AuthLayout
+      title={`Join ${data.department}`}
+      intro={`${data.company}${data.location ? `, ${data.location}` : ''}. Fill in your details; your manager will approve you.`}
+    >
       <form onSubmit={showing === 0 ? next : submit} noValidate className="space-y-4">
         {withAppPassword && <StepBar step={showing} onBack={showing > 0 ? () => setStep(0) : undefined} />}
         {showing === 0 ? (
           <>
             <AppPasswordHelp email={email} />
-            <TextInput label="Work email (Gmail)" type="email" autoComplete="username" maxLength={160} error={errors.email?.message} {...register('email')} />
+            <TextInput
+              label="Work email (Gmail)"
+              type="email"
+              autoComplete="username"
+              maxLength={160}
+              error={errors.email?.message}
+              {...register('email')}
+            />
             <PasswordInput
               label="Gmail App Password"
               placeholder="abcd efgh ijkl mnop"
@@ -316,8 +346,20 @@ export function JoinDepartment() {
               <EmployeeIdField hint="Yours once approved" />
               <TextInput label="Phone" maxLength={20} error={errors.phone?.message} {...register('phone')} />
             </div>
-            <TextInput label="Designation" maxLength={80} placeholder="For example, Analyst" error={errors.designation?.message} {...register('designation')} />
-            <PasswordInput label="Choose a password" hint={PASSWORD_HINT} autoComplete="new-password" error={errors.password?.message} {...register('password')} />
+            <TextInput
+              label="Designation"
+              maxLength={80}
+              placeholder="For example, Analyst"
+              error={errors.designation?.message}
+              {...register('designation')}
+            />
+            <PasswordInput
+              label="Choose a password"
+              hint={PASSWORD_HINT}
+              autoComplete="new-password"
+              error={errors.password?.message}
+              {...register('password')}
+            />
             <PasswordInput label="Type it again" autoComplete="new-password" error={errors.confirm?.message} {...register('confirm')} />
           </>
         )}

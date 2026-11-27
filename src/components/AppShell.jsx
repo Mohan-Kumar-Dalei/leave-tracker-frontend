@@ -6,6 +6,7 @@ import { useLiveUpdates } from '../hooks/useLiveUpdates';
 import { useSlider } from '../hooks/useSlider';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { APP_NAME, TAGLINE } from '../lib/brand';
 import { homeOf, positionOf } from '../lib/home';
 import { preloadPages } from '../lib/pageLoaders';
 import { prefetchPage } from '../lib/prefetch';
@@ -114,13 +115,17 @@ const HR_SECTIONS = [
   SETTINGS_SECTION,
 ];
 
-export function Logo() {
+// The name, with the line under it where there is room (`tagline`).
+export function Logo({ tagline = false }) {
   return (
     <span className="flex items-center gap-2.5">
-      <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-on-accent">
+      <span className={`grid shrink-0 place-items-center rounded-lg bg-accent text-on-accent ${tagline ? 'h-9 w-9' : 'h-7 w-7'}`}>
         <CalendarCheck className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
       </span>
-      <span className="text-[15px] font-semibold tracking-tight">Leave Tracker</span>
+      <span className="min-w-0">
+        <span className="block text-[15px] font-semibold leading-tight tracking-tight">{APP_NAME}</span>
+        {tagline && <span className="block text-xs leading-snug text-muted">{TAGLINE}</span>}
+      </span>
     </span>
   );
 }
@@ -325,8 +330,7 @@ export function AppShell() {
   const sections = (
     position === 'hr' ? HR_SECTIONS : isAdmin ? staffSections({ manager: position === 'manager', myDepartment }) : EMPLOYEE_SECTIONS
   ).filter((section) => section.key !== 'work' || user.workTracker);
-  const current =
-    sections.find((section) => section.items.some((item) => isOpen(item, home, pathname))) ?? sections[0];
+  const current = sections.find((section) => section.items.some((item) => isOpen(item, home, pathname))) ?? sections[0];
 
   useLiveUpdates(true);
   // Ask for the person's location as the app opens, for the weather on the
@@ -361,8 +365,13 @@ export function AppShell() {
   }, [current.key, position, queryClient]);
 
   return (
-    <div className={`min-h-dvh pb-20 transition-[padding] duration-300 ease-[var(--ease-calm)] lg:pb-0 ${open ? 'lg:pl-60' : 'lg:pl-[76px]'}`}>
-      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2">
+    <div
+      className={`min-h-dvh pb-20 transition-[padding] duration-300 ease-[var(--ease-calm)] lg:pb-0 ${open ? 'lg:pl-60' : 'lg:pl-[76px]'}`}
+    >
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2"
+      >
         Skip to content
       </a>
 
@@ -373,7 +382,7 @@ export function AppShell() {
           open ? 'w-60' : 'w-[76px]'
         }`}
       >
-        <div className={`relative flex h-16 shrink-0 items-center gap-2 ${open ? 'px-4' : 'justify-center px-2'}`}>
+        <div className={`relative flex h-[4.5rem] shrink-0 items-center gap-2 ${open ? 'px-4' : 'justify-center px-2'}`}>
           <button
             type="button"
             onClick={toggleRail}
@@ -385,11 +394,14 @@ export function AppShell() {
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
           {open && (
-            <Link to={home} className="flex min-w-0 items-center gap-2.5">
+            <Link to={home} title={`${APP_NAME}: ${TAGLINE}`} className="flex min-w-0 items-center gap-2.5">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent text-on-accent shadow-[0_6px_18px_-6px_var(--color-accent)]">
                 <CalendarCheck className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
               </span>
-              <span className="truncate text-[15px] font-semibold tracking-tight">Leave Tracker</span>
+              <span className="min-w-0">
+                <span className="block truncate text-[15px] font-semibold leading-tight tracking-tight">{APP_NAME}</span>
+                <span className="block text-[10.5px] leading-snug text-white/55">{TAGLINE}</span>
+              </span>
             </Link>
           )}
         </div>
@@ -479,7 +491,10 @@ export function AppShell() {
       </main>
 
       {/* Phones: the sections along the bottom. */}
-      <nav aria-label="Sections" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
+      <nav
+        aria-label="Sections"
+        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+      >
         {sections.map((section) => {
           const active = section.key === current.key;
           return (

@@ -70,10 +70,15 @@ function AppPasswordConnect({ app }) {
             <li>Turn on 2-Step Verification in your Google account.</li>
             <li>
               Open{' '}
-              <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:underline">
+              <a
+                href="https://myaccount.google.com/apppasswords"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-accent hover:underline"
+              >
                 myaccount.google.com/apppasswords
               </a>{' '}
-              and make one named Leave Tracker.
+              and make one named TeamDesk.
             </li>
             <li>Paste the 16 letters here. It is checked with Gmail and saved encrypted.</li>
           </ol>

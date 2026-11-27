@@ -18,6 +18,7 @@ import { Link } from 'react-router-dom';
 import { MandalaCorner } from '../components/MandalaCorner';
 import { Reveal } from '../components/ui';
 import { useAuth } from '../lib/auth';
+import { APP_NAME } from '../lib/brand';
 import { homeOf } from '../lib/home';
 
 // The public page at the app's address: what Leave Tracker does for the team,
@@ -42,29 +43,57 @@ const STRIP = [
 ];
 
 const STEPS = [
-  { icon: UserRound, who: 'Manager', title: 'Registers with a department', text: 'Signs up with the department they run, and it is ready at once.' },
-  { icon: Building2, who: 'Manager', title: 'Organises the company', text: 'Adds departments in four steps and invites each one’s assistant manager.' },
-  { icon: Inbox, who: 'Assistant manager', title: 'Runs the department', text: 'Shares the join link, approves people as they arrive and decides the team’s leave.' },
-  { icon: Link2, who: 'Team', title: 'Joins with one link', text: 'Fills in their details, gets the next employee ID and starts applying.' },
+  {
+    icon: UserRound,
+    who: 'Manager',
+    title: 'Registers with a department',
+    text: 'Signs up with the department they run, and it is ready at once.',
+  },
+  {
+    icon: Building2,
+    who: 'Manager',
+    title: 'Organises the company',
+    text: 'Adds departments in four steps and invites each one’s assistant manager.',
+  },
+  {
+    icon: Inbox,
+    who: 'Assistant manager',
+    title: 'Runs the department',
+    text: 'Shares the join link, approves people as they arrive and decides the team’s leave.',
+  },
+  {
+    icon: Link2,
+    who: 'Team',
+    title: 'Joins with one link',
+    text: 'Fills in their details, gets the next employee ID and starts applying.',
+  },
 ];
 
 const ROLES = [
-  { title: 'Employee', opens: 'Opens on your leave dashboard', points: ['Apply and track leave', 'Balances and holidays', 'Your department at a glance'] },
+  {
+    title: 'Employee',
+    opens: 'Opens on your leave dashboard',
+    points: ['Apply and track leave', 'Balances and holidays', 'Your department at a glance'],
+  },
   {
     title: 'Assistant manager',
     opens: 'Opens on your team’s overview',
     points: ['Approve the team’s leave', 'Invite and approve joiners', 'Calendar, totals and balances'],
     featured: true,
   },
-  { title: 'Manager', opens: 'Opens on the whole company’s overview', points: ['Add departments and their AMs', 'Approve the assistant managers', 'See every department'] },
+  {
+    title: 'Manager',
+    opens: 'Opens on the whole company’s overview',
+    points: ['Add departments and their AMs', 'Approve the assistant managers', 'See every department'],
+  },
 ];
 
 function Cta({ to, children, variant = 'brass', className = '' }) {
   const look = {
-    brass:
-      'bg-[#f2b54a] text-[#1a1405] shadow-[inset_0_1px_0_rgb(255_255_255/0.4),0_14px_30px_-14px_#f2b54a] hover:bg-[#f7c869]',
+    brass: 'bg-[#f2b54a] text-[#1a1405] shadow-[inset_0_1px_0_rgb(255_255_255/0.4),0_14px_30px_-14px_#f2b54a] hover:bg-[#f7c869]',
     glass: 'border border-white/20 bg-white/[0.06] text-white hover:bg-white/[0.12]',
-    accent: 'bg-accent text-on-accent shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_12px_26px_-12px_var(--color-accent)] hover:bg-accent-deep',
+    accent:
+      'bg-accent text-on-accent shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_12px_26px_-12px_var(--color-accent)] hover:bg-accent-deep',
   }[variant];
   return (
     <Link
@@ -82,7 +111,7 @@ function Mark({ light = false }) {
       <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-on-accent shadow-[inset_0_1px_0_rgb(255_255_255/0.25)]">
         <CalendarDays className="h-[18px] w-[18px]" strokeWidth={2.25} aria-hidden="true" />
       </span>
-      <span className={`text-[17px] font-semibold tracking-tight ${light ? 'text-white' : ''}`}>Leave Tracker</span>
+      <span className={`text-[17px] font-semibold tracking-tight ${light ? 'text-white' : ''}`}>{APP_NAME}</span>
     </span>
   );
 }
@@ -124,7 +153,9 @@ function Showcase() {
         <div className="mt-3 rounded-xl border border-[#e2e6ee] p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#ecf1ff] text-[11px] font-semibold text-accent">AR</span>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#ecf1ff] text-[11px] font-semibold text-accent">
+                AR
+              </span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">Amit Rout · Casual Leave</p>
                 <p className="truncate text-xs text-[#5a6377]">Fri 20 Nov, 1 day · To: Sita Das</p>
@@ -224,7 +255,9 @@ function Strip() {
 function SectionHead({ eyebrow, title, children, center = false }) {
   return (
     <Reveal className={`max-w-2xl ${center ? 'mx-auto text-center' : ''}`}>
-      <p className={`inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#c8902a] ${center ? 'justify-center' : ''}`}>
+      <p
+        className={`inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#c8902a] ${center ? 'justify-center' : ''}`}
+      >
         <span aria-hidden="true" className="h-px w-6 bg-[#c8902a]" />
         {eyebrow}
       </p>
@@ -270,8 +303,8 @@ function Features() {
             <div className="grid items-center gap-6 sm:grid-cols-[1fr_1.1fr]">
               <div>
                 <TileHead icon={CalendarDays} title="Apply in seconds">
-                  Pick the type and dates. Working days are counted for you, Sundays and holidays skipped, and the mail is
-                  written in your usual Leave Application format.
+                  Pick the type and dates. Working days are counted for you, Sundays and holidays skipped, and the mail is written in your
+                  usual Leave Application format.
                 </TileHead>
               </div>
               <div aria-hidden="true" className="rounded-2xl border border-line bg-bg p-4">
@@ -383,7 +416,9 @@ function Features() {
                   <ShieldCheck className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <h3 className="mt-5 text-2xl font-semibold tracking-[-0.02em] text-white">Safe by design</h3>
-                <p className="mt-2 text-[15px] leading-relaxed text-white/65">Every page checks who you are and what your place lets you do.</p>
+                <p className="mt-2 text-[15px] leading-relaxed text-white/65">
+                  Every page checks who you are and what your place lets you do.
+                </p>
               </div>
               <ul className="grid gap-3 sm:grid-cols-2">
                 {[
@@ -392,7 +427,10 @@ function Features() {
                   'Nobody joins a department without approval',
                   'Only someone above you can change you',
                 ].map((point) => (
-                  <li key={point} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[14px] text-white/85">
+                  <li
+                    key={point}
+                    className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[14px] text-white/85"
+                  >
                     <Lock className={`mt-0.5 h-4 w-4 shrink-0 ${BRASS}`} aria-hidden="true" />
                     {point}
                   </li>
@@ -422,13 +460,19 @@ export default function Landing() {
         <MandalaCorner className="absolute -bottom-56 -left-40 -z-10 h-[520px] w-[520px] text-[#f2b54a] opacity-[0.08]" />
 
         <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
-          <Link to="/" aria-label="Leave Tracker home">
+          <Link to="/" aria-label={`${APP_NAME} home`}>
             <Mark light />
           </Link>
           <nav aria-label="Page" className="hidden items-center gap-8 text-sm text-white/65 md:flex">
-            <a href="#features" className="transition-colors hover:text-white">Features</a>
-            <a href="#how" className="transition-colors hover:text-white">How it works</a>
-            <a href="#roles" className="transition-colors hover:text-white">Roles</a>
+            <a href="#features" className="transition-colors hover:text-white">
+              Features
+            </a>
+            <a href="#how" className="transition-colors hover:text-white">
+              How it works
+            </a>
+            <a href="#roles" className="transition-colors hover:text-white">
+              Roles
+            </a>
           </nav>
           <div className="flex items-center gap-2">
             {home ? (
@@ -437,7 +481,10 @@ export default function Landing() {
               </Cta>
             ) : (
               <>
-                <Link to="/login" className="hidden h-10 items-center rounded-xl px-4 text-sm font-semibold text-white/85 hover:bg-white/10 hover:text-white sm:inline-flex">
+                <Link
+                  to="/login"
+                  className="hidden h-10 items-center rounded-xl px-4 text-sm font-semibold text-white/85 hover:bg-white/10 hover:text-white sm:inline-flex"
+                >
                   Sign in
                 </Link>
                 <Cta to="/register" className="h-10 px-4 text-sm">
@@ -458,8 +505,8 @@ export default function Landing() {
               Leave, approvals and your whole team, <span className={BRASS}>in one calm place.</span>
             </h1>
             <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-white/65 sm:text-lg">
-              Apply in seconds, approve in one click and always know who is away. Every department runs its own team, and
-              each manager organises the departments they run.
+              Apply in seconds, approve in one click and always know who is away. Every department runs its own team, and each manager
+              organises the departments they run.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               {home ? (
@@ -542,9 +589,7 @@ export default function Landing() {
                       : 'border border-line bg-surface shadow-[0_1px_2px_rgb(13_19_38/0.04),0_10px_30px_-18px_rgb(13_19_38/0.18)]'
                   }`}
                 >
-                  {role.featured && (
-                    <MandalaCorner className="absolute -right-20 -top-20 -z-10 h-56 w-56 text-[#f2b54a] opacity-[0.12]" />
-                  )}
+                  {role.featured && <MandalaCorner className="absolute -right-20 -top-20 -z-10 h-56 w-56 text-[#f2b54a] opacity-[0.12]" />}
                   <span
                     className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${
                       role.featured ? 'bg-white/10 text-[#f2b54a]' : 'bg-accent-soft text-accent'
@@ -586,7 +631,9 @@ export default function Landing() {
             <div className={`relative isolate overflow-hidden rounded-[28px] ${NAVY} px-6 py-16 text-center text-white sm:px-12 sm:py-20`}>
               <MandalaCorner className="absolute -left-24 -top-24 -z-10 h-80 w-80 text-white opacity-[0.06]" />
               <MandalaCorner className="absolute -bottom-28 -right-20 -z-10 h-80 w-80 text-[#f2b54a] opacity-[0.1]" />
-              <h2 className="text-[32px] font-semibold leading-[1.1] tracking-[-0.025em] text-white sm:text-[44px]">Ready when your team is</h2>
+              <h2 className="text-[32px] font-semibold leading-[1.1] tracking-[-0.025em] text-white sm:text-[44px]">
+                Ready when your team is
+              </h2>
               <p className="mx-auto mt-4 max-w-xl text-[17px] text-white/65">
                 Sign in with your work email, or register as a department manager to set up your team.
               </p>
@@ -616,22 +663,48 @@ export default function Landing() {
           <nav aria-label="Footer" className="text-sm">
             <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-white/40">Product</p>
             <ul className="mt-3 space-y-2 text-white/70">
-              <li><a href="#features" className="hover:text-white">Features</a></li>
-              <li><a href="#how" className="hover:text-white">How it works</a></li>
-              <li><a href="#roles" className="hover:text-white">Roles</a></li>
+              <li>
+                <a href="#features" className="hover:text-white">
+                  Features
+                </a>
+              </li>
+              <li>
+                <a href="#how" className="hover:text-white">
+                  How it works
+                </a>
+              </li>
+              <li>
+                <a href="#roles" className="hover:text-white">
+                  Roles
+                </a>
+              </li>
             </ul>
           </nav>
           <div className="text-sm">
             <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-white/40">Account</p>
             <ul className="mt-3 space-y-2 text-white/70">
-              <li><Link to={home ?? '/login'} className="hover:text-white">{home ? 'My dashboard' : 'Sign in'}</Link></li>
-              {!home && <li><Link to="/register" className="hover:text-white">Register as a manager</Link></li>}
-              <li><Link to="/forgot-password" className="hover:text-white">Forgot password</Link></li>
+              <li>
+                <Link to={home ?? '/login'} className="hover:text-white">
+                  {home ? 'My dashboard' : 'Sign in'}
+                </Link>
+              </li>
+              {!home && (
+                <li>
+                  <Link to="/register" className="hover:text-white">
+                    Register as a manager
+                  </Link>
+                </li>
+              )}
+              <li>
+                <Link to="/forgot-password" className="hover:text-white">
+                  Forgot password
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
         <div className="border-t border-white/[0.08]">
-          <p className="mx-auto max-w-6xl px-4 py-5 text-[13px] text-white/40 sm:px-6">Leave Tracker for Contify, Bhubaneswar</p>
+          <p className="mx-auto max-w-6xl px-4 py-5 text-[13px] text-white/40 sm:px-6">{APP_NAME} for Contify, Bhubaneswar</p>
         </div>
       </footer>
     </div>

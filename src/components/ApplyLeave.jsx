@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { api } from '../lib/api';
-import { dayWord, slashDate } from '../lib/dates';
+import { dayWord, slashDate, weekday } from '../lib/dates';
 import { useToast } from '../lib/toast';
 import { SendingFrom, useGmail } from './GmailConnect';
 import { AddressField, MailBody } from './MailParts';
-import { Button, Dialog, FormError, SelectField, TextInput } from './ui';
+import { Select } from './Select';
+import { Button, Dialog, FormError, inputClass, SelectField, TextInput } from './ui';
 
 const PLACEHOLDER = '[reason]';
 
@@ -15,6 +16,73 @@ const SESSIONS = [
   ['first', 'First half'],
   ['second', 'Second half'],
 ];
+
+// Each date of a longer leave, with its own choice of a full day or a half;
+// weekends and public holidays show why they are off and are not counted.
+function EachDay({ days, halves, onChange }) {
+  return (
+    <fieldset>
+      <legend className="mb-1.5 text-sm font-medium">Each day</legend>
+      <ul className="max-h-72 divide-y divide-line overflow-y-auto overscroll-contain rounded-lg border border-line">
+        {days.map((item) => (
+          <li key={item.date} className={`flex items-center justify-between gap-3 px-3 py-1.5 ${item.off ? 'bg-sunken/50' : ''}`}>
+            <span className={`text-sm tabular-nums ${item.off ? 'text-muted' : ''}`}>
+              <span className="inline-block w-10 font-medium">{weekday(item.date).slice(0, 3)}</span>
+              {slashDate(item.date)}
+            </span>
+            {item.off ? (
+              <span className="grid h-9 w-36 shrink-0 place-items-center truncate rounded-lg bg-sunken px-2 text-sm text-muted">
+                {item.off}
+              </span>
+            ) : (
+              <Select
+                value={halves[item.date] ?? 'full'}
+                aria-label={`${weekday(item.date)} ${slashDate(item.date)}`}
+                onChange={(event) => onChange(item.date, event.target.value)}
+                className="w-36 shrink-0"
+                triggerClassName={`${inputClass(false)} h-9! w-full py-0!`}
+              >
+                {SESSIONS.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </li>
+        ))}
+      </ul>
+    </fieldset>
+  );
+}
+
+// What this request takes from the balance: what is there, this booking, and
+// what is left after it, like the leave report shows it.
+function BalanceCard({ preview, from }) {
+  const number = (value) => (Number.isInteger(value) ? value : value.toFixed(1));
+  return (
+    <dl className="divide-y divide-line rounded-lg border border-line bg-surface text-sm">
+      <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs text-muted">
+        <dt>As on {slashDate(from)}</dt>
+        <dd>Day(s)</dd>
+      </div>
+      <div className="flex items-center justify-between gap-3 px-3 py-2">
+        <dt>Available balance</dt>
+        <dd className="font-semibold text-approved tabular-nums">{number(preview.available)}</dd>
+      </div>
+      <div className="flex items-center justify-between gap-3 px-3 py-2">
+        <dt>Current booking</dt>
+        <dd className="font-semibold tabular-nums">{number(preview.days)}</dd>
+      </div>
+      <div className="flex items-center justify-between gap-3 px-3 py-2">
+        <dt className="text-accent">Balance after current booking</dt>
+        <dd className={`font-semibold tabular-nums ${preview.availableAfter <= 0 ? 'text-rejected' : ''}`}>
+          {number(preview.availableAfter)}
+        </dd>
+      </div>
+    </dl>
+  );
+}
 
 // What the form needs before it can show without anything moving: the leave
 // types, who the mail goes to with the signature, and the Gmail line.
@@ -50,6 +118,8 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   const [from, setFrom] = useState(preset?.from ?? today);
   const [to, setTo] = useState(preset?.to ?? today);
   const [session, setSession] = useState('full');
+  // The days of a longer leave taken as a half: date -> 'first' or 'second'.
+  const [halves, setHalves] = useState({});
   const [message, setMessage] = useState('');
   const [mailTo, setMailTo] = useState(null);
   const [cc, setCc] = useState(null);
@@ -67,10 +137,7 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   const chosenTo = mailTo ?? compose?.to.map((person) => person.email) ?? [];
   const chosenCc = cc ?? compose?.defaultCc.map((contact) => contact.email) ?? [];
   const chosenSubject = subject ?? compose?.subject ?? 'Leave Application';
-  const names = useMemo(
-    () => Object.fromEntries((compose?.contacts ?? []).map((contact) => [contact.email, contact.name])),
-    [compose],
-  );
+  const names = useMemo(() => Object.fromEntries((compose?.contacts ?? []).map((contact) => [contact.email, contact.name])), [compose]);
 
   const selectedId = leaveTypeId || types[0]?.id || '';
   const selected = types.find((type) => type.id === selectedId);
@@ -87,6 +154,26 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
   const singleDay = from === to;
   const usedSession = singleDay && !restricted ? session : 'full';
 
+  // The dates of a longer leave, with the weekends and holidays marked.
+  const listed = !restricted && from && to && from < to && from.slice(0, 4) === to.slice(0, 4);
+  const { data: dayData } = useQuery({
+    queryKey: ['leave-days', from, to],
+    queryFn: () => api.get(`/leaves/days?from=${from}&to=${to}`),
+    enabled: Boolean(listed),
+    placeholderData: (previous) => previous,
+  });
+  const dayList = listed ? (dayData?.items ?? []).filter((item) => item.date >= from && item.date <= to) : [];
+  // Only the half days that are working days of this leave are sent.
+  const halfDays = useMemo(
+    () =>
+      dayList
+        .filter((item) => !item.off && (halves[item.date] === 'first' || halves[item.date] === 'second'))
+        .map((item) => ({ date: item.date, session: halves[item.date] })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(dayList), halves],
+  );
+  const halvesKey = JSON.stringify(halfDays);
+
   // Asks the server what this leave would use, so the numbers match its rules.
   const [preview, setPreview] = useState(null);
   useEffect(() => {
@@ -96,7 +183,7 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
     let active = true;
     const timer = setTimeout(() => {
       api
-        .post('/leaves/preview', { leaveTypeId: selectedId, from, to, session: usedSession })
+        .post('/leaves/preview', { leaveTypeId: selectedId, from, to, session: usedSession, ...(halfDays.length ? { halfDays } : {}) })
         .then((result) => active && setPreview({ ...result, error: null }))
         .catch((issue) => active && setPreview({ error: issue.message }));
     }, 250);
@@ -105,7 +192,8 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
       active = false;
       clearTimeout(timer);
     };
-  }, [selectedId, from, to, usedSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, from, to, usedSession, halvesKey]);
 
   // The letter starts from the server's draft. When the dates or type change,
   // only the sentence with the dates is swapped, so the rest of what the
@@ -129,6 +217,7 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
         from,
         to,
         session: usedSession,
+        ...(halfDays.length ? { halfDays } : {}),
         subject: chosenSubject.trim(),
         message: message.trim(),
         mailTo: chosenTo,
@@ -265,6 +354,10 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
               </div>
             </fieldset>
           )}
+
+          {dayList.length > 0 && (
+            <EachDay days={dayList} halves={halves} onChange={(date, value) => setHalves((now) => ({ ...now, [date]: value }))} />
+          )}
         </>
       )}
 
@@ -273,13 +366,13 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
         {preview && !preview.error && (
           <p>
             <span className="font-semibold tabular-nums">{preview.days}</span> working {dayWord(preview.days)}.
-            {preview.tracksBalance
-              ? ` ${preview.availableAfter} left after this.`
-              : ' This leave is unpaid and does not use a balance.'}
+            {preview.tracksBalance ? '' : ' This leave is unpaid and does not use a balance.'}
           </p>
         )}
         {!preview && <p className="text-muted">Sundays and public holidays are not counted.</p>}
       </div>
+
+      {preview && !preview.error && preview.tracksBalance && <BalanceCard preview={preview} from={from} />}
 
       <fieldset className="space-y-1 rounded-lg border border-line px-3 py-2">
         <legend className="px-1 text-[13px] font-medium">Leave Application mail</legend>
@@ -352,7 +445,15 @@ export function ApplyLeaveDialog({ open, onClose, today, preset }) {
         </>
       }
     >
-      <ApplyForm key={preset?.from ?? 'blank'} today={today} preset={preset} formId={formId} onDone={onClose} onBusy={setBusy} onCanSend={setCanSend} />
+      <ApplyForm
+        key={preset?.from ?? 'blank'}
+        today={today}
+        preset={preset}
+        formId={formId}
+        onDone={onClose}
+        onBusy={setBusy}
+        onCanSend={setCanSend}
+      />
     </Dialog>
   );
 }

@@ -19,15 +19,19 @@ const HALF = { first: 'first half', second: 'second half' };
 // 12/11, without the year, to keep the tag short.
 const dayMonth = (day) => slashDate(day).slice(0, 5);
 
+// Today's half: a one-day leave's session, or today's half day in a longer one.
+const halfToday = (leave) => HALF[leave.today] ?? (leave.from === leave.to ? HALF[leave.session] : undefined);
+
 function leaveWhen(leave) {
   if (leave.from === leave.to) return HALF[leave.session] ? `today, ${HALF[leave.session]}` : 'today';
+  if (HALF[leave.today]) return `${dayMonth(leave.from)} – ${dayMonth(leave.to)}, today ${HALF[leave.today]}`;
   return `${dayMonth(leave.from)} – ${dayMonth(leave.to)}`;
 }
 
 // Short: "On leave today", "On leave today, first half", "Leave without pay".
 // Full adds the dates, for the member list and the profile.
 function shortLabel(leave) {
-  const half = leave.from === leave.to && HALF[leave.session] ? `, ${HALF[leave.session]}` : '';
+  const half = halfToday(leave) ? `, ${halfToday(leave)}` : '';
   return `${leave.unpaid ? 'Leave without pay' : 'On leave today'}${half}`;
 }
 

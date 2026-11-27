@@ -81,7 +81,9 @@ export function ReviewDialog({ leave, decision: startDecision, onClose, onDecide
   const nameOf = (email) => compose?.contacts.find((contact) => contact.email === email)?.name ?? email;
   const ccNames = leave.cc ? leave.cc.map(nameOf) : (compose?.defaultCc ?? []).map((contact) => contact.name);
   const toNames = leave.mailTo ? leave.mailTo.map(nameOf) : null;
-  const duration = leave.from === leave.to ? SESSION[leave.session] : 'Full days';
+  const halves = (leave.halfDays ?? []).map((half) => `${slashDate(half.date).slice(0, 5)} ${SESSION[half.session].toLowerCase()}`);
+  const duration =
+    leave.from === leave.to ? SESSION[leave.session] : halves.length ? `Full days, half day on ${halves.join(', ')}` : 'Full days';
 
   // The reply starts as the approval. Pressing Reject while that text is
   // untouched swaps in the rejection text first, so the admin reads what goes
@@ -218,9 +220,7 @@ export function ReviewDialog({ leave, decision: startDecision, onClose, onDecide
         ) : (
           (leave.reply || leave.reviewNote) && (
             <section>
-              <h3 className="mb-1.5 text-[13px] font-medium">
-                Reply{leave.reviewedBy?.name ? ` from ${leave.reviewedBy.name}` : ''}
-              </h3>
+              <h3 className="mb-1.5 text-[13px] font-medium">Reply{leave.reviewedBy?.name ? ` from ${leave.reviewedBy.name}` : ''}</h3>
               <p className="whitespace-pre-wrap break-words rounded-lg bg-bg px-3 py-2.5 text-sm leading-relaxed">
                 {leave.reply || leave.reviewNote}
               </p>

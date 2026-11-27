@@ -214,8 +214,8 @@ function below(people, id) {
 }
 
 // The days a month view counts: up to today in this month, every working day
-// in a month gone by, none in a month to come.
-const countedDays = (sheet) => sheet.days.filter((day) => !day.sunday && day.date <= sheet.today).map((day) => day.date);
+// in a month gone by, none in a month to come. Public holidays are off.
+const countedDays = (sheet) => sheet.days.filter((day) => !day.sunday && !day.holiday && day.date <= sheet.today).map((day) => day.date);
 
 function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
   const workingDays = sheet.days.filter((day) => !day.sunday);

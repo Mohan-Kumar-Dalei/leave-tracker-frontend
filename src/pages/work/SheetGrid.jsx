@@ -243,8 +243,9 @@ export function SheetGrid({ sheet, totals, notes, search = '', onOpenDay, onMont
     return list;
   }, [people]);
 
-  // A full day of leave shows 0 in each row (and "Leave" in its comment).
-  const onLeave = (person, day) => !day.sunday && person.away?.[day.date] === 'full';
+  // A full day of leave, or a public holiday, shows 0 in each row (and
+  // "Leave" in the comment for leave).
+  const onLeave = (person, day) => !day.sunday && (Boolean(day.holiday) || person.away?.[day.date] === 'full');
   const total = (person, day, field) => {
     const item = totals[`${person.id}|${day.date}`];
     if (field === 'target') return day.sunday ? 0 : (item?.target ?? 0);

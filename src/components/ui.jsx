@@ -21,15 +21,43 @@ const BUTTON_STYLES = {
   danger: 'bg-rejected text-surface shadow-card hover:opacity-90',
 };
 
+// A turning ring: a faint full circle with a bright arc going round it, in
+// the colour of the text around it.
+export function Spinner({ className = 'h-4 w-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className={`animate-spin [animation-duration:0.75s] ${className}`}>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// While it works (`loading`), the button keeps its size and colour and shows
+// the ring in place of its words, so nothing around it moves.
 export function Button({ variant = 'primary', className = '', loading, disabled, children, type = 'button', ...props }) {
   return (
     <button
       type={type}
       disabled={disabled || loading}
-      className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium transition-colors duration-150 disabled:opacity-50 max-sm:h-11 ${BUTTON_STYLES[variant]} ${className}`}
+      aria-busy={loading || undefined}
+      className={`relative inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium transition-colors duration-150 disabled:opacity-50 max-sm:h-11 ${
+        loading ? 'cursor-wait disabled:opacity-100' : ''
+      } ${BUTTON_STYLES[variant]} ${className}`}
       {...props}
     >
-      {loading ? 'Please wait' : children}
+      {loading ? (
+        <>
+          <span aria-hidden="true" className="invisible inline-flex items-center gap-2">
+            {children}
+          </span>
+          <span className="absolute inset-0 grid place-items-center">
+            <Spinner className="h-[18px] w-[18px]" />
+          </span>
+          <span className="sr-only">Please wait</span>
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 }
@@ -167,7 +195,10 @@ export function SelectField({ label, hint, error, children, ...props }) {
 export function FormError({ children }) {
   if (!children) return null;
   return (
-    <p role="alert" className="flex items-start gap-2 rounded-lg border border-rejected/30 bg-rejected-soft px-3 py-2 text-sm text-rejected">
+    <p
+      role="alert"
+      className="flex items-start gap-2 rounded-lg border border-rejected/30 bg-rejected-soft px-3 py-2 text-sm text-rejected"
+    >
       <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <span>{children}</span>
     </p>
@@ -175,7 +206,9 @@ export function FormError({ children }) {
 }
 
 export function Panel({ className = '', children }) {
-  return <section className={`relative overflow-hidden rounded-xl border border-line bg-surface shadow-card ${className}`}>{children}</section>;
+  return (
+    <section className={`relative overflow-hidden rounded-xl border border-line bg-surface shadow-card ${className}`}>{children}</section>
+  );
 }
 
 // A thin moving bar along the top of a panel while its data is being fetched,

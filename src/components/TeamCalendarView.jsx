@@ -54,7 +54,7 @@ function toEvents(data) {
         add(day, {
           key: `l-${leave.id}-${day}`,
           tone: leave.status,
-          label: `${shortName(leave.name)}${halfOn(leave, day) ? ' ½' : ''}`,
+          label: shortName(leave.name),
           detail: describe(leave, day),
         });
       }

@@ -1519,9 +1519,8 @@ export default function WorkTracker() {
             <WorkReport key={`${sheet.month}|${sheet.department}`} sheet={sheet} />
           ) : shownTab === 'mine' && me ? (
             <div className="space-y-4">
-              <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} notes={notes} />
               {/* Someone who leads others sees the team on Dashboard, so
-                  their own work's dashboard is here. */}
+                  their own work's dashboard is here, at the top. */}
               {leadsHere(sheet, me) && (
                 <MyDashboard
                   key={`${sheet.month}|${sheet.department}`}
@@ -1531,6 +1530,7 @@ export default function WorkTracker() {
                   onComments={(title, list) => setReading({ title, user: list[0]?.user, date: list[0]?.date })}
                 />
               )}
+              <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} notes={notes} />
             </div>
           ) : (
             <WorkDashboard

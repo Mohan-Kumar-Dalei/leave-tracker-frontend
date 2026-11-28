@@ -196,19 +196,40 @@ function ApplyForm({ today, preset, formId, onDone, onBusy, onCanSend }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, from, to, usedSession, halvesKey]);
 
-  // The letter starts from the server's draft. When the dates or type change,
-  // only the sentence with the dates is swapped, so the rest of what the
-  // employee typed stays.
+  // The letter starts from the server's draft. When the dates, type or half
+  // days change, only the sentence with the dates and the "Leave breakdown"
+  // under it are swapped, so the rest of what the employee typed stays.
   const lastSentence = useRef('');
+  const lastBreakdown = useRef('');
+  const lastClosing = useRef('');
   useEffect(() => {
     if (!preview?.sentence) return;
     const previous = lastSentence.current;
+    const before = lastBreakdown.current;
+    const breakdown = preview.breakdown ?? '';
+    const closing = lastClosing.current;
     setMessage((current) => {
       if (!current.trim()) return preview.draft;
-      if (previous && current.includes(previous)) return current.replace(previous, preview.sentence);
-      return current;
+      let next = previous && current.includes(previous) ? current.replace(previous, preview.sentence) : current;
+      // The line before the sign-off follows too (a longer leave asks about handover).
+      if (closing && preview.closing && closing !== preview.closing && next.includes(closing))
+        next = next.replace(closing, preview.closing);
+      if (before && next.includes(before)) {
+        // Swapped, or taken out with the blank line before it.
+        next = breakdown ? next.replace(before, breakdown) : next.replace(`\n\n${before}`, '').replace(before, '');
+      } else if (breakdown && !before) {
+        // A new breakdown goes after the paragraph with the sentence.
+        const at = next.indexOf(preview.sentence);
+        if (at >= 0) {
+          const end = next.indexOf('\n\n', at);
+          next = end >= 0 ? `${next.slice(0, end)}\n\n${breakdown}${next.slice(end)}` : `${next}\n\n${breakdown}`;
+        }
+      }
+      return next;
     });
     lastSentence.current = preview.sentence;
+    lastBreakdown.current = breakdown;
+    lastClosing.current = preview.closing ?? '';
   }, [preview]);
 
   const submit = useMutation({

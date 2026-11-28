@@ -124,35 +124,36 @@ export function shapesMarkup(shapes, { ink = '#12141a', muted = '#626979', track
     .join('\n');
 }
 
-// Saves an SVG as a PNG picture, twice the size for sharp text.
+// Saves an SVG as a PNG picture, twice the size for sharp text. The SVG is
+// read as a data: address, not a blob: one: the site's security policy lets
+// pictures come from data: but not blob:, so a blob: picture never loads on
+// the live site and nothing downloads.
 export async function savePng(svg, width, height, name) {
-  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-  try {
-    const image = new Image();
-    await new Promise((resolve, reject) => {
-      image.onload = resolve;
-      image.onerror = reject;
-      image.src = url;
-    });
-    const scale = 2;
-    const canvas = document.createElement('canvas');
-    canvas.width = width * scale;
-    canvas.height = height * scale;
-    const context = canvas.getContext('2d');
-    context.scale(scale, scale);
-    context.drawImage(image, 0, 0);
-    const png = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(png);
-    link.download = `${name
-      .replace(/[^a-z0-9]+/gi, '-')
-      .replace(/^-|-$/g, '')
-      .toLowerCase()}.png`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  const image = new Image();
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = () => reject(new Error('The chart could not be drawn as a picture.'));
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  });
+  const scale = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const context = canvas.getContext('2d');
+  context.scale(scale, scale);
+  context.drawImage(image, 0, 0);
+  const png = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(png);
+  link.download = `${name
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase()}.png`;
+  // In the page while it is clicked, which some browsers need for a download.
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
 // How wide the chart's box is on the page.

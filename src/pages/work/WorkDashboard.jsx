@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquare, Trash2 } from 'lucide-react';
+import { Check, MessageSquare, Pencil, Trash2, X } from 'lucide-react';
 import { MandalaBackdrop, MandalaCorner } from '../../components/MandalaCorner';
 import { useState } from 'react';
 import { SegmentedTabs } from '../../components/Tabs';
-import { ConfirmDialog, Empty, IconButton, Panel, PanelTitle, SelectBox } from '../../components/ui';
+import { ConfirmDialog, Empty, IconButton, Panel, PanelTitle, SelectBox, Spinner, inputClass } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 
@@ -27,6 +27,75 @@ const STATUS = {
   ahead: ['On track', 'bg-approved-soft text-approved'],
   behind: ['Behind', 'bg-rejected-soft text-rejected'],
 };
+
+// A day's target in the team list, which whoever leads the person may change
+// right there (more work given on the day, say) without going to the sheet.
+function TargetCell({ row, date }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [value, setValue] = useState(null); // null while not being changed
+  const save = useMutation({
+    mutationFn: (target) => api.put('/work/entries', { user: row.user, date, task: row.task, target }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work'] });
+      toast.success('Target changed', `${row.person?.name ?? 'Their'} ${row.task}: ${Number(value)}.`);
+      setValue(null);
+    },
+    onError: (issue) => toast.error('Could not change the target', issue.message),
+  });
+  if (value === null) {
+    return (
+      <span className="inline-flex items-center gap-0.5">
+        {row.target}
+        <button
+          type="button"
+          aria-label={`Change ${row.person?.name ?? 'their'} target for ${row.task}`}
+          title="Change the target"
+          onClick={() => setValue(String(row.target))}
+          className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-sunken hover:text-ink"
+        >
+          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </span>
+    );
+  }
+  const number = Number(value);
+  const valid = value.trim() !== '' && Number.isInteger(number) && number >= 0 && number <= 100000;
+  const submit = () => valid && !save.isPending && (number === row.target ? setValue(null) : save.mutate(number));
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      <input
+        value={value}
+        inputMode="numeric"
+        autoFocus
+        aria-label={`New target for ${row.person?.name ?? 'them'}, ${row.task}`}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') submit();
+          if (event.key === 'Escape') setValue(null);
+        }}
+        className={`${inputClass(!valid)} h-8! w-[4.5rem]! px-2! text-right tabular-nums`}
+      />
+      <button
+        type="button"
+        aria-label="Save the target"
+        disabled={!valid || save.isPending}
+        onClick={submit}
+        className="grid h-8 w-8 place-items-center rounded-md text-approved hover:bg-approved-soft disabled:opacity-40"
+      >
+        {save.isPending ? <Spinner className="h-4 w-4" /> : <Check className="h-4 w-4" aria-hidden="true" />}
+      </button>
+      <button
+        type="button"
+        aria-label="Keep the target"
+        onClick={() => setValue(null)}
+        className="grid h-8 w-8 place-items-center rounded-md text-muted hover:bg-sunken hover:text-ink"
+      >
+        <X className="h-4 w-4" aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
 
 // What came of the work (Fixed, Working fine...), added up by label.
 const tally = (into, breakdown = []) => {
@@ -508,7 +577,14 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
                           <p className="leading-snug [overflow-wrap:anywhere]">{row.task}</p>
                           {row.by.size > 0 && <p className="mt-0.5 text-xs text-muted">Set by {[...row.by].join(', ')}</p>}
                         </td>
-                        <td className={`px-2 text-right tabular-nums ${first ? 'pt-3' : 'pt-1.5'}`}>{row.target}</td>
+                        <td className={`px-2 text-right tabular-nums whitespace-nowrap ${first ? 'pt-3' : 'pt-1.5'}`}>
+                          {/* On a day, whoever leads the person may change it here. */}
+                          {period === 'day' && row.person?.canLead && row.status !== 'leave' ? (
+                            <TargetCell row={row} date={date} />
+                          ) : (
+                            row.target
+                          )}
+                        </td>
                         <td className={`px-2 text-right tabular-nums ${first ? 'pt-3' : 'pt-1.5'}`}>{row.filled ? row.achieved : '—'}</td>
                         <td
                           className={`px-2 text-right tabular-nums ${first ? 'pt-3' : 'pt-1.5'} ${row.filled ? tone(row.achieved - row.target) : 'text-muted'}`}
@@ -581,7 +657,7 @@ function RemoveConfirm({ removing, onClose, loading, onConfirm }) {
   );
 }
 
-function MyDashboard({ sheet, me, notes, onComments }) {
+export function MyDashboard({ sheet, me, notes, onComments }) {
   const workingDays = sheet.days.filter((day) => !day.off);
   const inMonth = sheet.today >= sheet.days[0].date && sheet.today <= sheet.days.at(-1).date;
   const [period, setPeriod] = useState('month');
@@ -763,10 +839,15 @@ function MyDashboard({ sheet, me, notes, onComments }) {
   );
 }
 
+// Whether someone leads others here: a team lead, an assistant manager or a
+// manager, or anyone with people reporting to them.
+export const leadsHere = (sheet, me) =>
+  Boolean(me && (me.position !== 'employee' || sheet.people.some((person) => person.reportsTo === me.id)));
+
 // Someone with nobody under them sees only their own work; a team lead, an
-// assistant manager or a manager sees the team's.
+// assistant manager or a manager sees the team's (and their own in My work).
 export function WorkDashboard({ sheet, me, notes, search, onComments }) {
-  const leads = me && (me.position !== 'employee' || sheet.people.some((person) => person.reportsTo === me.id));
+  const leads = leadsHere(sheet, me);
   if (me && !leads) return <MyDashboard sheet={sheet} me={me} notes={notes} onComments={onComments} />;
   return <TeamDashboard sheet={sheet} me={me} notes={notes} search={search} onComments={onComments} />;
 }

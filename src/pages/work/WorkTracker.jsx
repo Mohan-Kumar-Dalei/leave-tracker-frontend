@@ -20,7 +20,7 @@ import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Tabs } from '../../components/Tabs';
 import { SheetGrid } from './SheetGrid';
-import { WorkDashboard } from './WorkDashboard';
+import { MyDashboard, WorkDashboard, leadsHere } from './WorkDashboard';
 import { ChartSwitch, OutcomeChart, WorkReport, outcomesOf, useChartStyle } from './WorkReport';
 import {
   Button,
@@ -1411,7 +1411,7 @@ export default function WorkTracker() {
   // Someone not on this sheet (a manager looking at another department) has
   // no day of their own to fill in.
   const shownTab = me || tab !== 'mine' ? tab : 'dashboard';
-  const exportHref = `/api/work/sheet.xlsx${toQuery({ month: sheet.month, department: sheet.department })}`;
+  const exportHref = `/api/work/sheet.csv${toQuery({ month: sheet.month, department: sheet.department })}`;
   const openedTotal = opened ? totals[`${opened.person.id}|${opened.day.date}`] : null;
   const openedPerson = opened ? sheet.people.find((person) => person.id === opened.person.id) : null;
 
@@ -1518,7 +1518,20 @@ export default function WorkTracker() {
           {shownTab === 'report' ? (
             <WorkReport key={`${sheet.month}|${sheet.department}`} sheet={sheet} />
           ) : shownTab === 'mine' && me ? (
-            <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} notes={notes} />
+            <div className="space-y-4">
+              <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} notes={notes} />
+              {/* Someone who leads others sees the team on Dashboard, so
+                  their own work's dashboard is here. */}
+              {leadsHere(sheet, me) && (
+                <MyDashboard
+                  key={`${sheet.month}|${sheet.department}`}
+                  sheet={sheet}
+                  me={me}
+                  notes={notes}
+                  onComments={(title, list) => setReading({ title, user: list[0]?.user, date: list[0]?.date })}
+                />
+              )}
+            </div>
           ) : (
             <WorkDashboard
               key={`${sheet.month}|${sheet.department}`}

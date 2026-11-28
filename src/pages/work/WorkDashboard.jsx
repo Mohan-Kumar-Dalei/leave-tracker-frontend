@@ -313,7 +313,11 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
     .sort((a, b) => a[1].localeCompare(b[1]));
   const ownWork = shownEntries.some((entry) => !entry.targetBy || entry.targetBy === entry.user);
   // Someone picked who set nothing on the day now shown: back to everyone.
-  const setBy = picked === 'all' || (picked === 'own' && ownWork) || setters.some(([id]) => id === picked) ? picked : 'all';
+  const setBy = !runsDepartment
+    ? 'all'
+    : picked === 'all' || (picked === 'own' && ownWork) || setters.some(([id]) => id === picked)
+      ? picked
+      : 'all';
   const setByName = setBy === 'own' ? 'their own' : setters.find(([id]) => id === setBy)?.[1];
   const matchesSetBy = (entry) =>
     setBy === 'all' ||
@@ -465,8 +469,9 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
             </option>
           ))}
         </SelectBox>
-        {/* Shown as soon as anyone set a target on the day (or month) shown. */}
-        {setters.length > 0 && (
+        {/* For an assistant manager or manager only (a team lead has My team /
+            Everyone), as soon as anyone set a target on the day (or month) shown. */}
+        {runsDepartment && setters.length > 0 && (
           <SelectBox aria-label="Target set by" value={setBy} onChange={(event) => setSetBy(event.target.value)}>
             <option value="all">Set by anyone</option>
             {setters.map(([id, name]) => (

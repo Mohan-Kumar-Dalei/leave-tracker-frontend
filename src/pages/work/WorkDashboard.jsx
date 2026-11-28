@@ -465,7 +465,8 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
             </option>
           ))}
         </SelectBox>
-        {(setters.length > 1 || (setters.length > 0 && ownWork)) && (
+        {/* Shown as soon as anyone set a target on the day (or month) shown. */}
+        {setters.length > 0 && (
           <SelectBox aria-label="Target set by" value={setBy} onChange={(event) => setSetBy(event.target.value)}>
             <option value="all">Set by anyone</option>
             {setters.map(([id, name]) => (

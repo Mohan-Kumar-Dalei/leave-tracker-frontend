@@ -3,7 +3,18 @@ import { useState } from 'react';
 import { Tabs } from '../../components/Tabs';
 import { ApplyLeaveDialog } from '../../components/ApplyLeave';
 import { StatusBadge } from '../../components/StatusBadge';
-import { Button, ConfirmDialog, Empty, LoadError, LoadingBar, PageHeading, Pagination, Panel, Reveal, RowsSkeleton } from '../../components/ui';
+import {
+  Button,
+  ConfirmDialog,
+  Empty,
+  LoadError,
+  LoadingBar,
+  PageHeading,
+  Pagination,
+  Panel,
+  Reveal,
+  RowsSkeleton,
+} from '../../components/ui';
 import { api, toQuery } from '../../lib/api';
 import { dayRange, dayWord, isoFromCreatedAt, slashDate } from '../../lib/dates';
 import { useToast } from '../../lib/toast';
@@ -44,14 +55,13 @@ export default function MyRequests() {
   });
 
   const today = new Date().toISOString().slice(0, 10);
-  const canCancel = (leave) => leave.status === 'pending' || (leave.status === 'approved' && leave.from > today);
+  // Only a request still waiting can be taken back; once approved it stands
+  // (an admin can still cancel it if it has to change).
+  const canCancel = (leave) => leave.status === 'pending';
 
   return (
     <div>
-      <PageHeading
-        title="Your requests"
-        actions={<Button onClick={() => setApplying(true)}>Apply Leave</Button>}
-      >
+      <PageHeading title="Your requests" actions={<Button onClick={() => setApplying(true)}>Apply Leave</Button>}>
         Every leave you have asked for and what was decided.
       </PageHeading>
 

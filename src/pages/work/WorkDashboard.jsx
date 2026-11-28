@@ -290,12 +290,34 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
   const workingDays = sheet.days.filter((day) => !day.off);
   const inMonth = sheet.today >= sheet.days[0].date && sheet.today <= sheet.days.at(-1).date;
   const firstDay = inMonth ? sheet.today : (countedDays(sheet).at(-1) ?? workingDays[0]?.date);
-  const myTeam = me ? below(sheet.people, me.id) : [];
+  // An assistant manager or a manager runs the whole department, so they see
+  // everyone (no "My team" to switch to); a team lead can look at their own
+  // team or everyone.
+  const runsDepartment = !me || me.position === 'assistantmanager' || me.position === 'manager';
+  const myTeam = me && !runsDepartment ? below(sheet.people, me.id) : [];
 
   const [period, setPeriod] = useState('day');
   const [date, setDate] = useState(firstDay);
   const [work, setWork] = useState('all');
   const [whose, setWhose] = useState(myTeam.length ? 'mine' : 'all');
+  // Whose targets to look at: everyone's, one team lead's (or whoever set
+  // them), or work people gave themselves.
+  const [picked, setSetBy] = useState('all');
+  // Only those who set targets on the day (or in the month) shown, not every
+  // team lead.
+  const shownEntries = sheet.entries.filter((entry) => (period === 'day' ? entry.date === date : true));
+  const setters = [
+    ...new Set(shownEntries.filter((entry) => entry.targetBy && entry.targetBy !== entry.user).map((entry) => entry.targetBy)),
+  ]
+    .map((id) => [id, id === me?.id ? `${sheet.assigners?.[id] ?? 'You'} (you)` : (sheet.assigners?.[id] ?? 'Someone')])
+    .sort((a, b) => a[1].localeCompare(b[1]));
+  const ownWork = shownEntries.some((entry) => !entry.targetBy || entry.targetBy === entry.user);
+  // Someone picked who set nothing on the day now shown: back to everyone.
+  const setBy = picked === 'all' || (picked === 'own' && ownWork) || setters.some(([id]) => id === picked) ? picked : 'all';
+  const setByName = setBy === 'own' ? 'their own' : setters.find(([id]) => id === setBy)?.[1];
+  const matchesSetBy = (entry) =>
+    setBy === 'all' ||
+    (setBy === 'own' ? !entry.targetBy || entry.targetBy === entry.user : entry.targetBy === setBy && entry.targetBy !== entry.user);
   // Removing set work: one person's piece of work, or a whole piece of work,
   // for the day picked or the whole month.
   const queryClient = useQueryClient();
@@ -315,7 +337,9 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
   });
   const leadable = (userId) => sheet.people.find((person) => person.id === userId)?.canLead;
   const entriesOf = (match) =>
-    sheet.entries.filter((entry) => match(entry) && leadable(entry.user) && (period === 'day' ? entry.date === date : true));
+    sheet.entries.filter(
+      (entry) => match(entry) && matchesSetBy(entry) && leadable(entry.user) && (period === 'day' ? entry.date === date : true),
+    );
   const when = period === 'day' ? shortDay(date) : 'the whole month';
 
   const words = search.trim().toLowerCase();
@@ -330,6 +354,7 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
     for (const entry of sheet.entries) {
       if (!ids.has(entry.user) || !days.has(entry.date)) continue;
       if (work !== 'all' && kindOf(entry) !== work) continue;
+      if (!matchesSetBy(entry)) continue;
       const key = `${entry.user}|${entry.task}`;
       const row = groups.get(key) ?? {
         user: entry.user,
@@ -440,6 +465,17 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
             </option>
           ))}
         </SelectBox>
+        {(setters.length > 1 || (setters.length > 0 && ownWork)) && (
+          <SelectBox aria-label="Target set by" value={setBy} onChange={(event) => setSetBy(event.target.value)}>
+            <option value="all">Set by anyone</option>
+            {setters.map(([id, name]) => (
+              <option key={id} value={id}>
+                Set by {name}
+              </option>
+            ))}
+            {ownWork && <option value="own">Their own work</option>}
+          </SelectBox>
+        )}
         {myTeam.length > 0 && (
           <SegmentedTabs
             label="Whose work"
@@ -455,7 +491,15 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
 
       <Hero
         eyebrow={period === 'day' ? shortDay(date) : 'This month'}
-        title={whose === 'mine' ? 'My team at work' : 'Team at work'}
+        title={
+          setBy === 'own'
+            ? 'Work people gave themselves'
+            : setByName
+              ? `Work set by ${setByName}`
+              : whose === 'mine'
+                ? 'My team at work'
+                : 'Team at work'
+        }
         target={total.target}
         achieved={total.achieved}
         facts={[
@@ -487,7 +531,9 @@ function TeamDashboard({ sheet, me, notes, search = '', onComments }) {
                         onClick={() =>
                           setRemoving({
                             title: `Remove ${item.task} for ${when}?`,
-                            body: `It is taken off everyone you can set work for${whose === 'mine' ? ' in your team' : ''}, with what they filled in for it. This cannot be undone.`,
+                            body: `It is taken off everyone you can set work for${whose === 'mine' ? ' in your team' : ''}${
+                              setByName ? (setBy === 'own' ? ', for the work they gave themselves' : `, for the work ${setByName} set`) : ''
+                            }, with what they filled in for it. This cannot be undone.`,
                             ids: entriesOf((entry) => kindOf(entry) === item.task && people.some((person) => person.id === entry.user)).map(
                               (entry) => entry.id,
                             ),

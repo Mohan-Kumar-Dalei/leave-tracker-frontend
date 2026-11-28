@@ -697,7 +697,9 @@ function DayDialog({ open, person, day, total, today, tasks, comments, focusComm
         <div>
           {person.away?.[day.date] && (
             <p className="mb-2 rounded-lg bg-pending-soft px-3 py-2 text-sm text-pending">
-              On {person.away[day.date] === 'full' ? 'leave' : 'half-day leave'} this day.
+              {{ full: 'On leave this day.', first: 'First half leave this day.', second: 'Second half leave this day.' }[
+                person.away[day.date]
+              ] ?? 'On half-day leave this day.'}
             </p>
           )}
           {entries.length === 0 && !adding && <p className="py-3 text-sm text-muted">No work set for this day yet.</p>}

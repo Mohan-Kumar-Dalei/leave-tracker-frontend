@@ -1372,10 +1372,109 @@ function MyOutcomes({ entries: all, me, when }) {
   );
 }
 
+/* For a manager over several departments: each department with its people
+   and the month so far, to pick one; and a department whose work tracker is
+   off, with the switch to turn it on. */
+
+function DepartmentsOverview({ items, current, onPick }) {
+  return (
+    <Panel>
+      <PanelTitle>Departments, this month so far</PanelTitle>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-line text-left text-xs text-muted">
+              <th className="px-4 py-2 font-medium sm:px-5">Department</th>
+              <th className="px-2 py-2 text-right font-medium">People</th>
+              <th className="px-2 py-2 text-right font-medium">Target</th>
+              <th className="px-2 py-2 text-right font-medium">Done</th>
+              <th className="w-40 px-4 py-2 font-medium sm:px-5">
+                <span className="sr-only">How much is done</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const share = item.on && item.target > 0 ? Math.round((item.achieved / item.target) * 100) : null;
+              const picked = item.name === current;
+              return (
+                <tr
+                  key={item.id}
+                  onClick={() => onPick(item)}
+                  className={`cursor-pointer border-b border-line last:border-b-0 hover:bg-sunken ${picked ? 'bg-accent-soft/60' : ''}`}
+                >
+                  <td className="px-4 py-2.5 sm:px-5">
+                    <button type="button" onClick={() => onPick(item)} className={`text-left font-medium ${picked ? 'text-accent' : ''}`}>
+                      {item.name}
+                    </button>
+                  </td>
+                  <td className="px-2 py-2.5 text-right tabular-nums">{item.people}</td>
+                  <td className="px-2 py-2.5 text-right tabular-nums">{item.on ? item.target : '—'}</td>
+                  <td className="px-2 py-2.5 text-right tabular-nums">{item.on ? item.achieved : '—'}</td>
+                  <td className="px-4 py-2.5 sm:px-5">
+                    {!item.on ? (
+                      <span className="rounded-full bg-cancelled-soft px-2 py-0.5 text-xs text-cancelled">Work tracker off</span>
+                    ) : share === null ? (
+                      <span className="text-xs text-muted">No targets yet</span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-sunken">
+                          <span
+                            className={`block h-full rounded-full ${share >= 100 ? 'bg-approved' : 'bg-accent'}`}
+                            style={{ width: `${Math.min(100, share)}%` }}
+                          />
+                        </span>
+                        <span className="w-10 text-right text-xs tabular-nums text-muted">{share}%</span>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+
+function DepartmentOff({ item, onBack, onTurnedOn }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const turnOn = useMutation({
+    mutationFn: () => api.patch(`/departments/${item.id}/work-tracker`, { on: true }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work'] });
+      toast.success('Work tracker on', `${item.name} can use the work tracker now.`);
+      onTurnedOn(item.name);
+    },
+    onError: (issue) => toast.error('Could not turn it on', issue.message),
+  });
+  return (
+    <Panel className="px-5 py-10 text-center">
+      <p className="text-base font-semibold">The work tracker is off for {item.name}</p>
+      <p className="mx-auto mt-1 max-w-md text-sm text-muted">
+        {item.people} {item.people === 1 ? 'person' : 'people'} in this department. Turn it on and they get the team sheet, targets and
+        their own day to fill in.
+      </p>
+      <div className="mt-5 flex justify-center gap-2">
+        <Button variant="secondary" onClick={onBack}>
+          Back
+        </Button>
+        <Button onClick={() => turnOn.mutate()} loading={turnOn.isPending}>
+          Turn it on
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
 export default function WorkTracker() {
   const { user } = useAuth();
   const [month, setMonth] = useState(null);
   const [department, setDepartment] = useState(null);
+  // A department picked whose work tracker is off (it has no sheet to show).
+  const [offPick, setOffPick] = useState(null);
   // The work tracker opens on the dashboard.
   const [tab, setTab] = useState('dashboard');
   const [opened, setOpened] = useState(null);
@@ -1400,6 +1499,12 @@ export default function WorkTracker() {
     queryFn: () => api.get(`/work/sheet${toQuery(query)}`),
     placeholderData: (previous) => previous,
   });
+  // Every department the viewer looks after, with its counts.
+  const { data: overview } = useQuery({
+    queryKey: ['work', 'departments', month],
+    queryFn: () => api.get(`/work/departments${toQuery({ month: month ?? undefined })}`),
+    placeholderData: (previous) => previous,
+  });
   const totals = useMemo(() => totalsOf(sheet?.entries ?? []), [sheet]);
   const notes = useMemo(() => commentsOf(sheet?.comments ?? []), [sheet]);
   const reading = readingKey ? { title: readingKey.title, list: notes[`${readingKey.user}|${readingKey.date}`] ?? [] } : null;
@@ -1408,6 +1513,14 @@ export default function WorkTracker() {
   if (isError) return <LoadError error={error} onRetry={refetch} />;
 
   const me = sheet.people.find((person) => person.id === user.id);
+  const departmentList = overview?.items?.length ? overview.items : sheet.departments.map((name) => ({ id: name, name, on: true }));
+  const pickDepartment = (item) => {
+    if (!item) return;
+    if (item.on) {
+      setOffPick(null);
+      setDepartment(item.name);
+    } else setOffPick(item);
+  };
   // Someone not on this sheet (a manager looking at another department) has
   // no day of their own to fill in.
   const shownTab = me || tab !== 'mine' ? tab : 'dashboard';
@@ -1426,46 +1539,49 @@ export default function WorkTracker() {
       <div className="shrink-0">
         <PageHeading
           title="Work tracker"
+          // A department with the work tracker off has nothing to set or export.
           actions={
-            <>
-              {sheet.canManageTypes && shownTab === 'sheet' && (
-                <Button variant="secondary" onClick={() => setOrdering(true)}>
-                  <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
-                  Row order
-                </Button>
-              )}
-              {sheet.canLead && (
-                <Button variant="secondary" onClick={() => setTypesOpen(true)}>
-                  Work types
-                </Button>
-              )}
-              {sheet.canLead && (
-                <Button onClick={() => setSetting(true)}>
-                  <Target className="h-4 w-4" aria-hidden="true" />
-                  Set targets
-                </Button>
-              )}
-              <span className="inline-flex h-10 overflow-hidden rounded-lg border border-line bg-surface text-sm font-medium">
-                <a
-                  href={exportHref}
-                  download
-                  title="Excel, with the sheet's colours, formulas and comments"
-                  className="inline-flex items-center gap-2 px-3.5 hover:bg-sunken"
-                >
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                  Export sheet
-                </a>
-                <a
-                  href={csvHref}
-                  download
-                  title="CSV: the plain numbers, without colours"
-                  aria-label="Export the sheet as CSV"
-                  className="inline-flex items-center border-l border-line px-3 text-muted hover:bg-sunken hover:text-ink"
-                >
-                  CSV
-                </a>
-              </span>
-            </>
+            offPick ? null : (
+              <>
+                {sheet.canManageTypes && shownTab === 'sheet' && (
+                  <Button variant="secondary" onClick={() => setOrdering(true)}>
+                    <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+                    Row order
+                  </Button>
+                )}
+                {sheet.canLead && (
+                  <Button variant="secondary" onClick={() => setTypesOpen(true)}>
+                    Work types
+                  </Button>
+                )}
+                {sheet.canLead && (
+                  <Button onClick={() => setSetting(true)}>
+                    <Target className="h-4 w-4" aria-hidden="true" />
+                    Set targets
+                  </Button>
+                )}
+                <span className="inline-flex h-10 overflow-hidden rounded-lg border border-line bg-surface text-sm font-medium">
+                  <a
+                    href={exportHref}
+                    download
+                    title="Excel, with the sheet's colours, formulas and comments"
+                    className="inline-flex items-center gap-2 px-3.5 hover:bg-sunken"
+                  >
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    Export sheet
+                  </a>
+                  <a
+                    href={csvHref}
+                    download
+                    title="CSV: the plain numbers, without colours"
+                    aria-label="Export the sheet as CSV"
+                    className="inline-flex items-center border-l border-line px-3 text-muted hover:bg-sunken hover:text-ink"
+                  >
+                    CSV
+                  </a>
+                </span>
+              </>
+            )
           }
         >
           Daily targets and what everyone achieved, like the team sheet. Plus means more than the target, minus means less.
@@ -1489,11 +1605,15 @@ export default function WorkTracker() {
                 (!me || me.position !== 'employee' || sheet.people.some((person) => person.reportsTo === me.id)))) && (
               <SearchField value={search} onChange={setSearch} label="Search people" className="w-full sm:w-56" />
             )}
-            {sheet.departments.length > 1 && (
-              <SelectBox aria-label="Department" value={sheet.department} onChange={(event) => setDepartment(event.target.value)}>
-                {sheet.departments.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
+            {departmentList.length > 1 && (
+              <SelectBox
+                aria-label="Department"
+                value={offPick?.name ?? sheet.department}
+                onChange={(event) => pickDepartment(departmentList.find((item) => item.name === event.target.value))}
+              >
+                {departmentList.map((item) => (
+                  <option key={item.id} value={item.name}>
+                    {`${item.name}${item.people !== undefined ? ` · ${item.people}` : ''}${item.on ? '' : ' (off)'}`}
                   </option>
                 ))}
               </SelectBox>
@@ -1513,7 +1633,17 @@ export default function WorkTracker() {
         </div>
       </div>
 
-      {shownTab === 'sheet' ? (
+      {offPick ? (
+        <DepartmentOff
+          key={offPick.id}
+          item={offPick}
+          onBack={() => setOffPick(null)}
+          onTurnedOn={(name) => {
+            setOffPick(null);
+            setDepartment(name);
+          }}
+        />
+      ) : shownTab === 'sheet' ? (
         <div className="h-[78dvh] min-h-[420px] lg:h-auto lg:min-h-0 lg:flex-1">
           {sheet.people.length === 0 ? (
             <Empty title="Nobody here yet">People in this department appear here.</Empty>
@@ -1549,14 +1679,20 @@ export default function WorkTracker() {
               <MyDay sheet={sheet} me={me} totals={totals} tasks={sheet.tasks} notes={notes} />
             </div>
           ) : (
-            <WorkDashboard
-              key={`${sheet.month}|${sheet.department}`}
-              sheet={sheet}
-              me={me}
-              notes={notes}
-              search={search}
-              onComments={(title, list) => setReading({ title, user: list[0]?.user, date: list[0]?.date })}
-            />
+            <div className="space-y-4">
+              {/* A manager over several departments sees them all first. */}
+              {(overview?.items?.length ?? 0) > 1 && (
+                <DepartmentsOverview items={overview.items} current={sheet.department} onPick={pickDepartment} />
+              )}
+              <WorkDashboard
+                key={`${sheet.month}|${sheet.department}`}
+                sheet={sheet}
+                me={me}
+                notes={notes}
+                search={search}
+                onComments={(title, list) => setReading({ title, user: list[0]?.user, date: list[0]?.date })}
+              />
+            </div>
           )}
         </div>
       )}

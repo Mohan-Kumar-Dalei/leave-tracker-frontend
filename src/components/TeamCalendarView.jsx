@@ -11,10 +11,17 @@ const shortName = (name = '') => {
   return last ? `${first} ${last[0]}.` : first;
 };
 
-function describe(leave) {
+// Which half of a day someone is away, if only half: a one-day leave's
+// session, or that day's half in a longer leave.
+const HALF = { first: 'first half', second: 'second half' };
+const halfOn = (leave, day) =>
+  leave.from === leave.to ? HALF[leave.session] : HALF[(leave.halfDays ?? []).find((half) => half.date === day)?.session];
+
+function describe(leave, day) {
   const parts = [leave.name];
   if (leave.leaveType) parts.push(leave.leaveType);
-  if (leave.session !== 'full') parts.push('half day');
+  const half = halfOn(leave, day);
+  if (half) parts.push(half);
   return parts.join(', ');
 }
 
@@ -47,8 +54,8 @@ function toEvents(data) {
         add(day, {
           key: `l-${leave.id}-${day}`,
           tone: leave.status,
-          label: shortName(leave.name),
-          detail: describe(leave),
+          label: `${shortName(leave.name)}${halfOn(leave, day) ? ' ½' : ''}`,
+          detail: describe(leave, day),
         });
       }
       cursor.setUTCDate(cursor.getUTCDate() + 1);

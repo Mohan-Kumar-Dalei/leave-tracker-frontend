@@ -5,7 +5,7 @@ import { positionOf } from '../lib/home';
 import { PhotoAvatar } from './ProfilePhoto';
 import { Sun } from 'lucide-react';
 import { DancingBuddy } from './DancingBuddy';
-import { AllMembers, DayTag, MemberProfile, MemberRow, leaveFirst, useTeam } from './TeamPeople';
+import { AllMembers, DayTag, MemberProfile, MemberRow, leaveFirst, leaveNow, useHalfDayClock, useTeam } from './TeamPeople';
 import { SkyBanner } from './SkyBanner';
 import { Panel } from './ui';
 import { useAppPath } from '../hooks/useAppPath';
@@ -100,6 +100,8 @@ export function HomeSidebar({ show = 3 }) {
   const { data } = useTeam();
   const [open, setOpen] = useState(null);
   const [all, setAll] = useState(false);
+  // The "on leave today" count and order change when a half day ends.
+  useHalfDayClock((data?.members ?? []).map((member) => member.leave).filter(Boolean));
   // On a wide screen the department list fills the height the column has
   // (it is as tall as the page beside it), so it shows as many people as fit
   // there before "+N more", instead of three and an empty space below.
@@ -153,7 +155,8 @@ export function HomeSidebar({ show = 3 }) {
         : (admins.find(isAssistant) ?? admins[0] ?? null));
   // Only the people in the same department, now that there are several.
   const others = leaveFirst(data.members.filter((member) => member.id !== user.id && member.department === me.department));
-  const away = others.filter((member) => member.leave).length;
+  // A half day of leave stops counting once its half is over.
+  const away = others.filter((member) => leaveNow(member.leave)).length;
   const rest = others.length - fit;
   const weekend = Boolean(data.weekend);
 

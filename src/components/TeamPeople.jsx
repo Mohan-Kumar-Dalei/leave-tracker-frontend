@@ -1,7 +1,7 @@
 import { isManager, ManagerBadge } from './OrgTrees';
 import { useQuery } from '@tanstack/react-query';
 import { BadgeCheck, Building2, Mail, MapPin, Phone, Search, Sun, UserRound } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { slashDate } from '../lib/dates';
 import { MandalaCorner } from './MandalaCorner';
@@ -28,6 +28,33 @@ function leaveWhen(leave) {
   return `${dayMonth(leave.from)} – ${dayMonth(leave.to)}`;
 }
 
+// A half day of leave is over at the end of its half, in office time: the
+// first half (10 AM to 2 PM) at 2 PM, the second (2 PM to 6 PM) at 6 PM. Its
+// tag goes then; a full day's stays.
+const HALF_ENDS = { first: 14 * 60, second: 18 * 60 };
+const OFFICE_CLOCK = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Kolkata' });
+const minutesNow = () => {
+  const [hours, minutes] = OFFICE_CLOCK.format(new Date()).split(':').map(Number);
+  return hours * 60 + minutes;
+};
+const halfOf = (leave) => leave?.today ?? (leave && leave.from === leave.to && leave.session !== 'full' ? leave.session : null);
+const halfOver = (leave) => Boolean(HALF_ENDS[halfOf(leave)]) && minutesNow() >= HALF_ENDS[halfOf(leave)];
+
+// Someone's leave as it stands now: none once their half day is over.
+export const leaveNow = (leave) => (leave && !halfOver(leave) ? leave : null);
+
+// Draws again when a half day shown here ends (once a minute while any is
+// still running), so its tag and the counts go by themselves.
+export function useHalfDayClock(leaves) {
+  const [, setTick] = useState(0);
+  const running = leaves.some((leave) => HALF_ENDS[halfOf(leave)] && !halfOver(leave));
+  useEffect(() => {
+    if (!running) return undefined;
+    const timer = setInterval(() => setTick((n) => n + 1), 60 * 1000);
+    return () => clearInterval(timer);
+  }, [running]);
+}
+
 // Short: "On leave today", "On leave today, first half", "Leave without pay".
 // Full adds the dates, for the member list and the profile.
 function shortLabel(leave) {
@@ -35,7 +62,9 @@ function shortLabel(leave) {
   return `${leave.unpaid ? 'Leave without pay' : 'On leave today'}${half}`;
 }
 
-export function LeaveTag({ leave, short = false, className = '' }) {
+export function LeaveTag({ leave: given, short = false, className = '' }) {
+  useHalfDayClock(given ? [given] : []);
+  const leave = leaveNow(given);
   if (!leave) return null;
   const tone = leave.unpaid ? 'bg-rejected-soft text-rejected' : 'bg-pending-soft text-pending';
   const text = short ? shortLabel(leave) : `${leave.unpaid ? 'Leave without pay' : 'On leave'} ${leaveWhen(leave)}`;
@@ -63,9 +92,9 @@ export function DayTag({ leave, weekend = false, short = false, className = '' }
   return weekend ? <WeekendTag className={className} /> : <LeaveTag leave={leave} short={short} className={className} />;
 }
 
-// People on leave come first, then everyone by name.
+// People on leave now come first, then everyone by name.
 export const leaveFirst = (members) =>
-  [...members].sort((a, b) => Number(Boolean(b.leave)) - Number(Boolean(a.leave)) || a.name.localeCompare(b.name));
+  [...members].sort((a, b) => Number(Boolean(leaveNow(b.leave))) - Number(Boolean(leaveNow(a.leave))) || a.name.localeCompare(b.name));
 
 export function MemberRow({ member, onOpen, detail = 'leave', shortTag = false, weekend = false }) {
   return (

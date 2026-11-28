@@ -1411,7 +1411,11 @@ export default function WorkTracker() {
   // Someone not on this sheet (a manager looking at another department) has
   // no day of their own to fill in.
   const shownTab = me || tab !== 'mine' ? tab : 'dashboard';
-  const exportHref = `/api/work/sheet.csv${toQuery({ month: sheet.month, department: sheet.department })}`;
+  // Excel keeps the sheet's colours, formulas and comment notes; CSV is the
+  // plain numbers, for anything that reads a spreadsheet.
+  const exportQuery = toQuery({ month: sheet.month, department: sheet.department });
+  const exportHref = `/api/work/sheet.xlsx${exportQuery}`;
+  const csvHref = `/api/work/sheet.csv${exportQuery}`;
   const openedTotal = opened ? totals[`${opened.person.id}|${opened.day.date}`] : null;
   const openedPerson = opened ? sheet.people.find((person) => person.id === opened.person.id) : null;
 
@@ -1441,14 +1445,26 @@ export default function WorkTracker() {
                   Set targets
                 </Button>
               )}
-              <a
-                href={exportHref}
-                download
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium hover:bg-sunken"
-              >
-                <Download className="h-4 w-4" aria-hidden="true" />
-                Export sheet
-              </a>
+              <span className="inline-flex h-10 overflow-hidden rounded-lg border border-line bg-surface text-sm font-medium">
+                <a
+                  href={exportHref}
+                  download
+                  title="Excel, with the sheet's colours, formulas and comments"
+                  className="inline-flex items-center gap-2 px-3.5 hover:bg-sunken"
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  Export sheet
+                </a>
+                <a
+                  href={csvHref}
+                  download
+                  title="CSV: the plain numbers, without colours"
+                  aria-label="Export the sheet as CSV"
+                  className="inline-flex items-center border-l border-line px-3 text-muted hover:bg-sunken hover:text-ink"
+                >
+                  CSV
+                </a>
+              </span>
             </>
           }
         >
